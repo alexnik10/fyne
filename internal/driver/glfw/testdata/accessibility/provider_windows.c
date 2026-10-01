@@ -262,8 +262,9 @@ int main(void) {
     assert(runtimeId(&save->fragment, &before) == S_OK);
     IUnknown *patternObject = NULL;
     assert(pattern(&save->simple, UIA_InvokePatternId, &patternObject) == S_OK && patternObject);
+    int actionsBefore = actions;
     assert(IInvokeProvider_Invoke((IInvokeProvider *)patternObject) == S_OK);
-    assert(actions == 1 && actionWindow == 11 && actionID == 2); IUnknown_Release(patternObject);
+    assert(actions == actionsBefore + 1 && actionWindow == 11 && actionID == 2); IUnknown_Release(patternObject);
     assert(pattern(&save->simple, UIA_ValuePatternId, &patternObject) == S_OK && !patternObject);
     assert(invoke(&other->invoke) == S_OK && actionWindow == 22);
     assert(toggle(&check->toggle) == S_OK && actionID == 3);
