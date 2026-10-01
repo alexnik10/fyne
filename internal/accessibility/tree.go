@@ -121,11 +121,16 @@ func (t *Tree) Build(roots []Root, focused fyne.Focusable) []Node {
 				if n.Protected {
 					// Defend against a custom control accidentally returning clear text.
 					document.Text = strings.Repeat("•", length)
+					document.WordBoundaries = []int{0}
+					if length != 0 {
+						document.WordBoundaries = append(document.WordBoundaries, length)
+					}
 				}
 				document.Caret = min(max(document.Caret, 0), length)
 				document.SelectionStart = min(max(document.SelectionStart, 0), length)
 				document.SelectionEnd = min(max(document.SelectionEnd, document.SelectionStart), length)
 				document.Positions = append([]fyne.AccessibilityTextPosition(nil), document.Positions...)
+				document.WordBoundaries = append([]int(nil), document.WordBoundaries...)
 				n.Document = &document
 			}
 			n.ReadOnly = n.ReadOnly || n.Disabled

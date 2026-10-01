@@ -51,6 +51,7 @@ func TestEditableTextSnapshotAndCommands(t *testing.T) {
 	masked := nodeNamed(t, tree.Build(roots, entry), "Text")
 	assert.Empty(t, masked.Text)
 	assert.Equal(t, "•••••", masked.Document.Text)
+	assert.Equal(t, []int{0, 5}, masked.Document.WordBoundaries)
 	assert.Equal(t, 2, masked.Document.Caret)
 	assert.True(t, masked.Protected)
 	entry.Disable()

@@ -118,6 +118,12 @@ type AccessibilityTextInfo struct {
 	Positions                           []AccessibilityTextPosition
 	ViewportPosition                    Position
 	ViewportSize                        Size
+
+	// WordBoundaries supplies ordered rune offsets including zero and the end
+	// of the text. Adapters use these instead of independently guessing word
+	// breaks. Nil permits a platform fallback. Protected text must not reveal
+	// the word boundaries of the original value.
+	WordBoundaries []int
 }
 
 // AccessibleText exposes editable text, its caret and a single selection.

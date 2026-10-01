@@ -31,6 +31,18 @@ static int copyText(Record *r, const WinAccessibilityNode *n) {
         // leak a password via GetText, FindText, attributes or retained ranges.
         for (int i = 0; i < r->length; ++i) { r->text[i] = 0x2022; r->offsets[i] = i; }
         r->text[r->length] = 0; r->offsets[r->length] = r->length;
+        r->wordBoundaries = calloc((size_t)r->length + 1, 1);
+        if (!r->wordBoundaries) return 0;
+        r->wordBoundaries[0] = r->wordBoundaries[r->length] = 1;
+    } else if (n->word_boundaries && n->word_boundary_count > 0) {
+        int valid = n->word_boundaries[0] == 0 && n->word_boundaries[n->word_boundary_count - 1] == r->length;
+        for (int i = 1; valid && i < n->word_boundary_count; ++i)
+            valid = n->word_boundaries[i] > n->word_boundaries[i-1] && n->word_boundaries[i] <= r->length;
+        if (valid) {
+            r->wordBoundaries = calloc((size_t)r->length + 1, 1);
+            if (!r->wordBoundaries) return 0;
+            for (int i = 0; i < n->word_boundary_count; ++i) r->wordBoundaries[n->word_boundaries[i]] = 1;
+        }
     }
     r->data.caret = clampOffset(n->caret, r->length);
     r->data.selection_start = clampOffset(n->selection_start, r->length);
@@ -271,6 +283,7 @@ static int unitBoundary(Record *r, enum TextUnit unit, int pos) {
     switch (unit) {
     case TextUnit_Character: return 1;
     case TextUnit_Word: {
+        if (r->wordBoundaries) return r->wordBoundaries[pos] != 0;
         int before = runeClass(r, pos - 1), after = runeClass(r, pos);
         return after != 0 && before != after;
     }
@@ -290,7 +303,7 @@ static int nextBoundary(Record *r, enum TextUnit unit, int pos, int direction) {
 }
 static void expandUnit(TextRange *range, Record *r, enum TextUnit unit) {
     int start = range->start;
-    if (unit == TextUnit_Character && start == r->length) { range->end = start; return; }
+    if ((unit == TextUnit_Character || unit == TextUnit_Word) && start == r->length) { range->end = start; return; }
     // Expanding the end-of-document caret selects the final unit, if any.
     if (start == r->length && start > 0) --start;
     while (start > 0 && !unitBoundary(r, unit, start)) --start;

@@ -82,6 +82,7 @@ typedef struct {
     Element *element;
     WCHAR *text;
     int *offsets, length;
+    unsigned char *wordBoundaries;
     WinAccessibilityTextPosition *positions;
 } Record;
 // A snapshot remains alive while events are raised, including nested native
@@ -519,6 +520,7 @@ static void freeRecords(Record *records, int count) {
     for (int i = 0; i < count; ++i) {
         free(records[i].name); free(records[i].description); free(records[i].value);
         free(records[i].text); free(records[i].offsets); free(records[i].positions);
+        free(records[i].wordBoundaries);
         if (records[i].element) release(records[i].element);
     }
     free(snapshot);
@@ -574,6 +576,7 @@ int WinAccessibilityUpdate(WinAccessibility *c, const WinAccessibilityNode *node
         // No borrowed strings or Go memory survives this call.
         r->data.name = r->data.description = r->data.value = r->data.text = NULL;
         r->data.positions = NULL;
+        r->data.word_boundaries = NULL;
         r->name = wide(nodes[i].name); r->description = wide(nodes[i].description);
         r->value = wide((nodes[i].flags & WinAccProtected) ? "" : nodes[i].value);
         int textOK = copyText(r, &nodes[i]);

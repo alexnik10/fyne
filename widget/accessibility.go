@@ -108,6 +108,7 @@ func (e *Entry) AccessibilityText() fyne.AccessibilityTextInfo {
 	if e.Password {
 		info.Text = strings.Repeat(passwordChar, length)
 	}
+	info.WordBoundaries = entryWordBoundaries(info.Text)
 	if e.sel != nil && e.sel.selecting {
 		anchor := min(max(textPosFromRowCol(e.sel.selectRow, e.sel.selectColumn, provider), 0), length)
 		info.SelectionStart, info.SelectionEnd = min(anchor, caret), max(anchor, caret)

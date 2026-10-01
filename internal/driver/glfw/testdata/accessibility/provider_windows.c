@@ -166,9 +166,71 @@ static void testTextProvider(void) {
     ITextRangeProvider_Release(document); ITextRangeProvider_Release(range); ITextRangeProvider_Release(clone);
     ITextProvider2_Release(provider); release(entry); DestroyWindow(hwnd);
 }
+static void testWordNavigation(void) {
+    HWND hwnd = newWindow(); assert(hwnd);
+    WinAccessibility *c = WinAccessibilityCreate(hwnd, 55); assert(c);
+    int stops[] = {0, 4, 5, 12, 13, 16};
+    const WCHAR *words[] = {L"user", L"@", L"example", L".", L"org", L""};
+    WinAccessibilityNode node = {.id=1, .role=5, .flags=WinAccText|WinAccFocusable,
+        .text="user@example.org", .word_boundaries=stops, .word_boundary_count=6};
+    assert(WinAccessibilityUpdate(c, &node, 1));
+    Element *entry = retain(c, 1);
+    // Replay the caret stops delivered by Windows Entry shortcuts, then make
+    // the same selection/word-expansion requests as NVDA, in both directions.
+    for (int direction = 1; direction >= -1; direction -= 2) {
+        for (int i = direction > 0 ? 0 : 5; i >= 0 && i < 6; i += direction) {
+            node.caret = node.selection_start = node.selection_end = stops[i];
+            assert(WinAccessibilityUpdate(c, &node, 1));
+            SAFEARRAY *selection = NULL; ITextRangeProvider *range = NULL; LONG index = 0;
+            assert(ITextProvider2_GetSelection(&entry->text, &selection) == S_OK);
+            assert(SafeArrayGetElement(selection, &index, &range) == S_OK); SafeArrayDestroy(selection);
+            assert(ITextRangeProvider_ExpandToEnclosingUnit(range, TextUnit_Word) == S_OK);
+            expectText(range, words[i]); ITextRangeProvider_Release(range);
+        }
+    }
+    // Word movement and endpoint movement must use the identical partition.
+    BOOL active = FALSE; ITextRangeProvider *range = NULL;
+    assert(ITextProvider2_GetCaretRange(&entry->text, &active, &range) == S_OK);
+    for (int i=1; i<6; ++i) {
+        int moved = 0;
+        assert(ITextRangeProvider_Move(range, TextUnit_Word, 1, &moved) == S_OK && moved == 1);
+        assert(TEXT_RANGE(range)->start == stops[i] && TEXT_RANGE(range)->end == stops[i]);
+    }
+    for (int i=4; i>=0; --i) {
+        int moved = 0;
+        assert(ITextRangeProvider_MoveEndpointByUnit(range, TextPatternRangeEndpoint_Start, TextUnit_Word, -1, &moved) == S_OK && moved == -1);
+        assert(TEXT_RANGE(range)->start == stops[i]);
+    }
+    ITextRangeProvider_Release(range);
+
+    // Underscores are part of an Entry word. A native character classifier must
+    // not override the widget's boundaries, and no input array may be retained.
+    int custom[] = {0, 7};
+    node.text = "foo_bar"; node.word_boundaries = custom; node.word_boundary_count = 2;
+    node.caret = node.selection_start = node.selection_end = 3;
+    assert(WinAccessibilityUpdate(c, &node, 1)); custom[1] = 3;
+    assert(ITextProvider2_GetCaretRange(&entry->text, &active, &range) == S_OK);
+    assert(ITextRangeProvider_ExpandToEnclosingUnit(range, TextUnit_Word) == S_OK);
+    expectText(range, L"foo_bar"); ITextRangeProvider_Release(range);
+
+    // Protected controls expose one masked word, even if a custom control
+    // incorrectly supplied the original password's word boundaries.
+    node.text = "user@example.org"; node.flags |= WinAccProtected;
+    node.word_boundaries = stops; node.word_boundary_count = 6;
+    node.caret = node.selection_start = node.selection_end = 5;
+    assert(WinAccessibilityUpdate(c, &node, 1));
+    assert(ITextProvider2_GetCaretRange(&entry->text, &active, &range) == S_OK);
+    assert(ITextRangeProvider_ExpandToEnclosingUnit(range, TextUnit_Word) == S_OK);
+    BSTR masked = NULL;
+    assert(ITextRangeProvider_GetText(range, -1, &masked) == S_OK && SysStringLen(masked) == 16);
+    for (UINT i=0; i<SysStringLen(masked); ++i) assert(masked[i] == 0x2022);
+    SysFreeString(masked); ITextRangeProvider_Release(range);
+    WinAccessibilityCleanup(c); release(entry); DestroyWindow(hwnd);
+}
 int main(void) {
     CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
     testTextProvider();
+    testWordNavigation();
     HWND h1 = newWindow(), h2 = newWindow(); assert(h1 && h2);
     WinAccessibility *a = WinAccessibilityCreate(h1, 11), *b = WinAccessibilityCreate(h2, 22);
     assert(a && b && a != b);

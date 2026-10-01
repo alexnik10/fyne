@@ -141,3 +141,27 @@ selection, retained ranges, privacy, geometry, and both slider value events.
 - [Text and TextRange contracts](https://learn.microsoft.com/en-us/windows/win32/winauto/uiauto-implementingtextandtextrange)
 - [NVDA UIA event subscriptions](https://github.com/nvaccess/nvda/blob/master/source/UIAHandler/__init__.py)
 - [NVDA TextInfo and value events](https://github.com/nvaccess/nvda/blob/master/source/NVDAObjects/UIA/__init__.py)
+
+## Word navigation follow-up (demo 3)
+
+The user's second NVDA 2026.2 run reported that most behavior now worked, but
+Ctrl+Right skipped `example` in `user@example.org`. The original Entry shortcut
+stopped at rune offsets 0, 4, 12 and 16, while UIA split the address at 0, 4, 5,
+12, 13 and 16. Expanding the ranges at 4 and 12 returned only `@` and `.`.
+
+Windows Ctrl+Left/Right and Ctrl+Shift+Left/Right now use the same word boundaries
+as `AccessibilityTextInfo.WordBoundaries`. Word and punctuation runs are separate
+units; spaces are attached to the preceding unit and newlines remain explicit
+stops. Soft wrapping does not create extra word stops. Existing keyboard word
+navigation on other platforms is preserved. The optional snapshot field lets
+other adapters consume the control's boundaries without reimplementing them.
+
+The Windows provider copies and validates these offsets for ExpandToEnclosingUnit,
+Move and MoveEndpointByUnit. Expanding a word at end-of-document returns an empty
+range instead of repeating the final word. Password snapshots and native copies
+replace any original word boundaries with a single masked word.
+
+Regressions cover the exact address in both directions, Ctrl+Shift selection,
+trailing punctuation, spaces, hard/soft line breaks, Cyrillic, supplementary
+characters, underscores, native range expansion/movement, ownership of the copied
+boundary data and protected text. Final spoken output still requires an NVDA run.

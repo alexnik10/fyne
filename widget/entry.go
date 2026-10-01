@@ -1105,6 +1105,14 @@ func (e *Entry) registerShortcut() {
 	})
 
 	moveWord := func(s fyne.Shortcut) {
+		shortcut, ok := s.(*desktop.CustomShortcut)
+		if !ok {
+			return
+		}
+		if runtime.GOOS == goos.Windows {
+			e.moveWordWindows(shortcut.KeyName == fyne.KeyRight)
+			return
+		}
 		row := e.textProvider().row(e.CursorRow)
 		start, end := getTextWhitespaceRegion(row, e.CursorColumn, true)
 		if start == -1 || end == -1 {
@@ -1112,7 +1120,7 @@ func (e *Entry) registerShortcut() {
 		}
 
 		e.setFieldsAndRefresh(func() {
-			if s.(*desktop.CustomShortcut).KeyName == fyne.KeyLeft {
+			if shortcut.KeyName == fyne.KeyLeft {
 				if e.CursorColumn == 0 {
 					if e.CursorRow > 0 {
 						e.CursorRow--

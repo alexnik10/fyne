@@ -26,6 +26,8 @@ typedef struct {
     const char *text;
     int caret, selection_start, selection_end;
     uint64_t text_revision;
+    const int *word_boundaries;
+    int word_boundary_count;
     const WinAccessibilityTextPosition *positions;
     int position_count;
     double viewport_x, viewport_y, viewport_width, viewport_height;

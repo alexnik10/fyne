@@ -90,6 +90,17 @@ func (w *window) updateAccessibility() {
 			defer C.free(unsafe.Pointer(x.text))
 			x.caret, x.selection_start, x.selection_end = C.int(doc.Caret), C.int(doc.SelectionStart), C.int(doc.SelectionEnd)
 			x.text_revision = C.uint64_t(doc.Revision)
+			if len(doc.WordBoundaries) != 0 {
+				words := (*C.int)(C.calloc(C.size_t(len(doc.WordBoundaries)), C.size_t(C.sizeof_int)))
+				if words == nil {
+					return
+				}
+				defer C.free(unsafe.Pointer(words))
+				for j, boundary := range doc.WordBoundaries {
+					unsafe.Slice(words, len(doc.WordBoundaries))[j] = C.int(boundary)
+				}
+				x.word_boundaries, x.word_boundary_count = words, C.int(len(doc.WordBoundaries))
+			}
 			x.viewport_x = x.x + C.double(scale.ToScreenCoordinate(w.canvas, doc.ViewportPosition.X))
 			x.viewport_y = x.y + C.double(scale.ToScreenCoordinate(w.canvas, doc.ViewportPosition.Y))
 			x.viewport_width = C.double(scale.ToScreenCoordinate(w.canvas, doc.ViewportSize.Width))
