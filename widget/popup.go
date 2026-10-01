@@ -60,7 +60,6 @@ func (p *PopUp) Refresh() {
 
 // Show this pop-up as overlay if not already shown.
 func (p *PopUp) Show() {
-	newOverlay := p.overlay == nil
 	if p.overlay == nil {
 		dismiss := p.Hide
 		if p.modal {
@@ -83,9 +82,6 @@ func (p *PopUp) Show() {
 	}
 	p.Refresh()
 	p.BaseWidget.Show()
-	if newOverlay && p.modal {
-		p.Canvas.FocusNext()
-	}
 }
 
 // ShowAtPosition shows this pop-up at the given position.

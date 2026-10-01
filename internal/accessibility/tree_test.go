@@ -193,3 +193,25 @@ func TestKeyboardAndAccessibleActivationPreserveFocus(t *testing.T) {
 	button.AccessibilityActivate()
 	assert.Equal(t, 2, calls)
 }
+
+func TestOverlayInitialFocusRunsOnce(t *testing.T) {
+	app := test.NewApp()
+	defer app.Quit()
+	opener := widget.NewButton("Open", nil)
+	win := test.NewWindow(opener)
+	defer win.Close()
+	win.Canvas().Focus(opener)
+	first, second := widget.NewEntry(), widget.NewEntry()
+	popup := widget.NewModalPopUp(container.NewVBox(first, second), win.Canvas())
+	var scope accessibility.FocusScope
+	scope.Update(win.Canvas())
+	popup.Show()
+	scope.Update(win.Canvas())
+	assert.Same(t, first, win.Canvas().Focused())
+	win.Canvas().Focus(second)
+	scope.Update(win.Canvas())
+	assert.Same(t, second, win.Canvas().Focused())
+	popup.Hide()
+	scope.Update(win.Canvas())
+	assert.Same(t, opener, win.Canvas().Focused())
+}

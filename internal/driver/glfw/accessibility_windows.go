@@ -22,6 +22,7 @@ import (
 type accessibilityBridge struct {
 	window *window
 	tree   accessibility.Tree
+	scope  accessibility.FocusScope
 	native *C.WinAccessibility
 	handle uintptr
 }
@@ -58,6 +59,7 @@ func (w *window) updateAccessibility() {
 		accessibilityWindows[w] = b
 		accessibilityHandles.Store(b.handle, b)
 	}
+	b.scope.Update(w.canvas)
 	nodes := b.tree.Build(w.accessibilityRoots(), w.canvas.Focused())
 	// Allocate the array and every string in C memory: cgo never receives an
 	// array containing pointers into the Go heap.
