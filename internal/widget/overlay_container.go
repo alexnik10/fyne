@@ -23,6 +23,11 @@ type OverlayContainer struct {
 	shown, manual bool
 }
 
+// AccessibilityChildren excludes the overlay's decorative background.
+func (o *OverlayContainer) AccessibilityChildren() []fyne.CanvasObject {
+	return []fyne.CanvasObject{o.Content}
+}
+
 // NewOverlayContainer creates an OverlayContainer.
 func NewOverlayContainer(c fyne.CanvasObject, canvas fyne.Canvas, onDismiss func()) *OverlayContainer {
 	o := &OverlayContainer{canvas: canvas, Content: c, onDismiss: onDismiss}

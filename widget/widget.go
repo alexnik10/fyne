@@ -17,8 +17,25 @@ type BaseWidget struct {
 	position fyne.Position
 	Hidden   bool
 
-	impl       fyne.Widget
-	themeCache fyne.Theme
+	impl              fyne.Widget
+	themeCache        fyne.Theme
+	accessibilityInfo fyne.AccessibilityInfo
+}
+
+// AccessibilityInfo returns the optional semantic metadata for this widget.
+//
+// Since: 2.9
+func (w *BaseWidget) AccessibilityInfo() fyne.AccessibilityInfo {
+	return w.accessibilityInfo
+}
+
+// SetAccessibilityInfo sets an explicit name, description and validation state.
+// Call on the Fyne event thread, like other widget setters.
+//
+// Since: 2.9
+func (w *BaseWidget) SetAccessibilityInfo(info fyne.AccessibilityInfo) {
+	w.accessibilityInfo = info
+	w.Refresh()
 }
 
 // ExtendBaseWidget is used by an extending widget to make use of BaseWidget functionality.

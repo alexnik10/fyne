@@ -79,6 +79,7 @@ func (d *gLDriver) drawSingleFrame() {
 		} else {
 			w.markCacheAlive()
 		}
+		w.pollAccessibility()
 	}
 	cache.Clean(refreshed)
 }

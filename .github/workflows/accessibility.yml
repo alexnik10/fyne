@@ -1,0 +1,38 @@
+name: Accessibility
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  semantics:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v6
+        with:
+          go-version: stable
+      - run: go test -race -tags ci ./internal/accessibility ./widget ./internal/widget
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v6
+        with:
+          go-version: stable
+      - name: Build actual GLFW accessibility driver
+        run: go build -tags accessibility ./cmd/accessibility_demo
+      - name: Semantic and widget tests with accessibility enabled
+        run: go test -race -tags accessibility,ci ./internal/accessibility ./widget ./internal/widget
+      - name: Native UI Automation regression tests
+        shell: bash
+        run: |
+          gcc -std=c11 -Wall -Werror=incompatible-pointer-types internal/driver/glfw/testdata/accessibility/provider_windows.c -o provider-test.exe -loleaut32 -lole32 -luuid
+          ./provider-test.exe
+      - name: Upload demo for manual screen-reader acceptance
+        uses: actions/upload-artifact@v5
+        with:
+          name: accessibility-demo-windows
+          path: accessibility_demo.exe

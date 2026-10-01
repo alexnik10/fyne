@@ -1,0 +1,53 @@
+# Accessibility implementation plan (Windows first)
+
+Baseline: `312219185e6aebb7ac7728abc7044089b657ef27`. The existing
+`Accessible` interface and the `accessibility` build tag remain compatible.
+
+## Architecture and acceptance gates
+
+1. **Shared semantics.** Optional capability interfaces, a platform-independent
+   tree builder, stable identity for live objects, logical children, immutable
+   snapshots, and no dependence on Windows types in widgets. Unit tests cover
+   identity, ordering, hidden ancestors, removal, and protected values.
+2. **Interactive controls.** Button/link activation, Check toggle, Entry value,
+   Slider range, explicit names/descriptions, enabled/read-only/required/invalid
+   state. Commands use widget behaviour and run on the Fyne event thread.
+3. **Windows provider.** One provider context per HWND; COM lifetime independent
+   of the widget lifetime; hierarchical fragment navigation; UIA Invoke, Toggle,
+   Value and RangeValue; actual Canvas focus; state/property/structure events.
+   Removed objects must return UIA_E_ELEMENTNOTAVAILABLE, never point at another
+   object. Windows compilation and native provider regression tests are gates.
+4. **Complete basic scenario.** Named form controls, popup scope matching Fyne's
+   input scope, focus restoration, sample app, Windows CI and a repeatable NVDA /
+   Narrator checklist. Passing automated tests does not replace this checklist.
+5. **Text (separate release gate).** ITextProvider/ITextRangeProvider: Unicode
+   offsets, selection, caret, line/word boundaries, bounding rectangles, editing
+   notifications and password restrictions. ValuePattern alone is not complete
+   screen-reader support for an editor.
+6. **Collections (separate release gate).** Selection/SelectionItem,
+   ExpandCollapse, Scroll/ScrollItem, Grid/Table, logical item IDs independent of
+   recycled render cells and ItemContainer/VirtualizedItem where appropriate.
+   Cover Select, RadioGroup, List, Table, Tree, tabs, menus and scrolling.
+7. **Other platforms.** Consume the shared snapshot/capability model in NSAX,
+   Android, iOS and AT-SPI adapters; write mapping and conformance tests before
+   claiming parity. Existing adapters remain compatible with the small API.
+
+## Invariants
+
+- Widget state is authoritative; platform queries use snapshots, not widget reads
+  from arbitrary COM threads. Platform actions are queued and revalidated.
+- Reading focus is distinct from keyboard focus and selection. No shadow Tab
+  handler: only the Fyne canvas determines the keyboard focus.
+- Identifiers survive changes to name/value/bounds/order while objects remain
+  attached. Removed IDs are never reused. Recycled collection cells need logical
+  item identity before collection support is claimed.
+- Commit the whole tree before raising events; never hold provider locks while
+  calling UIA, application callbacks or waiting for the event thread.
+- Background content is excluded while an input-capturing overlay is active.
+- No password text is stored in native snapshots, diagnostics or events.
+
+## Definition of done
+
+Each milestone is reported separately. Full Fyne accessibility requires the text
+and collection gates as well as successful real screen-reader scenario tests on
+Windows. Windows-first work must not be described as full platform parity.
