@@ -30,7 +30,10 @@ func (r *RadioGroup) AccessibilityChildren() []fyne.CanvasObject {
 func (r *RadioGroup) syncItems() {
 	old := make(map[string][]*radioItem)
 	for _, obj := range r.items {
-		item := obj.(*radioItem)
+		item, ok := obj.(*radioItem)
+		if !ok {
+			continue
+		}
 		old[item.Label] = append(old[item.Label], item)
 	}
 	items := make([]fyne.CanvasObject, len(r.Options))
@@ -51,7 +54,7 @@ func (r *RadioGroup) syncItems() {
 
 func (i *radioItem) AccessibilityLabel() string           { return i.Label }
 func (*radioItem) AccessibilityRole() fyne.AccessibleRole { return fyne.AccessibleRoleRadio }
-func (i *radioItem) AccessibilitySelectionItem() (fyne.CanvasObject, bool, int, int) {
+func (i *radioItem) AccessibilitySelectionItem() (owner fyne.CanvasObject, selected bool, position, count int) {
 	if i.group == nil {
 		return nil, i.Selected, 0, 0
 	}

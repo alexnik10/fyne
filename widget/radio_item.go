@@ -118,7 +118,10 @@ func (i *radioItem) TypedKey(event *fyne.KeyEvent) {
 	default:
 		return
 	}
-	item := i.group.items[idx].(*radioItem)
+	item, ok := i.group.items[idx].(*radioItem)
+	if !ok {
+		return
+	}
 	focusIfNotMobile(item)
 	item.AccessibilitySelect(fyne.AccessibilitySelectReplace)
 }

@@ -183,7 +183,10 @@ func (p *PopUpMenu) revealSelectItem() {
 	if p.selectOwner == nil || p.activeItem == nil || !p.Visible() {
 		return
 	}
-	r := cache.Renderer(p).(*menuRenderer)
+	r, ok := cache.Renderer(p).(*menuRenderer)
+	if !ok {
+		return
+	}
 	top, bottom := p.activeItem.Position().Y, p.activeItem.Position().Y+p.activeItem.Size().Height
 	offset := r.scroll.Offset
 	if top < offset.Y {
@@ -204,7 +207,7 @@ type selectOption struct {
 func (o *selectOption) AccessibilityLabel() string           { return o.label }
 func (*selectOption) AccessibilityRole() fyne.AccessibleRole { return fyne.AccessibleRoleListItem }
 func (o *selectOption) Disabled() bool                       { return o.owner.Disabled() }
-func (o *selectOption) AccessibilitySelectionItem() (fyne.CanvasObject, bool, int, int) {
+func (o *selectOption) AccessibilitySelectionItem() (owner fyne.CanvasObject, selected bool, position, count int) {
 	return o.owner, o.owner.SelectedIndex() == o.index, o.index + 1, len(o.owner.Options)
 }
 func (o *selectOption) AccessibilitySelect(mode fyne.AccessibilitySelectionMode) bool {

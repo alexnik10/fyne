@@ -73,7 +73,8 @@ func (t *Tree) performSelection(n Node, obj fyne.CanvasObject, action Action) bo
 		return false
 	}
 	mode := fyne.AccessibilitySelectReplace
-	if action == AddToSelection {
+	switch action {
+	case AddToSelection:
 		mode = fyne.AccessibilitySelectAdd
 		if !owner.Multiple {
 			for _, other := range t.nodes {
@@ -82,7 +83,7 @@ func (t *Tree) performSelection(n Node, obj fyne.CanvasObject, action Action) bo
 				}
 			}
 		}
-	} else if action == RemoveFromSelection {
+	case RemoveFromSelection:
 		mode = fyne.AccessibilitySelectRemove
 		if owner.SelectionRequired && n.Selected {
 			remaining := false
