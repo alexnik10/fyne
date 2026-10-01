@@ -106,9 +106,11 @@ func showSelectionDemo(application fyne.App) {
 func showTextDemo(application fyne.App) {
 	window := application.NewWindow("Multiline text accessibility")
 	entry := widget.NewMultiLineEntry()
-	entry.SetAccessibilityInfo(fyne.AccessibilityInfo{Name: "Notes", Description: "Multiline editing and selection"})
+	entry.SetAccessibilityInfo(fyne.AccessibilityInfo{Name: "Notes", Description: "Multiline editing. Tab inserts a tab. Ctrl+Tab moves to the next control; Ctrl+Shift+Tab moves to the previous control."})
 	entry.SetText("First line: user@example.org\nSecond line: foo_bar\nТретья строка: проверка выделения")
-	window.SetContent(container.NewBorder(nil, widget.NewButton("Close text demo", window.Close), nil, nil, entry))
+	hint := widget.NewLabel("Tab inserts a tab. Ctrl+Tab moves to Close text demo.")
+	hint.Wrapping = fyne.TextWrapWord
+	window.SetContent(container.NewBorder(hint, widget.NewButton("Close text demo", window.Close), nil, nil, entry))
 	window.Resize(fyne.NewSize(windowWidth, windowHeight))
 	window.Canvas().Focus(entry)
 	window.Show()

@@ -255,3 +255,21 @@ Regressions also cover closed-arrow boundaries, initial popup highlight, commit
 versus cancellation, forward/backward focus traversal, ordinary-menu behavior,
 multiple final newlines and geometry-free text providers. Existing desktop-only
 focus assertions are corrected for mobile CI without changing mobile focus policy.
+
+
+### Leaving a multiline Entry
+
+A further user report identified a keyboard trap in the Notes demo: Tab inserts
+a tab character, leaving no documented way to reach Close text demo. Multiline
+Entry now uses Ctrl+Tab for the next control and Ctrl+Shift+Tab for the previous
+control, without changing the text or caret. Traversal uses the canvas focus
+manager, skips disabled controls and stays within modal scope. Single-line
+entries and other modifier combinations keep their existing behavior.
+
+Notes exposes this instruction in both its accessible description and a visible
+hint. Verify Tab insertion, Ctrl+Tab to Close text demo, and Shift+Tab back into
+Notes. Ctrl+Shift+Tab moves backwards; in this two-control window it also reaches
+Close text demo because traversal wraps.
+
+This matches the documented Windows Forms behavior for a multiline TextBox with
+[AcceptsTab enabled](https://learn.microsoft.com/en-us/dotnet/api/system.windows.forms.textboxbase.acceptstab).

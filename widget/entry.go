@@ -159,6 +159,7 @@ func NewPasswordEntry() *Entry {
 }
 
 // AcceptsTab returns if Entry accepts the Tab key or not.
+// Multiline entries insert a tab; Ctrl+Tab and Ctrl+Shift+Tab move keyboard focus.
 //
 // Since: 2.1
 func (e *Entry) AcceptsTab() bool {
@@ -931,6 +932,9 @@ func (e *Entry) TypedRune(r rune) {
 
 // TypedShortcut implements the Shortcutable interface
 func (e *Entry) TypedShortcut(shortcut fyne.Shortcut) {
+	if e.handleFocusShortcut(shortcut) {
+		return
+	}
 	e.shortcut.TypedShortcut(shortcut)
 }
 

@@ -97,7 +97,9 @@ multiline editing scenarios also passed. Before advancing to tabs/menus:
 2. Correct Line/Paragraph ranges at a final empty line, with native regressions.
 3. Publish focused-control feedback before background property changes, and
    ask the user to repeat the Disable choices timing check.
-4. Ship a standalone Windows demo and rerun automated desktop/mobile/native gates.
+4. Provide Ctrl+Tab / Ctrl+Shift+Tab to leave a multiline Entry without changing
+   text, with visible and accessible instructions in Notes and modal-scope tests.
+5. Ship a standalone Windows demo and rerun automated desktop/mobile/native gates.
 
 Narrator, IME/complex scripts, the remaining collection patterns and other platform
 implementations remain separate acceptance work.

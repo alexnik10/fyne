@@ -20,7 +20,7 @@ func (s *Select) typedKeyWindows(event *fyne.KeyEvent) bool {
 			return true
 		}
 		index := s.SelectedIndex()
-		next := index
+		var next int
 		if index < 0 {
 			next = 0
 		} else if event.Name == fyne.KeyUp || event.Name == fyne.KeyLeft {
