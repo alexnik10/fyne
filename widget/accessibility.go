@@ -101,8 +101,10 @@ func (e *Entry) AccessibilityText() fyne.AccessibilityTextInfo {
 	provider := e.textProvider()
 	length := utf8.RuneCountInString(e.Text)
 	caret := min(max(e.CursorTextOffset(), 0), length)
-	info := fyne.AccessibilityTextInfo{Text: e.Text, Caret: caret, SelectionStart: caret,
-		SelectionEnd: caret, Revision: e.accessibilityTextRevision, ViewportSize: e.Size()}
+	info := fyne.AccessibilityTextInfo{
+		Text: e.Text, Caret: caret, SelectionStart: caret,
+		SelectionEnd: caret, Revision: e.accessibilityTextRevision, ViewportSize: e.Size(),
+	}
 	if e.Password {
 		info.Text = strings.Repeat(passwordChar, length)
 	}

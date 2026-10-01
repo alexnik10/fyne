@@ -29,9 +29,11 @@ type accessibilityBridge struct {
 
 // The window map is event-thread-only. COM callbacks use the handle registry
 // and marshal work to the window thread; C providers never retain Go pointers.
-var accessibilityWindows = make(map[*window]*accessibilityBridge)
-var accessibilityHandles sync.Map
-var nextAccessibilityHandle atomic.Uint64
+var (
+	accessibilityWindows    = make(map[*window]*accessibilityBridge)
+	accessibilityHandles    sync.Map
+	nextAccessibilityHandle atomic.Uint64
+)
 
 func (w *window) accessibilityRoots() []accessibility.Root {
 	overlays := w.canvas.Overlays().List()
