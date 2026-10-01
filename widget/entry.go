@@ -113,7 +113,8 @@ type Entry struct {
 
 	// undoStack stores the data necessary for undo/redo functionality
 	// See entryUndoStack for implementation details.
-	undoStack entryUndoStack
+	undoStack                 entryUndoStack
+	accessibilityTextRevision uint64
 
 	// rich records that the content of this entry is held as styled segments,
 	// managed by a RichTextEntry, rather than being generated from Text.
@@ -1454,6 +1455,9 @@ func (e *Entry) updateMousePointer(p fyne.Position, rightClick bool) {
 // It assumes that a lock exists on the widget.
 func (e *Entry) updateText(text string, fromBinding bool) bool {
 	changed := e.Text != text
+	if changed {
+		e.accessibilityTextRevision++
+	}
 	wasEmpty := e.Text == ""
 	e.Text = text
 	if e.onRequiredChanged != nil {

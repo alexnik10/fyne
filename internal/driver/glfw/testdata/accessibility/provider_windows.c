@@ -8,9 +8,12 @@
 #include <assert.h>
 #include <stdio.h>
 static int propertyEvents, structureEvents, focusEvents;
+static int textEvents, selectionEvents, numericEvents, valueEvents;
 static void (*duringProperty)(void);
 static HRESULT WINAPI propertyEvent(IRawElementProviderSimple *p, PROPERTYID id, VARIANT before, VARIANT after) {
     (void)p; (void)id; (void)before; (void)after; ++propertyEvents;
+    if (id == UIA_RangeValueValuePropertyId) { assert(before.vt == VT_R8 && after.vt == VT_R8); ++numericEvents; }
+    if (id == UIA_ValueValuePropertyId) { assert(before.vt == VT_BSTR && after.vt == VT_BSTR); ++valueEvents; }
     if (duringProperty) { void (*fn)(void) = duringProperty; duringProperty = NULL; fn(); }
     return S_OK;
 }
@@ -18,7 +21,10 @@ static HRESULT WINAPI structureEvent(IRawElementProviderSimple *p, enum Structur
     (void)p; (void)type; (void)ids; (void)count; ++structureEvents; return S_OK;
 }
 static HRESULT WINAPI automationEvent(IRawElementProviderSimple *p, EVENTID id) {
-    (void)p; if (id == UIA_AutomationFocusChangedEventId) ++focusEvents; return S_OK;
+    (void)p; if (id == UIA_AutomationFocusChangedEventId) ++focusEvents;
+    if (id == UIA_Text_TextChangedEventId) ++textEvents;
+    if (id == UIA_Text_TextSelectionChangedEventId) ++selectionEvents;
+    return S_OK;
 }
 #define UiaRaiseAutomationPropertyChangedEvent propertyEvent
 #define UiaRaiseStructureChangedEvent structureEvent
@@ -29,6 +35,11 @@ static int actions;
 static uintptr_t actionWindow;
 static uint32_t actionID;
 static char actionValue[128];
+static int textStart, textEnd, textScroll;
+int goFyneAccessibilityTextAction(uintptr_t handle, uint32_t id, int start, int end, int scroll, int alignTop) {
+    (void)alignTop; actionWindow = handle; actionID = id;
+    textStart = start; textEnd = end; textScroll = scroll; return 1;
+}
 void goFyneAccessibilityAction(uintptr_t handle, uint32_t id, int act, char *value, double number) {
     (void)act; (void)number; ++actions; actionWindow = handle; actionID = id;
     if (value) lstrcpynA(actionValue, value, sizeof(actionValue));
@@ -61,8 +72,103 @@ static DWORD WINAPI queryWorker(void *arg) {
     }
     return 0;
 }
+static void expectText(ITextRangeProvider *range, const WCHAR *expected) {
+    BSTR text = NULL;
+    assert(ITextRangeProvider_GetText(range, -1, &text) == S_OK);
+    assert(text && !wcscmp(text, expected)); SysFreeString(text);
+}
+static void testTextProvider(void) {
+    HWND hwnd = newWindow(); assert(hwnd);
+    WinAccessibility *c = WinAccessibilityCreate(hwnd, 44); assert(c);
+    WinAccessibilityTextPosition positions[7] = {
+        {0,0,20,0}, {10,0,20,0}, {30,0,20,0}, {40,0,20,0},
+        {0,20,20,1}, {10,20,20,1}, {20,20,20,1}
+    };
+    WinAccessibilityNode node = {.id=1, .role=5, .flags=WinAccText|WinAccValue|WinAccFocusable,
+        .text="A\xf0\x9f\x98\x80\xd0\x91\nxy", .value="A\xf0\x9f\x98\x80\xd0\x91\nxy",
+        .caret=2, .selection_start=2, .selection_end=2, .text_revision=1,
+        .positions=positions, .position_count=7, .viewport_width=100, .viewport_height=40};
+    assert(WinAccessibilityUpdate(c, &node, 1));
+    Element *entry = retain(c, 1);
+    IUnknown *unknown = NULL;
+    assert(pattern(&entry->simple, UIA_TextPatternId, &unknown) == S_OK && unknown);
+    ITextProvider2 *provider = NULL;
+    assert(IUnknown_QueryInterface(unknown, &IID_ITextProvider2, (void **)&provider) == S_OK);
+    IUnknown_Release(unknown);
+    ITextRangeProvider *document = NULL, *range = NULL, *clone = NULL;
+    assert(ITextProvider2_get_DocumentRange(provider, &document) == S_OK);
+    expectText(document, L"A\xd83d\xde00\u0411\nxy");
+    SAFEARRAY *selection = NULL;
+    assert(ITextProvider2_GetSelection(provider, &selection) == S_OK);
+    LONG index = 0; assert(SafeArrayGetElement(selection, &index, &range) == S_OK);
+    SafeArrayDestroy(selection);
+    expectText(range, L"");
+    assert(ITextRangeProvider_ExpandToEnclosingUnit(range, TextUnit_Character) == S_OK);
+    expectText(range, L"\u0411"); // Cyrillic character at the caret, not UTF-16 offset 2
+    int moved = 0;
+    assert(ITextRangeProvider_Move(range, TextUnit_Character, -1, &moved) == S_OK && moved == -1);
+    expectText(range, L"\xd83d\xde00"); // surrogate pair stays intact
+    BSTR shortText = NULL;
+    assert(ITextRangeProvider_GetText(range, 1, &shortText) == S_OK && SysStringLen(shortText) == 0);
+    SysFreeString(shortText);
+    assert(ITextRangeProvider_Clone(range, &clone) == S_OK);
+    BOOL equal = FALSE; assert(ITextRangeProvider_Compare(range, clone, &equal) == S_OK && equal);
+    assert(ITextRangeProvider_Select(range) == S_OK && textStart == 1 && textEnd == 2 && !textScroll);
+    assert(ITextRangeProvider_ScrollIntoView(range, TRUE) == S_OK && textScroll);
+    VARIANT value;
+    assert(ITextRangeProvider_GetAttributeValue(range, UIA_IsReadOnlyAttributeId, &value) == S_OK && value.vt == VT_BOOL && !value.boolVal);
+    VariantClear(&value);
+    assert(ITextRangeProvider_GetAttributeValue(range, -1, &value) == S_OK && value.vt == VT_UNKNOWN && value.punkVal);
+    VariantClear(&value);
+    SAFEARRAY *rectangles = NULL;
+    assert(ITextRangeProvider_GetBoundingRectangles(range, &rectangles) == S_OK);
+    LONG upper = -1; SafeArrayGetUBound(rectangles, 1, &upper); assert(upper == 3); SafeArrayDestroy(rectangles);
+    POINT origin = {0,0}; ClientToScreen(hwnd, &origin);
+    ITextRangeProvider *point = NULL;
+    struct UiaPoint hit = {origin.x+30, origin.y+5};
+    assert(ITextProvider2_RangeFromPoint(provider, hit, &point) == S_OK);
+    assert(TEXT_RANGE(point)->start == 2); ITextRangeProvider_Release(point);
+    assert(ITextProvider2_GetVisibleRanges(provider, &rectangles) == S_OK); SafeArrayDestroy(rectangles);
+    ITextRangeProvider *found = NULL; BSTR needle = SysAllocString(L"XY");
+    assert(ITextRangeProvider_FindText(document, needle, FALSE, TRUE, &found) == S_OK && found);
+    expectText(found, L"xy"); ITextRangeProvider_Release(found); SysFreeString(needle);
+    int texts = textEvents, selections = selectionEvents;
+    node.caret = node.selection_start = node.selection_end = 1;
+    assert(WinAccessibilityUpdate(c, &node, 1));
+    assert(textEvents == texts && selectionEvents == selections + 1);
+    assert(WinAccessibilityUpdate(c, &node, 1));
+    assert(textEvents == texts && selectionEvents == selections + 1); // unchanged snapshots are silent
+    node.text_revision++;
+    assert(WinAccessibilityUpdate(c, &node, 1));
+    assert(textEvents == texts + 1); // replacing an equal string is still an edit
+    node.text = "ZA\xf0\x9f\x98\x80\xd0\x91\nxy"; node.position_count=0;
+    assert(WinAccessibilityUpdate(c, &node, 1));
+    expectText(range, L"\xd83d\xde00"); // retained range follows insertion before it
+    // Password queries and previously retained public ranges must only see masks.
+    node.flags |= WinAccProtected; node.text = "secret"; node.value = "secret";
+    assert(WinAccessibilityUpdate(c, &node, 1));
+    ITextRangeProvider_Release(document);
+    assert(ITextProvider2_get_DocumentRange(provider, &document) == S_OK);
+    expectText(document, L"\u2022\u2022\u2022\u2022\u2022\u2022");
+    assert(ITextRangeProvider_GetText(range, -1, &shortText) == S_OK);
+    for (UINT i=0; i<SysStringLen(shortText); ++i) assert(shortText[i] == 0x2022);
+    SysFreeString(shortText);
+    needle = SysAllocString(L"secret"); found = NULL;
+    assert(ITextRangeProvider_FindText(document, needle, FALSE, FALSE, &found) == S_OK && !found); SysFreeString(needle);
+    assert(getValue(&entry->value, &shortText) == E_ACCESSDENIED && !shortText);
+    node.flags |= WinAccDisabled;
+    assert(WinAccessibilityUpdate(c, &node, 1));
+    assert(ITextRangeProvider_Select(document) == (HRESULT)UIA_E_ELEMENTNOTENABLED);
+    assert(WinAccessibilityUpdate(c, NULL, 0));
+    assert(ITextRangeProvider_GetText(document, -1, &shortText) == UNAVAILABLE && !shortText);
+    WinAccessibilityCleanup(c);
+    assert(ITextProvider2_GetSelection(provider, &selection) == UNAVAILABLE && !selection);
+    ITextRangeProvider_Release(document); ITextRangeProvider_Release(range); ITextRangeProvider_Release(clone);
+    ITextProvider2_Release(provider); release(entry); DestroyWindow(hwnd);
+}
 int main(void) {
     CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
+    testTextProvider();
     HWND h1 = newWindow(), h2 = newWindow(); assert(h1 && h2);
     WinAccessibility *a = WinAccessibilityCreate(h1, 11), *b = WinAccessibilityCreate(h2, 22);
     assert(a && b && a != b);
@@ -71,7 +177,7 @@ int main(void) {
         {.id=2, .parent=1, .role=1, .flags=WinAccInvoke|WinAccFocusable, .name="Save", .width=80, .height=25},
         {.id=3, .parent=1, .role=4, .flags=WinAccToggle|WinAccFocusable, .name="Remember", .y=30, .width=100, .height=25},
         {.id=4, .parent=1, .role=5, .flags=WinAccValue|WinAccFocusable, .name="Password", .value="public", .y=60, .width=100, .height=25},
-        {.id=5, .parent=1, .role=6, .flags=WinAccRange|WinAccFocusable, .name="Volume", .minimum=0, .maximum=10, .step=1, .number=3}
+        {.id=5, .parent=1, .role=6, .flags=WinAccRange|WinAccValue|WinAccFocusable, .name="Volume", .minimum=0, .maximum=10, .step=1, .number=3, .value="3"}
     };
     assert(WinAccessibilityUpdate(a, nodes, 5)); assert(WinAccessibilityUpdate(b, nodes, 5));
     Element *save = retain(a, 2), *check = retain(a, 3), *entry = retain(a, 4), *slider = retain(a, 5);
@@ -96,6 +202,10 @@ int main(void) {
     assert(setRange(&slider->range, -1) == E_INVALIDARG);
     assert(setRange(&slider->range, NAN) == E_INVALIDARG);
     assert(setRange(&slider->range, 6) == S_OK);
+    int numericBefore = numericEvents, valueBefore = valueEvents;
+    nodes[4].number = 4; nodes[4].value = "4";
+    assert(WinAccessibilityUpdate(a, nodes, 5));
+    assert(numericEvents == numericBefore + 1 && valueEvents == valueBefore + 1);
     int structures = structureEvents, properties = propertyEvents;
     nodes[1].name = "Saved"; nodes[2].flags |= WinAccChecked;
     assert(WinAccessibilityUpdate(a, nodes, 5));

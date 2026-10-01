@@ -12,10 +12,12 @@
 #include <math.h>
 #include <stddef.h>
 #include <stdlib.h>
+#include <wctype.h>
 #include "accessibility_windows.h"
 
 extern void goFyneAccessibilityAction(uintptr_t, uint32_t, int, char *, double);
 extern int goFyneAccessibilityPerform(uintptr_t, uint32_t, int, char *, double);
+extern int goFyneAccessibilityTextAction(uintptr_t, uint32_t, int, int, int, int);
 typedef struct {
     uintptr_t handle;
     uint32_t id;
@@ -23,6 +25,7 @@ typedef struct {
     char *text;
     double number;
     HRESULT result;
+    int start, end, scroll, alignTop;
 } ActionRequest;
 static UINT actionMessage;
 
@@ -35,6 +38,7 @@ static HRESULT (WINAPI *uiaEvent)(IRawElementProviderSimple *, EVENTID);
 static HRESULT (WINAPI *uiaProperty)(IRawElementProviderSimple *, PROPERTYID, VARIANT, VARIANT);
 static HRESULT (WINAPI *uiaStructure)(IRawElementProviderSimple *, enum StructureChangeType, int *, int);
 static HRESULT (WINAPI *uiaDisconnect)(IRawElementProviderSimple *);
+static HRESULT (WINAPI *uiaNotSupported)(IUnknown **);
 static BOOL CALLBACK loadUIA(PINIT_ONCE once, PVOID parameter, PVOID *context) {
     (void)once; (void)parameter; (void)context;
     HMODULE dll = LoadLibraryExW(L"UIAutomationCore.dll", NULL, LOAD_LIBRARY_SEARCH_SYSTEM32);
@@ -46,8 +50,9 @@ static BOOL CALLBACK loadUIA(PINIT_ONCE once, PVOID parameter, PVOID *context) {
     LOAD(uiaProperty, "UiaRaiseAutomationPropertyChangedEvent");
     LOAD(uiaStructure, "UiaRaiseStructureChangedEvent");
     LOAD(uiaDisconnect, "UiaDisconnectProvider");
+    LOAD(uiaNotSupported, "UiaGetReservedNotSupportedValue");
 #undef LOAD
-    if (!uiaReturn || !uiaHost || !uiaEvent || !uiaProperty || !uiaStructure || !uiaDisconnect) {
+    if (!uiaReturn || !uiaHost || !uiaEvent || !uiaProperty || !uiaStructure || !uiaDisconnect || !uiaNotSupported) {
         FreeLibrary(dll); return FALSE;
     }
     actionMessage = RegisterWindowMessageW(L"Fyne.UIAutomation.PerformAction");
@@ -70,10 +75,14 @@ static BOOL CALLBACK loadUIA(PINIT_ONCE once, PVOID parameter, PVOID *context) {
 
 
 typedef struct Element Element;
+typedef struct TextRange TextRange;
 typedef struct {
     WinAccessibilityNode data;
     WCHAR *name, *description, *value;
     Element *element;
+    WCHAR *text;
+    int *offsets, length;
+    WinAccessibilityTextPosition *positions;
 } Record;
 // A snapshot remains alive while events are raised, including nested native
 // message dispatch that publishes a newer snapshot or closes the window.
@@ -107,6 +116,8 @@ struct Element {
     IToggleProvider toggle;
     IValueProvider value;
     IRangeValueProvider range;
+    ITextProvider2 text;
+    TextRange *textRanges;
     LONG refs;
     uint32_t id;
     WinAccessibility *context;
@@ -122,6 +133,7 @@ static IInvokeProviderVtbl invokeVtbl;
 static IToggleProviderVtbl toggleVtbl;
 static IValueProviderVtbl valueVtbl;
 static IRangeValueProviderVtbl rangeVtbl;
+static ITextProvider2Vtbl textVtbl;
 
 static void contextRelease(WinAccessibility *c) {
     if (!InterlockedDecrement(&c->refs)) free(c);
@@ -149,6 +161,7 @@ static Element *newElement(WinAccessibility *c, uint32_t id) {
     e->root.lpVtbl = &rootVtbl; e->invoke.lpVtbl = &invokeVtbl;
     e->toggle.lpVtbl = &toggleVtbl; e->value.lpVtbl = &valueVtbl;
     e->range.lpVtbl = &rangeVtbl; e->refs = 1; e->id = id; e->context = c;
+    e->text.lpVtbl = &textVtbl;
     InterlockedIncrement(&c->refs);
     return e;
 }
@@ -166,6 +179,7 @@ static HRESULT query(Element *e, REFIID iid, void **out) {
         if ((flags & WinAccToggle) && IsEqualIID(iid, &IID_IToggleProvider)) *out = &e->toggle;
         if ((flags & WinAccValue) && IsEqualIID(iid, &IID_IValueProvider)) *out = &e->value;
         if ((flags & WinAccRange) && IsEqualIID(iid, &IID_IRangeValueProvider)) *out = &e->range;
+        if ((flags & WinAccText) && (IsEqualIID(iid, &IID_ITextProvider) || IsEqualIID(iid, &IID_ITextProvider2))) *out = &e->text;
         ReleaseSRWLockShared(&e->context->lock);
     }
     if (!*out) return E_NOINTERFACE;
@@ -182,6 +196,7 @@ IUNKNOWN(I, IInvokeProvider, invoke)
 IUNKNOWN(T, IToggleProvider, toggle)
 IUNKNOWN(V, IValueProvider, value)
 IUNKNOWN(N, IRangeValueProvider, range)
+IUNKNOWN(X, ITextProvider2, text)
 
 static HRESULT STDMETHODCALLTYPE options(IRawElementProviderSimple *p, enum ProviderOptions *out) {
     if (!out) return E_POINTER;
@@ -198,6 +213,7 @@ static HRESULT STDMETHODCALLTYPE pattern(IRawElementProviderSimple *p, PATTERNID
     if (id == UIA_TogglePatternId && (flags & WinAccToggle)) *out = (IUnknown *)&e->toggle;
     if (id == UIA_ValuePatternId && (flags & WinAccValue)) *out = (IUnknown *)&e->value;
     if (id == UIA_RangeValuePatternId && (flags & WinAccRange)) *out = (IUnknown *)&e->range;
+    if ((id == UIA_TextPatternId || id == UIA_TextPattern2Id) && (flags & WinAccText)) *out = (IUnknown *)&e->text;
     if (*out) addRef(e);
     ReleaseSRWLockShared(&c->lock); return S_OK;
 }
@@ -256,6 +272,8 @@ static void propertyValue(WinAccessibility *c, Record *r, PROPERTYID id, VARIANT
     case UIA_IsTogglePatternAvailablePropertyId: variantBool(out, f & WinAccToggle); break;
     case UIA_IsValuePatternAvailablePropertyId: variantBool(out, f & WinAccValue); break;
     case UIA_IsRangeValuePatternAvailablePropertyId: variantBool(out, f & WinAccRange); break;
+    case UIA_IsTextPatternAvailablePropertyId:
+    case UIA_IsTextPattern2AvailablePropertyId: variantBool(out, f & WinAccText); break;
     case UIA_ToggleToggleStatePropertyId: if (f & WinAccToggle) integer(out, (f & WinAccChecked) ? ToggleState_On : ToggleState_Off); break;
     case UIA_ValueValuePropertyId: if ((f & WinAccValue) && !(f & WinAccProtected)) variantString(out, r->value); break;
     case UIA_ValueIsReadOnlyPropertyId: if (f & WinAccValue) variantBool(out, f & WinAccReadOnly); break;
@@ -360,7 +378,7 @@ static HRESULT action(Element *e, int act, char *text, double value) {
     // Synchronous pattern commands are marshalled to the HWND's owner thread.
     // SendMessage also dispatches directly when already on that thread. Never
     // hold a provider lock here: Windows can re-enter during COM/UIA calls.
-    ActionRequest request = {handle, e->id, act, text, value, UNAVAILABLE};
+    ActionRequest request = {.handle=handle, .id=e->id, .action=act, .text=text, .number=value, .result=UNAVAILABLE};
     SendMessageW(hwnd, actionMessage, 0, (LPARAM)&request);
     return request.result;
 }
@@ -415,6 +433,15 @@ static HRESULT STDMETHODCALLTYPE toggleState(IToggleProvider *p, enum ToggleStat
 }
 static HRESULT STDMETHODCALLTYPE setValue(IValueProvider *p, LPCWSTR text) {
     if (!text) return E_INVALIDARG;
+    Element *e = OWNER(p, value); WinAccessibility *c = e->context;
+    AcquireSRWLockShared(&c->lock); Record *r = find(c, e->id);
+    int numeric = r && (r->data.flags & WinAccRange);
+    ReleaseSRWLockShared(&c->lock);
+    if (numeric) {
+        WCHAR *end = NULL; double value = wcstod(text, &end);
+        if (end == text || *end) return E_INVALIDARG;
+        return action(e, 4, NULL, value);
+    }
     int size = WideCharToMultiByte(CP_UTF8, 0, text, -1, NULL, 0, NULL, NULL);
     char *utf8 = malloc(size); if (!utf8) return E_OUTOFMEMORY;
     WideCharToMultiByte(CP_UTF8, 0, text, -1, utf8, size, NULL, NULL);
@@ -459,13 +486,19 @@ static IToggleProviderVtbl toggleVtbl = {T_QI, T_Add, T_Release, toggle, toggleS
 static IValueProviderVtbl valueVtbl = {V_QI, V_Add, V_Release, setValue, getValue, valueReadOnly};
 static IRangeValueProviderVtbl rangeVtbl = {N_QI, N_Add, N_Release, setRange, rangeValue, rangeReadOnly, rangeMax, rangeMin, rangeLarge, rangeSmall};
 
+#include "accessibility_text_windows.h"
+
 static LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     WinAccessibility *c = (WinAccessibility *)GetPropW(hwnd, WINDOW_PROPERTY);
     if (!c) return DefWindowProcW(hwnd, msg, wp, lp);
     if (msg == actionMessage) {
         ActionRequest *request = (ActionRequest *)lp;
-        if (request->handle == c->handle)
-            request->result = goFyneAccessibilityPerform(request->handle, request->id, request->action, request->text, request->number) ? S_OK : UNAVAILABLE;
+        if (request->handle == c->handle) {
+            int success = request->action == 5
+                ? goFyneAccessibilityTextAction(request->handle, request->id, request->start, request->end, request->scroll, request->alignTop)
+                : goFyneAccessibilityPerform(request->handle, request->id, request->action, request->text, request->number);
+            request->result = success ? S_OK : UNAVAILABLE;
+        }
         return 0;
     }
     if (msg == WM_GETOBJECT && lp == (LPARAM)UiaRootObjectId) return UiaReturnRawElementProvider(hwnd, wp, lp, &c->root->simple);
@@ -485,6 +518,7 @@ static void freeRecords(Record *records, int count) {
     if (InterlockedDecrement(&snapshot->refs)) return;
     for (int i = 0; i < count; ++i) {
         free(records[i].name); free(records[i].description); free(records[i].value);
+        free(records[i].text); free(records[i].offsets); free(records[i].positions);
         if (records[i].element) release(records[i].element);
     }
     free(snapshot);
@@ -538,13 +572,15 @@ int WinAccessibilityUpdate(WinAccessibility *c, const WinAccessibilityNode *node
     for (int i = 0; i < count; ++i) {
         Record *r = &next[i]; r->data = nodes[i];
         // No borrowed strings or Go memory survives this call.
-        r->data.name = r->data.description = r->data.value = NULL;
+        r->data.name = r->data.description = r->data.value = r->data.text = NULL;
+        r->data.positions = NULL;
         r->name = wide(nodes[i].name); r->description = wide(nodes[i].description);
         r->value = wide((nodes[i].flags & WinAccProtected) ? "" : nodes[i].value);
+        int textOK = copyText(r, &nodes[i]);
         Record *old = find(c, nodes[i].id);
         if (old) { r->element = old->element; addRef(r->element); }
         else r->element = newElement(c, nodes[i].id);
-        if (!r->name || !r->description || !r->value || !r->element) {
+        if (!r->name || !r->description || !r->value || !r->element || !textOK) {
             ReleaseSRWLockExclusive(&c->lock); freeRecords(next, count); return 0;
         }
         if (nodes[i].flags & WinAccFocused) focused = nodes[i].id;
@@ -554,6 +590,10 @@ int WinAccessibilityUpdate(WinAccessibility *c, const WinAccessibilityNode *node
     for (int i = 0; !structure && i < count; ++i) structure = old[i].data.id != next[i].data.id || old[i].data.parent != next[i].data.parent;
     int foreground = GetForegroundWindow() == c->hwnd;
     int focusChanged = c->focus != focused || c->foreground != foreground;
+    for (int i = 0; i < count; ++i) {
+        Record *previous = find(c, next[i].data.id);
+        if (previous) updateTextRanges(previous, &next[i]);
+    }
     c->records = next; c->count = count; c->focus = focused; c->foreground = foreground;
     uint64_t generation = ++c->generation;
     holdRecords(next); // local event publication reference, besides context ownership
@@ -570,7 +610,8 @@ int WinAccessibilityUpdate(WinAccessibility *c, const WinAccessibilityNode *node
         UIA_RangeValueMinimumPropertyId, UIA_RangeValueMaximumPropertyId, UIA_RangeValueSmallChangePropertyId,
         UIA_ControlTypePropertyId, UIA_IsDialogPropertyId, UIA_BoundingRectanglePropertyId,
         UIA_IsInvokePatternAvailablePropertyId, UIA_IsTogglePatternAvailablePropertyId,
-        UIA_IsValuePatternAvailablePropertyId, UIA_IsRangeValuePatternAvailablePropertyId};
+        UIA_IsValuePatternAvailablePropertyId, UIA_IsRangeValuePatternAvailablePropertyId,
+        UIA_IsTextPatternAvailablePropertyId, UIA_IsTextPattern2AvailablePropertyId};
     for (int i = 0; i < count; ++i) for (int j = 0; j < oldCount; ++j) if (next[i].data.id == old[j].data.id) {
         for (unsigned int k = 0; k < sizeof(properties)/sizeof(properties[0]) && eventsCurrent(c, generation); ++k) {
             // Never emit the old password when a previously public field becomes protected.
@@ -579,6 +620,13 @@ int WinAccessibilityUpdate(WinAccessibility *c, const WinAccessibilityNode *node
             propertyValue(c, &old[j], properties[k], &a); propertyValue(c, &next[i], properties[k], &b);
             if (!equalVariant(&a, &b)) UiaRaiseAutomationPropertyChangedEvent(&next[i].element->simple, properties[k], a, b);
             VariantClear(&a); VariantClear(&b);
+        }
+        if ((next[i].data.flags & WinAccText) && eventsCurrent(c, generation)) {
+            int textChanged = old[j].data.text_revision != next[i].data.text_revision || wcscmp(old[j].text, next[i].text);
+            if (textChanged) UiaRaiseAutomationEvent(&next[i].element->simple, UIA_Text_TextChangedEventId);
+            if (eventsCurrent(c, generation) && (textChanged || old[j].data.caret != next[i].data.caret ||
+                old[j].data.selection_start != next[i].data.selection_start || old[j].data.selection_end != next[i].data.selection_end))
+                UiaRaiseAutomationEvent(&next[i].element->simple, UIA_Text_TextSelectionChangedEventId);
         }
         break;
     }

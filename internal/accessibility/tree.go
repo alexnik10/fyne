@@ -7,6 +7,8 @@ package accessibility
 import (
 	"math"
 	"reflect"
+	"strings"
+	"unicode/utf8"
 
 	"fyne.io/fyne/v2"
 )
@@ -39,6 +41,7 @@ type Node struct {
 	Invoke, Toggle, Value, Range                    bool
 	Checked, ReadOnly, Protected                    bool
 	Text                                            string
+	Document                                        *fyne.AccessibilityTextInfo
 	Number, Min, Max, Step                          float64
 }
 
@@ -112,6 +115,19 @@ func (t *Tree) Build(roots []Root, focused fyne.Focusable) []Node {
 				n.Range = true
 				n.Number, n.Min, n.Max, n.Step = r.AccessibilityRange()
 			}
+			if text, ok := obj.(fyne.AccessibleText); ok {
+				document := text.AccessibilityText()
+				length := utf8.RuneCountInString(document.Text)
+				if n.Protected {
+					// Defend against a custom control accidentally returning clear text.
+					document.Text = strings.Repeat("•", length)
+				}
+				document.Caret = min(max(document.Caret, 0), length)
+				document.SelectionStart = min(max(document.SelectionStart, 0), length)
+				document.SelectionEnd = min(max(document.SelectionEnd, document.SelectionStart), length)
+				document.Positions = append([]fyne.AccessibilityTextPosition(nil), document.Positions...)
+				n.Document = &document
+			}
 			n.ReadOnly = n.ReadOnly || n.Disabled
 			out = append(out, n)
 			t.nodes[id] = n
@@ -140,6 +156,32 @@ func (t *Tree) Build(roots []Root, focused fyne.Focusable) []Node {
 		}
 	}
 	return out
+}
+
+// SelectText revalidates a text command against the current input scope.
+func (t *Tree) SelectText(id uint32, start, end int) bool {
+	n, ok := t.nodes[id]
+	if !ok || n.Disabled || n.Document == nil || start < 0 || end < start || end > utf8.RuneCountInString(n.Document.Text) {
+		return false
+	}
+	if text, ok := t.objects[id].(fyne.AccessibleText); ok {
+		text.AccessibilitySelectText(start, end)
+		return true
+	}
+	return false
+}
+
+// ScrollText reveals a range without changing the canvas focus or selection.
+func (t *Tree) ScrollText(id uint32, start, end int, alignTop bool) bool {
+	n, ok := t.nodes[id]
+	if !ok || n.Document == nil || start < 0 || end < start || end > utf8.RuneCountInString(n.Document.Text) {
+		return false
+	}
+	if s, ok := t.objects[id].(fyne.AccessibleTextScroller); ok {
+		s.AccessibilityScrollText(start, end, alignTop)
+		return true
+	}
+	return false
 }
 
 func applyInfo(n *Node, info fyne.AccessibilityInfo) {

@@ -83,7 +83,32 @@ func (w *window) updateAccessibility() {
 		x.x, x.y = C.double(scale.ToScreenCoordinate(w.canvas, n.Position.X)), C.double(scale.ToScreenCoordinate(w.canvas, n.Position.Y))
 		x.width, x.height = C.double(scale.ToScreenCoordinate(w.canvas, n.Size.Width)), C.double(scale.ToScreenCoordinate(w.canvas, n.Size.Height))
 		x.number, x.minimum, x.maximum, x.step = C.double(n.Number), C.double(n.Min), C.double(n.Max), C.double(n.Step)
-		flags := []bool{n.Disabled, n.Focusable, n.Focused, n.Required, n.Invalid, n.Invoke, n.Toggle, n.Value, n.Range, n.Checked, n.ReadOnly, n.Protected}
+		if doc := n.Document; doc != nil {
+			x.text = C.CString(doc.Text)
+			defer C.free(unsafe.Pointer(x.text))
+			x.caret, x.selection_start, x.selection_end = C.int(doc.Caret), C.int(doc.SelectionStart), C.int(doc.SelectionEnd)
+			x.text_revision = C.uint64_t(doc.Revision)
+			x.viewport_x = x.x + C.double(scale.ToScreenCoordinate(w.canvas, doc.ViewportPosition.X))
+			x.viewport_y = x.y + C.double(scale.ToScreenCoordinate(w.canvas, doc.ViewportPosition.Y))
+			x.viewport_width = C.double(scale.ToScreenCoordinate(w.canvas, doc.ViewportSize.Width))
+			x.viewport_height = C.double(scale.ToScreenCoordinate(w.canvas, doc.ViewportSize.Height))
+			if len(doc.Positions) != 0 {
+				positions := (*C.WinAccessibilityTextPosition)(C.calloc(C.size_t(len(doc.Positions)), C.size_t(C.sizeof_WinAccessibilityTextPosition)))
+				if positions == nil {
+					return
+				}
+				defer C.free(unsafe.Pointer(positions))
+				for j, p := range doc.Positions {
+					point := &unsafe.Slice(positions, len(doc.Positions))[j]
+					point.x = x.x + C.double(scale.ToScreenCoordinate(w.canvas, p.Position.X))
+					point.y = x.y + C.double(scale.ToScreenCoordinate(w.canvas, p.Position.Y))
+					point.height = C.double(scale.ToScreenCoordinate(w.canvas, p.Height))
+					point.line = C.int(p.Line)
+				}
+				x.positions, x.position_count = positions, C.int(len(doc.Positions))
+			}
+		}
+		flags := []bool{n.Disabled, n.Focusable, n.Focused, n.Required, n.Invalid, n.Invoke, n.Toggle, n.Value, n.Range, n.Checked, n.ReadOnly, n.Protected, n.Document != nil}
 		for bit, set := range flags {
 			if set {
 				x.flags |= 1 << bit
@@ -159,6 +184,30 @@ func performAccessibilityAction(handle uintptr, id uint32, action accessibility.
 	}
 	b.window.updateAccessibility()
 	return accepted
+}
+
+//export goFyneAccessibilityTextAction
+func goFyneAccessibilityTextAction(handle C.uintptr_t, id C.uint32_t, start, end C.int, scroll, alignTop C.int) C.int {
+	stored, ok := accessibilityHandles.Load(uintptr(handle))
+	if !ok {
+		return 0
+	}
+	b := stored.(*accessibilityBridge)
+	if b.window.closing || b.window.view() == nil {
+		return 0
+	}
+	b.tree.Build(b.window.accessibilityRoots(), b.window.canvas.Focused())
+	var accepted bool
+	if scroll != 0 {
+		accepted = b.tree.ScrollText(uint32(id), int(start), int(end), alignTop != 0)
+	} else {
+		accepted = b.tree.SelectText(uint32(id), int(start), int(end))
+	}
+	b.window.updateAccessibility()
+	if accepted {
+		return 1
+	}
+	return 0
 }
 
 func (w *window) pollAccessibility() {

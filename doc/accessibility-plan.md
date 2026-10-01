@@ -51,3 +51,14 @@ Baseline: `312219185e6aebb7ac7728abc7044089b657ef27`. The existing
 Each milestone is reported separately. Full Fyne accessibility requires the text
 and collection gates as well as successful real screen-reader scenario tests on
 Windows. Windows-first work must not be described as full platform parity.
+
+
+## Text follow-up after first NVDA acceptance
+
+Implement the plain Entry portion of gate 5 now: shared rune-based text/selection
+snapshots, Windows Text and Text2 ranges, protected masks, caret and text events,
+selection commands and Entry geometry. Keep IME, complex-script shaping, rich
+formatting and broader screen-reader acceptance as explicit remaining gates.
+Add a regression for each reported failure before distributing the second demo.
+The first user run confirms Tab traversal, form metadata, Check and modal focus;
+the revised text and Slider behavior require another real NVDA run.

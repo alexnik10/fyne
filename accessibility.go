@@ -92,3 +92,47 @@ type AccessibleRange interface {
 	AccessibilityRange() (value, minimum, maximum, step float64)
 	AccessibilitySetRangeValue(float64)
 }
+
+// AccessibilityTextPosition describes an insertion point in widget coordinates.
+// Positions include the end of the document, so there is one more than the
+// number of runes. Line identifies the rendered line, including soft wrapping.
+//
+// Since: 2.9
+type AccessibilityTextPosition struct {
+	Position Position
+	Height   float32
+	Line     int
+}
+
+// AccessibilityTextInfo is a snapshot of editable plain text. All offsets count
+// runes, not bytes or UTF-16 units. A collapsed selection describes the caret.
+// Protected controls must supply only masking characters, never their contents.
+// Revision changes on text edits, including replacement with identical text.
+// Positions may be omitted when text geometry is unavailable.
+//
+// Since: 2.9
+type AccessibilityTextInfo struct {
+	Text                                string
+	Caret, SelectionStart, SelectionEnd int
+	Revision                            uint64
+	Positions                           []AccessibilityTextPosition
+	ViewportPosition                    Position
+	ViewportSize                        Size
+}
+
+// AccessibleText exposes editable text, its caret and a single selection.
+// Methods run on the Fyne event thread. Selection offsets are rune offsets and
+// must be clamped to the current text; selecting must not change the text.
+//
+// Since: 2.9
+type AccessibleText interface {
+	AccessibilityText() AccessibilityTextInfo
+	AccessibilitySelectText(start, end int)
+}
+
+// AccessibleTextScroller can reveal a text range without moving the caret.
+//
+// Since: 2.9
+type AccessibleTextScroller interface {
+	AccessibilityScrollText(start, end int, alignTop bool)
+}

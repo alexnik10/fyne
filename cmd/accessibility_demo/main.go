@@ -52,7 +52,9 @@ func main() {
 	}
 	second := widget.NewButton("Open another window", func() {
 		other := application.NewWindow("Second accessible window")
-		other.SetContent(widget.NewButton("Close this window", other.Close))
+		closeButton := widget.NewButton("Close this window", other.Close)
+		other.SetContent(closeButton)
+		other.Canvas().Focus(closeButton)
 		other.Show()
 	})
 	window.SetContent(container.NewVBox(form, status, second))
