@@ -11,6 +11,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/internal"
+	"fyne.io/fyne/v2/internal/accessibility/diagnostic"
 	"fyne.io/fyne/v2/internal/app"
 	"fyne.io/fyne/v2/internal/async"
 	"fyne.io/fyne/v2/internal/build"
@@ -688,6 +689,9 @@ func (w *window) capturesTab(modifier fyne.KeyModifier) bool {
 }
 
 func (w *window) processKeyPressed(keyName fyne.KeyName, keyASCII fyne.KeyName, scancode int, action action, keyDesktopModifier fyne.KeyModifier) {
+	if diagnostic.Enabled {
+		w.diagnosticSpaceKey(keyName, action)
+	}
 	keyEvent := &fyne.KeyEvent{Name: keyName, Physical: fyne.HardwareKey{ScanCode: scancode}, Repeat: action == repeat}
 
 	pendingMenuToggle := w.menuTogglePending
@@ -764,6 +768,9 @@ func (w *window) processKeyPressed(keyName fyne.KeyName, keyASCII fyne.KeyName, 
 //
 // Characters do not map 1:1 to physical keys, as a key may produce zero, one or more characters.
 func (w *window) processCharInput(char rune) {
+	if diagnostic.Enabled && char == ' ' {
+		w.diagnosticSpaceEvent("space_char")
+	}
 	if focused := w.canvas.Focused(); focused != nil {
 		focused.TypedRune(char)
 	} else if w.canvas.onTypedRune != nil {

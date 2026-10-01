@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/internal/accessibility/diagnostic"
 	"fyne.io/fyne/v2/internal/app"
 	"fyne.io/fyne/v2/internal/async"
 	"fyne.io/fyne/v2/internal/cache"
@@ -70,11 +71,13 @@ func (d *gLDriver) drawSingleFrame() {
 		}
 
 		if decideRepaint(w.visible, w.frame.ready(), w.canvas.CheckDirtyAndClear) {
+			paintStart := diagnostic.Start()
 			w.RunWithContext(func() {
 				if w.driver.repaintWindow(w) {
 					refreshed = true
 				}
 			})
+			diagnostic.Duration("render", diagnostic.WindowID(w), "", paintStart)
 			w.updateAccessibility()
 		} else {
 			w.markCacheAlive()

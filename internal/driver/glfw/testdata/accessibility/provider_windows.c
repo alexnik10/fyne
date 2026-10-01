@@ -243,6 +243,7 @@ int main(void) {
     testSelectionProviders();
     testFinalEmptyLine();
     testFocusedFeedbackOrder();
+    testDiagnosticTimings();
     HWND h1 = newWindow(), h2 = newWindow(); assert(h1 && h2);
     WinAccessibility *a = WinAccessibilityCreate(h1, 11), *b = WinAccessibilityCreate(h2, 22);
     assert(a && b && a != b);

@@ -84,3 +84,27 @@ static void testFocusedFeedbackOrder(void) {
     observeProperty = NULL;
     WinAccessibilityCleanup(c); DestroyWindow(hwnd);
 }
+
+static void slowDiagnosticClient(void) { Sleep(30); }
+
+static void testDiagnosticTimings(void) {
+    HWND hwnd = newWindow(); assert(hwnd);
+    WinAccessibility *c = WinAccessibilityCreate(hwnd, 99); assert(c);
+    WinAccessibilityNode node = {.id=1, .role=4, .flags=WinAccToggle};
+    assert(WinAccessibilityUpdate(c, &node, 1));
+    node.flags |= WinAccChecked;
+    WinAccessibilityStats stats;
+    duringProperty = slowDiagnosticClient;
+    assert(WinAccessibilityUpdateWithStats(c, &node, 1, &stats));
+    assert(stats.event_count == 1 && stats.events_ms >= 15 && stats.slowest_ms >= 15);
+    assert(stats.slowest_node == 1 && stats.slowest_kind == 1 && stats.slowest_id == UIA_ToggleToggleStatePropertyId);
+    assert(stats.snapshot_ms >= 0 && stats.events_ms >= stats.slowest_ms);
+    // Each update has its own measurements; the unchanged tree raises no event.
+    assert(WinAccessibilityUpdateWithStats(c, &node, 1, &stats));
+    assert(stats.event_count == 0 && stats.events_ms == 0 && stats.slowest_id == 0);
+    Element *check = retain(c, 1);
+    VARIANT value;
+    assert(property(&check->simple, UIA_ToggleToggleStatePropertyId, &value) == S_OK && value.lVal == ToggleState_On);
+    VariantClear(&value);
+    WinAccessibilityCleanup(c); release(check); DestroyWindow(hwnd);
+}

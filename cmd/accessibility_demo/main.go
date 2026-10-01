@@ -21,6 +21,7 @@ const (
 
 func main() {
 	application := app.NewWithID("io.fyne.accessibility-demo")
+	setupDiagnostics(application)
 	window := application.NewWindow("Fyne accessibility")
 	email := widget.NewEntry()
 	email.Validator = func(value string) error {
@@ -30,7 +31,7 @@ func main() {
 		return nil
 	}
 	password := widget.NewPasswordEntry()
-	remember := widget.NewCheck("Remember this account", nil)
+	remember := newDemoCheck("remember", "Remember this account", nil)
 	volume := widget.NewSlider(0, maximumVolume)
 	status := widget.NewLabel("Ready")
 	form := widget.NewForm(
@@ -59,13 +60,15 @@ func main() {
 	})
 	choices := widget.NewButton("Open selection demo", func() { showSelectionDemo(application) })
 	textEditing := widget.NewButton("Open multiline text demo", func() { showTextDemo(application) })
-	window.SetContent(container.NewVBox(form, status, choices, textEditing, second))
+	content := []fyne.CanvasObject{form, status, choices, textEditing, second}
+	content = append(content, diagnosticControls(window)...)
+	window.SetContent(container.NewVBox(content...))
 	window.Resize(fyne.NewSize(windowWidth, windowHeight))
 	window.ShowAndRun()
 }
 
 func showSelectionDemo(application fyne.App) {
-	window := application.NewWindow("Selection accessibility demo 5")
+	window := application.NewWindow("Selection accessibility demo 6")
 	status := widget.NewLabel("Change a choice using the keyboard")
 	language := widget.NewSelect([]string{"English", "Russian", "German"}, func(value string) {
 		status.SetText("Language: " + value)
@@ -86,7 +89,7 @@ func showSelectionDemo(application fyne.App) {
 		widget.NewFormItem("Optional appearance", optional),
 	)
 	form.Items[1].Required = true
-	disable := widget.NewCheck("Disable choices", func(disabled bool) {
+	disable := newDemoCheck("disable", "Disable choices", func(disabled bool) {
 		if disabled {
 			language.Disable()
 			notifications.Disable()
@@ -97,7 +100,9 @@ func showSelectionDemo(application fyne.App) {
 			optional.Enable()
 		}
 	})
-	window.SetContent(container.NewVBox(form, disable, status, widget.NewButton("Close selection demo", window.Close)))
+	content := []fyne.CanvasObject{form, disable, status, widget.NewButton("Close selection demo", window.Close)}
+	content = append(content, diagnosticControls(window)...)
+	window.SetContent(container.NewVBox(content...))
 	window.Resize(fyne.NewSize(windowWidth, windowHeight))
 	window.Canvas().Focus(language)
 	window.Show()

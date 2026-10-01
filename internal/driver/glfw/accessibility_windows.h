@@ -39,6 +39,13 @@ typedef struct {
 WinAccessibility *WinAccessibilityCreate(void *hwnd, uintptr_t handle);
 // Copies a complete snapshot; on allocation failure the previous tree survives.
 int WinAccessibilityUpdate(WinAccessibility *, const WinAccessibilityNode *, int count);
+// Optional diagnostic measurements contain no names, values or input text.
+typedef struct {
+    double snapshot_ms, events_ms, slowest_ms;
+    int event_count, slowest_kind, slowest_id;
+    uint32_t slowest_node;
+} WinAccessibilityStats;
+int WinAccessibilityUpdateWithStats(WinAccessibility *, const WinAccessibilityNode *, int count, WinAccessibilityStats *);
 void WinAccessibilityFocus(WinAccessibility *, uint32_t id);
 void WinAccessibilityCleanup(WinAccessibility *);
 #endif

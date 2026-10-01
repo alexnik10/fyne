@@ -625,7 +625,15 @@ static int eventsCurrent(WinAccessibility *c, uint64_t generation) {
     ReleaseSRWLockShared(&c->lock);
     return current;
 }
+#include "accessibility_diagnostic_windows.h"
+
 int WinAccessibilityUpdate(WinAccessibility *c, const WinAccessibilityNode *nodes, int count) {
+    return WinAccessibilityUpdateWithStats(c, nodes, count, NULL);
+}
+
+int WinAccessibilityUpdateWithStats(WinAccessibility *c, const WinAccessibilityNode *nodes, int count, WinAccessibilityStats *stats) {
+    if (stats) memset(stats, 0, sizeof(*stats));
+    double snapshotStart = diagnosticNow(stats);
     if (!c || count < 0) return 0;
     Snapshot *snapshot = calloc(1, sizeof(*snapshot) + count * sizeof(Record));
     if (!snapshot) return 0;
@@ -667,8 +675,9 @@ int WinAccessibilityUpdate(WinAccessibility *c, const WinAccessibilityNode *node
     Element *focusElement = elementFor(c, focused);
     if (focusElement) addRef(focusElement);
     ReleaseSRWLockExclusive(&c->lock);
+    if (stats) stats->snapshot_ms = diagnosticNow(stats) - snapshotStart;
     // Queries may re-enter during events and see the complete new tree.
-    if (structure) UiaRaiseStructureChangedEvent(&root->simple, StructureChangeType_ChildrenInvalidated, NULL, 0);
+    if (structure) diagnosticStructure(stats, root);
     PROPERTYID properties[] = {UIA_NamePropertyId, UIA_HelpTextPropertyId, UIA_IsEnabledPropertyId,
         UIA_IsKeyboardFocusablePropertyId, UIA_IsPasswordPropertyId, UIA_IsRequiredForFormPropertyId,
         UIA_IsDataValidForFormPropertyId, UIA_ToggleToggleStatePropertyId, UIA_ValueValuePropertyId,
@@ -694,7 +703,7 @@ int WinAccessibilityUpdate(WinAccessibility *c, const WinAccessibilityNode *node
                 if (properties[k] == UIA_ValueValuePropertyId && ((old[j].data.flags | next[i].data.flags) & WinAccProtected)) continue;
                 VARIANT a, b;
                 propertyValue(c, &old[j], properties[k], &a); propertyValue(c, &next[i], properties[k], &b);
-                if (!equalVariant(&a, &b)) UiaRaiseAutomationPropertyChangedEvent(&next[i].element->simple, properties[k], a, b);
+                if (!equalVariant(&a, &b)) diagnosticProperty(stats, next[i].element, properties[k], a, b);
                 VariantClear(&a); VariantClear(&b);
             }
             if ((next[i].data.flags & WinAccSelectable) &&
@@ -706,19 +715,19 @@ int WinAccessibilityUpdate(WinAccessibility *c, const WinAccessibilityNode *node
                         if (next[k].data.id == next[i].data.selection_owner && (next[k].data.flags & WinAccMultiple))
                             event = UIA_SelectionItem_ElementAddedToSelectionEventId;
                 }
-                UiaRaiseAutomationEvent(&next[i].element->simple, event);
+                diagnosticAutomation(stats, next[i].element, event);
             }
             if ((next[i].data.flags & WinAccText) && eventsCurrent(c, generation)) {
                 int textChanged = old[j].data.text_revision != next[i].data.text_revision || wcscmp(old[j].text, next[i].text);
-                if (textChanged) UiaRaiseAutomationEvent(&next[i].element->simple, UIA_Text_TextChangedEventId);
+                if (textChanged) diagnosticAutomation(stats, next[i].element, UIA_Text_TextChangedEventId);
                 if (eventsCurrent(c, generation) && (textChanged || old[j].data.caret != next[i].data.caret ||
                     old[j].data.selection_start != next[i].data.selection_start || old[j].data.selection_end != next[i].data.selection_end))
-                    UiaRaiseAutomationEvent(&next[i].element->simple, UIA_Text_TextSelectionChangedEventId);
+                    diagnosticAutomation(stats, next[i].element, UIA_Text_TextSelectionChangedEventId);
             }
             break;
         }
     }
-    if (focusChanged && foreground && focusElement && eventsCurrent(c, generation)) UiaRaiseAutomationEvent(&focusElement->simple, UIA_AutomationFocusChangedEventId);
+    if (focusChanged && foreground && focusElement && eventsCurrent(c, generation)) diagnosticAutomation(stats, focusElement, UIA_AutomationFocusChangedEventId);
     if (focusElement) release(focusElement);
     // Old providers now resolve their ID against the new tree. Removed providers
     // return ELEMENTNOTAVAILABLE until the last external COM reference is released.

@@ -273,3 +273,59 @@ Close text demo because traversal wraps.
 
 This matches the documented Windows Forms behavior for a multiline TextBox with
 [AcceptsTab enabled](https://learn.microsoft.com/en-us/dotnet/api/system.windows.forms.textboxbase.acceptstab).
+
+## Responsiveness diagnosis (demo 6)
+
+The user accepted demo 5's combo keyboard behavior, blank final line and multiline
+focus escape. Disable choices now announces its checked state immediately, but
+rapid repeated activation still seems slower than Remember this account. This
+does not yet establish lost input: intermediate speech may be omitted, or widget,
+rendering or synchronous UIA event work may delay the next input dispatch.
+
+Build `cmd/accessibility_demo` with `accessibility,accessibilitydiagnostics` to
+enable bounded in-memory tracing and a **Save diagnostic report** button in the
+main and selection windows. Ordinary builds do not record diagnostics. No event
+ordering, threading or selection behavior is changed by this increment.
+
+Record one fresh session: ten separate Space presses on Remember, then ten slow
+and ten rapid separate presses on Disable choices, with a pause between groups.
+Do not hold Space. Note the intended counts and perceived delay, save the report,
+then close the app. The JSON file is beside the executable; it is also saved on
+normal application exit. A save failure is reported by the button's dialog.
+
+Trace data contains fixed control identifiers (`remember`, `disable`), monotonic
+timestamps, numeric IDs/counts and durations, never Entry contents, passwords,
+accessible labels, arbitrary typed text or window titles. It stays in memory
+during input; saving performs disk I/O after taking an independent snapshot.
+The first 20,000 samples are retained; summary counters continue after that limit
+and `dropped_samples` makes truncation explicit. Restart for another test session.
+
+Interpretation:
+
+- `space_press`, `space_repeat`, `space_release`: keyboard callbacks dispatched
+  by Fyne while one of the two tracked checks is focused. These cannot count a
+  physical key press that never reaches GLFW; compare against the user's count.
+- `space_char`: Space delivered to the focused check. `toggle_on`/`toggle_off`
+  count actual state changes. `uia_toggle_request` identifies UIA activation;
+  pointer activation is separately marked `check_tap`.
+- `widget_callback`: work in the check's OnChanged callback, including disabling
+  or enabling the choice widgets. `check_space_dispatch` also includes the check's
+  own refresh. These are nested measurements and must not be added together.
+- `render`, `semantic_tree`, `marshal_snapshot`, `native_update_total`: successive
+  frame/update stages. Native total includes the following two nested measures.
+- `native_snapshot`: copy/commit of the native snapshot. `uia_events`: time spent
+  inside the UIA notification calls plus their call count. `uia_slowest_event`
+  identifies the longest call (kind 1 property, 2 automation, 3 structure).
+  The remaining native time includes property comparisons and snapshot cleanup.
+- `slow_focus_poll`: focus polling only when the call takes at least 1 ms.
+
+The report measures application/provider work, not NVDA's speech queue or the
+instant when sound is produced. Many state changes with fewer spoken states
+therefore require checking speech separately. A long UIA phase points to the
+bridge/client notification path; a long callback/render phase points to widget
+or rendering work. Diagnose before selecting an optimization or changing threads.
+
+Native regression tests inject a slow notification callback and verify that it
+appears in the event timings, that measurements reset on the next update, and
+that the provider's state/event contract is unchanged. Recorder/demo tests cover
+bounded storage, counters, saving, I/O errors and normal Check behavior.

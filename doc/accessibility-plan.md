@@ -103,3 +103,13 @@ multiline editing scenarios also passed. Before advancing to tabs/menus:
 
 Narrator, IME/complex scripts, the remaining collection patterns and other platform
 implementations remain separate acceptance work.
+
+## Diagnostic follow-up: demo 6
+
+Demo 5 behavior is accepted with NVDA. Rapid repeated Disable choices activation
+still needs investigation. Before choosing a performance fix, count framework
+Space events and actual state changes, and measure widget callbacks, rendering,
+semantic snapshot construction, marshaling, native snapshot commit and UIA calls.
+Ship an opt-in diagnostic executable with local report saving. Keep speech timing
+separate from state/input processing; do not infer lost input from omitted speech.
+User-side Windows/NVDA measurements are required to identify the slow stage.

@@ -12,10 +12,12 @@ import "C"
 import (
 	"sync"
 	"sync/atomic"
+	"time"
 	"unsafe"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/internal/accessibility"
+	"fyne.io/fyne/v2/internal/accessibility/diagnostic"
 	"fyne.io/fyne/v2/internal/scale"
 )
 
@@ -68,8 +70,11 @@ func (w *window) updateAccessibility() {
 		accessibilityWindows[w] = b
 		accessibilityHandles.Store(b.handle, b)
 	}
+	buildStart := diagnostic.Start()
 	b.scope.Update(w.canvas)
 	nodes := b.tree.Build(w.accessibilityRoots(), w.canvas.Focused())
+	diagnostic.Duration("semantic_tree", diagnostic.WindowID(w), "", buildStart)
+	marshalStart := diagnostic.Start()
 	// Allocate the array and every string in C memory: cgo never receives an
 	// array containing pointers into the Go heap.
 	var data *C.WinAccessibilityNode
@@ -137,7 +142,23 @@ func (w *window) updateAccessibility() {
 			}
 		}
 	}
-	C.WinAccessibilityUpdate(b.native, data, C.int(len(nodes)))
+	diagnostic.Duration("marshal_snapshot", diagnostic.WindowID(w), "", marshalStart)
+	if diagnostic.Enabled {
+		const microsecondsPerMillisecond = 1000
+		var stats C.WinAccessibilityStats
+		start := diagnostic.Start()
+		C.WinAccessibilityUpdateWithStats(b.native, data, C.int(len(nodes)), &stats)
+		windowID := diagnostic.WindowID(w)
+		diagnostic.Duration("native_update_total", windowID, "", start)
+		diagnostic.Add(diagnostic.Sample{Kind: "native_snapshot", Window: windowID, DurationUS: int64(stats.snapshot_ms * microsecondsPerMillisecond), Count: len(nodes)})
+		diagnostic.Add(diagnostic.Sample{Kind: "uia_events", Window: windowID, DurationUS: int64(stats.events_ms * microsecondsPerMillisecond), Count: int(stats.event_count)})
+		if stats.event_count > 0 {
+			diagnostic.Add(diagnostic.Sample{Kind: "uia_slowest_event", Window: windowID, DurationUS: int64(stats.slowest_ms * microsecondsPerMillisecond),
+				Node: uint32(stats.slowest_node), EventID: int(stats.slowest_id), EventKind: int(stats.slowest_kind)})
+		}
+	} else {
+		C.WinAccessibilityUpdate(b.native, data, C.int(len(nodes)))
+	}
 }
 
 func roleToCWin(role fyne.AccessibleRole) C.int {
@@ -203,6 +224,9 @@ func performAccessibilityAction(handle uintptr, id uint32, action accessibility.
 		return false
 	}
 	b.tree.Build(b.window.accessibilityRoots(), b.window.canvas.Focused())
+	if diagnostic.Enabled && action == accessibility.Toggle {
+		diagnostic.Add(diagnostic.Sample{Kind: "uia_toggle_request", Window: diagnostic.WindowID(b.window), Node: id})
+	}
 	accepted := id == 0 && action == accessibility.Focus
 	if !accepted {
 		accepted = b.tree.Perform(id, action, text, number, b.window.canvas)
@@ -240,7 +264,11 @@ func goFyneAccessibilityTextAction(handle C.uintptr_t, id C.uint32_t, start, end
 
 func (w *window) pollAccessibility() {
 	if b := accessibilityWindows[w]; b != nil {
+		start := diagnostic.Start()
 		C.WinAccessibilityFocus(b.native, C.uint32_t(b.tree.FocusedID(w.canvas.Focused())))
+		if diagnostic.Enabled && time.Since(start) >= time.Millisecond {
+			diagnostic.Duration("slow_focus_poll", diagnostic.WindowID(w), "", start)
+		}
 	}
 }
 
