@@ -207,9 +207,11 @@ type selectOption struct {
 func (o *selectOption) AccessibilityLabel() string           { return o.label }
 func (*selectOption) AccessibilityRole() fyne.AccessibleRole { return fyne.AccessibleRoleListItem }
 func (o *selectOption) Disabled() bool                       { return o.owner.Disabled() }
+
 func (o *selectOption) AccessibilitySelectionItem() (owner fyne.CanvasObject, selected bool, position, count int) {
 	return o.owner, o.owner.SelectedIndex() == o.index, o.index + 1, len(o.owner.Options)
 }
+
 func (o *selectOption) AccessibilitySelect(mode fyne.AccessibilitySelectionMode) bool {
 	s := o.owner
 	if s.Disabled() || o.index >= len(s.accessibleOptions) || s.accessibleOptions[o.index] != o {
@@ -233,9 +235,11 @@ func (o *selectOption) AccessibilitySelect(mode fyne.AccessibilitySelectionMode)
 	}
 	return true
 }
+
 func (o *selectOption) AccessibilityFocusable() bool {
 	return !o.Disabled() && o.owner.AccessibilityExpanded()
 }
+
 func (o *selectOption) AccessibilityFocus() bool {
 	if !o.AccessibilityFocusable() {
 		return false

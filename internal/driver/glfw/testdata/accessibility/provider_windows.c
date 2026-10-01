@@ -11,11 +11,13 @@ static int propertyEvents, structureEvents, focusEvents;
 static int textEvents, selectionEvents, numericEvents, valueEvents;
 static int itemSelectionEvents, itemRemovalEvents, expansionEvents;
 static void (*duringProperty)(void);
+static void (*observeProperty)(IRawElementProviderSimple *, PROPERTYID);
 static HRESULT WINAPI propertyEvent(IRawElementProviderSimple *p, PROPERTYID id, VARIANT before, VARIANT after) {
     (void)p; (void)id; (void)before; (void)after; ++propertyEvents;
     if (id == UIA_RangeValueValuePropertyId) { assert(before.vt == VT_R8 && after.vt == VT_R8); ++numericEvents; }
     if (id == UIA_ValueValuePropertyId) { assert(before.vt == VT_BSTR && after.vt == VT_BSTR); ++valueEvents; }
     if (id == UIA_ExpandCollapseExpandCollapseStatePropertyId) ++expansionEvents;
+    if (observeProperty) observeProperty(p, id);
     if (duringProperty) { void (*fn)(void) = duringProperty; duringProperty = NULL; fn(); }
     return S_OK;
 }
@@ -232,12 +234,15 @@ static void testWordNavigation(void) {
     WinAccessibilityCleanup(c); release(entry); DestroyWindow(hwnd);
 }
 #include "selection_windows.h"
+#include "feedback_windows.h"
 
 int main(void) {
     CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
     testTextProvider();
     testWordNavigation();
     testSelectionProviders();
+    testFinalEmptyLine();
+    testFocusedFeedbackOrder();
     HWND h1 = newWindow(), h2 = newWindow(); assert(h1 && h2);
     WinAccessibility *a = WinAccessibilityCreate(h1, 11), *b = WinAccessibilityCreate(h2, 22);
     assert(a && b && a != b);

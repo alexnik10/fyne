@@ -301,9 +301,18 @@ static int nextBoundary(Record *r, enum TextUnit unit, int pos, int direction) {
     do { next += direction; } while (next > 0 && next < r->length && !unitBoundary(r, unit, next));
     return clampOffset(next, r->length);
 }
+static int hasEmptyFinalUnit(Record *r, enum TextUnit unit) {
+    if (unit != TextUnit_Line && unit != TextUnit_Paragraph) return 0;
+    if (!r->length) return 1;
+    if (unit == TextUnit_Line && r->positions)
+        return r->positions[r->length - 1].line != r->positions[r->length].line;
+    return runeAt(r, r->length - 1) == '\n';
+}
 static void expandUnit(TextRange *range, Record *r, enum TextUnit unit) {
     int start = range->start;
-    if ((unit == TextUnit_Character || unit == TextUnit_Word) && start == r->length) { range->end = start; return; }
+    if (start == r->length && (unit == TextUnit_Character || unit == TextUnit_Word || hasEmptyFinalUnit(r, unit))) {
+        range->end = start; return;
+    }
     // Expanding the end-of-document caret selects the final unit, if any.
     if (start == r->length && start > 0) --start;
     while (start > 0 && !unitBoundary(r, unit, start)) --start;
@@ -345,7 +354,7 @@ static HRESULT STDMETHODCALLTYPE rangeMove(ITextRangeProvider *p, enum TextUnit 
         int pos = range->start;
         while (*out != count) {
             int next = nextBoundary(r, unit, pos, direction);
-            if (next == pos || (expanded && next == r->length)) break;
+            if (next == pos || (expanded && next == r->length && !hasEmptyFinalUnit(r, unit))) break;
             pos = next; *out += direction;
         }
         range->start = range->end = pos;

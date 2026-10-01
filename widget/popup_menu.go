@@ -120,6 +120,9 @@ func (p *PopUpMenu) ShowAtRelativePosition(rel fyne.Position, to fyne.CanvasObje
 // TypedKey handles key events. It allows keyboard control of the pop-up menu.
 func (p *PopUpMenu) TypedKey(e *fyne.KeyEvent) {
 	defer p.revealSelectItem()
+	if p.typedSelectKey(e) {
+		return
+	}
 	switch e.Name {
 	case fyne.KeyDown:
 		p.ActivateNext()

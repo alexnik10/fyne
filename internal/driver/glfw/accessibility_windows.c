@@ -683,34 +683,40 @@ int WinAccessibilityUpdate(WinAccessibility *c, const WinAccessibilityNode *node
         UIA_SelectionIsSelectionRequiredPropertyId, UIA_SelectionItemIsSelectedPropertyId,
         UIA_ExpandCollapseExpandCollapseStatePropertyId, UIA_PositionInSetPropertyId, UIA_SizeOfSetPropertyId,
         UIA_IsOffscreenPropertyId};
-    for (int i = 0; i < count; ++i) for (int j = 0; j < oldCount; ++j) if (next[i].data.id == old[j].data.id) {
-        for (unsigned int k = 0; k < sizeof(properties)/sizeof(properties[0]) && eventsCurrent(c, generation); ++k) {
-            // Never emit the old password when a previously public field becomes protected.
-            if (properties[k] == UIA_ValueValuePropertyId && ((old[j].data.flags | next[i].data.flags) & WinAccProtected)) continue;
-            VARIANT a, b;
-            propertyValue(c, &old[j], properties[k], &a); propertyValue(c, &next[i], properties[k], &b);
-            if (!equalVariant(&a, &b)) UiaRaiseAutomationPropertyChangedEvent(&next[i].element->simple, properties[k], a, b);
-            VariantClear(&a); VariantClear(&b);
-        }
-        if ((next[i].data.flags & WinAccSelectable) &&
-            ((old[j].data.flags ^ next[i].data.flags) & WinAccSelected) && eventsCurrent(c, generation)) {
-            EVENTID event = UIA_SelectionItem_ElementRemovedFromSelectionEventId;
-            if (next[i].data.flags & WinAccSelected) {
-                event = UIA_SelectionItem_ElementSelectedEventId;
-                for (int k = 0; k < count; ++k)
-                    if (next[k].data.id == next[i].data.selection_owner && (next[k].data.flags & WinAccMultiple))
-                        event = UIA_SelectionItem_ElementAddedToSelectionEventId;
+    // Announce the user's focused control before potentially slow client calls
+    // for every affected background control (e.g. "Disable choices"). The whole
+    // snapshot is already committed, so reentrant queries see all state changes.
+    for (int pass = 0; pass < 2; ++pass) for (int i = 0; i < count; ++i) {
+        if ((next[i].data.id == focused) != (pass == 0)) continue;
+        for (int j = 0; j < oldCount; ++j) if (next[i].data.id == old[j].data.id) {
+            for (unsigned int k = 0; k < sizeof(properties)/sizeof(properties[0]) && eventsCurrent(c, generation); ++k) {
+                // Never emit the old password when a previously public field becomes protected.
+                if (properties[k] == UIA_ValueValuePropertyId && ((old[j].data.flags | next[i].data.flags) & WinAccProtected)) continue;
+                VARIANT a, b;
+                propertyValue(c, &old[j], properties[k], &a); propertyValue(c, &next[i], properties[k], &b);
+                if (!equalVariant(&a, &b)) UiaRaiseAutomationPropertyChangedEvent(&next[i].element->simple, properties[k], a, b);
+                VariantClear(&a); VariantClear(&b);
             }
-            UiaRaiseAutomationEvent(&next[i].element->simple, event);
+            if ((next[i].data.flags & WinAccSelectable) &&
+                ((old[j].data.flags ^ next[i].data.flags) & WinAccSelected) && eventsCurrent(c, generation)) {
+                EVENTID event = UIA_SelectionItem_ElementRemovedFromSelectionEventId;
+                if (next[i].data.flags & WinAccSelected) {
+                    event = UIA_SelectionItem_ElementSelectedEventId;
+                    for (int k = 0; k < count; ++k)
+                        if (next[k].data.id == next[i].data.selection_owner && (next[k].data.flags & WinAccMultiple))
+                            event = UIA_SelectionItem_ElementAddedToSelectionEventId;
+                }
+                UiaRaiseAutomationEvent(&next[i].element->simple, event);
+            }
+            if ((next[i].data.flags & WinAccText) && eventsCurrent(c, generation)) {
+                int textChanged = old[j].data.text_revision != next[i].data.text_revision || wcscmp(old[j].text, next[i].text);
+                if (textChanged) UiaRaiseAutomationEvent(&next[i].element->simple, UIA_Text_TextChangedEventId);
+                if (eventsCurrent(c, generation) && (textChanged || old[j].data.caret != next[i].data.caret ||
+                    old[j].data.selection_start != next[i].data.selection_start || old[j].data.selection_end != next[i].data.selection_end))
+                    UiaRaiseAutomationEvent(&next[i].element->simple, UIA_Text_TextSelectionChangedEventId);
+            }
+            break;
         }
-        if ((next[i].data.flags & WinAccText) && eventsCurrent(c, generation)) {
-            int textChanged = old[j].data.text_revision != next[i].data.text_revision || wcscmp(old[j].text, next[i].text);
-            if (textChanged) UiaRaiseAutomationEvent(&next[i].element->simple, UIA_Text_TextChangedEventId);
-            if (eventsCurrent(c, generation) && (textChanged || old[j].data.caret != next[i].data.caret ||
-                old[j].data.selection_start != next[i].data.selection_start || old[j].data.selection_end != next[i].data.selection_end))
-                UiaRaiseAutomationEvent(&next[i].element->simple, UIA_Text_TextSelectionChangedEventId);
-        }
-        break;
     }
     if (focusChanged && foreground && focusElement && eventsCurrent(c, generation)) UiaRaiseAutomationEvent(&focusElement->simple, UIA_AutomationFocusChangedEventId);
     if (focusElement) release(focusElement);

@@ -21,7 +21,7 @@ basic Windows controls, not a claim of complete screen-reader support.
 | Slider | RangeValue plus string Value, both change events, bounds, step, readonly and numeric validation | Broader boundary/disabled checks; Narrator acceptance |
 | Popups | Logical content, dialog marker, top-overlay scope, initial modal focus and restoration; confirmed with NVDA 2026.2 | Narrator acceptance |
 | Windows | Per-window context, fragment hierarchy, stable runtime IDs, snapshot queries, reference-counted detached providers, property/structure/focus events | Actual UIA client and screen-reader acceptance, DPI/multi-monitor coverage |
-| Select / RadioGroup | Selection/SelectionItem, ExpandCollapse, set position, stable options, actual keyboard focus, popup scope | Demo 4 NVDA / Narrator acceptance; large collection patterns remain separate |
+| Select / RadioGroup | Selection/SelectionItem, ExpandCollapse, set position, stable options, actual keyboard focus, popup scope | Demo 4 NVDA acceptance received; demo 5 follow-up and Narrator pending; large collection patterns remain separate |
 | Other platforms | Public interfaces remain compatible; shared model has no Windows dependency | Migrate each adapter to the shared model |
 
 Use `SetAccessibilityInfo(fyne.AccessibilityInfo{Name: "...", Description: "..."})`
@@ -201,18 +201,23 @@ existing ambiguity for duplicate option labels (SelectedIndex chooses the first)
 Demo 4 adds **Open selection demo** and **Open multiline text demo**. Keep the
 previous form as a regression scenario. On Windows 11 25H2 / NVDA 2026.2 check:
 
-1. Language announces its name, role and current choice. Left/Right change the
-   collapsed choice. Down, Up, Space or Enter opens the popup; the current choice
-   receives initial accessibility focus. Up/Down announce each highlighted option
-   and its position. Escape preserves the old choice; Enter commits. Focus returns
-   to Language in both cases. Background form controls must be inaccessible while open.
+1. Language announces its name, role and current choice. On Windows, all four
+   arrows change the collapsed choice, stopping at the ends. Space, Enter or
+   Alt+Up/Down opens the popup at the current choice. Up/Down announce each
+   highlighted option and its position. Escape preserves the old choice; Enter
+   commits. Both return focus to Language. Tab commits, closes and moves to the
+   next control; Shift+Tab moves to the previous one. Background form controls
+   must be inaccessible while open. Other platforms keep their existing keys.
 2. Notifications announces each radio label, state and position in its group.
    Arrows change selection; Enter/Space cannot clear the required selection.
    Optional appearance starts empty; Space can clear the selected option.
 3. Disable choices removes these controls from keyboard traversal and exposes
    their disabled state to object navigation. Re-enable and verify normal use.
+   Compare the speed of checked/unchecked speech with other checkboxes.
 4. Notes supports Up/Down, Home/End, Ctrl+arrows, Shift selection across lines,
    Backspace/Delete, replacement and undo. Check both Cyrillic and the email text.
+   Add a newline after the last line, then two more: each final empty line must
+   be reported as blank, without repeating the preceding nonempty line.
    Confirm the earlier password and slider behavior still works in the first window.
 
 Automated tests cover selection commands, scope, focus restoration, required and
@@ -223,3 +228,30 @@ the new scenarios remains a manual acceptance gate.
 - [SelectionItem provider](https://learn.microsoft.com/en-us/windows/win32/api/uiautomationcore/nn-uiautomationcore-iselectionitemprovider)
 - [ExpandCollapse provider](https://learn.microsoft.com/en-us/windows/win32/api/uiautomationcore/nn-uiautomationcore-iexpandcollapseprovider)
 - [ComboBox control](https://learn.microsoft.com/en-us/windows/win32/winauto/uiauto-supportcomboboxcontroltype)
+
+
+## User feedback and corrections (demo 5)
+
+The user confirmed selection naming, option positions, popup scope and focus
+restoration; required/optional RadioGroup behavior; disabled-state exposure;
+window switching; and no regressions in the original form. Multiline navigation,
+selection and editing mostly worked. Three follow-ups are addressed here:
+
+- Windows Select now uses the requested closed-arrow and disclosure policy above.
+  Tab commits the popup highlight and delegates traversal to the canvas focus
+  manager, respecting callbacks that deliberately redirect focus. Canvas shortcuts
+  continue working after Select/PopUpMenu gain shortcut handling.
+- Expanding a caret at the end of text into Line/Paragraph now preserves a final
+  empty line instead of selecting its predecessor. Movement can reach that empty
+  final unit. Nonempty last lines and whole-document expansion retain their meaning.
+- Snapshot property notifications for the focused control are published before
+  background controls. This puts Disable choices' Toggle event ahead of the batch
+  of enabled-state changes. The complete snapshot is still committed first; native
+  tests verify event ordering, reentrant queries and no duplicate events. This
+  addresses a plausible source of the reported ~1.5 s speech delay; the latency
+  improvement itself still needs a real NVDA repeat test.
+
+Regressions also cover closed-arrow boundaries, initial popup highlight, commit
+versus cancellation, forward/backward focus traversal, ordinary-menu behavior,
+multiple final newlines and geometry-free text providers. Existing desktop-only
+focus assertions are corrected for mobile CI without changing mobile focus policy.

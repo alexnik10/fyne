@@ -28,7 +28,7 @@ jobs:
         with:
           go-version: stable
       - name: Build actual GLFW accessibility driver
-        run: go build -tags accessibility ./cmd/accessibility_demo
+        run: go build -tags accessibility -ldflags="-s -w -H=windowsgui" ./cmd/accessibility_demo
       - name: Semantic and widget tests with accessibility enabled
         run: go test -race -tags accessibility,ci ./internal/accessibility ./widget ./internal/widget
       - name: Upload demo for manual screen-reader acceptance

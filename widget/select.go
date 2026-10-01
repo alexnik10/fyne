@@ -3,11 +3,13 @@ package widget
 import (
 	"fmt"
 	"image/color"
+	"runtime"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/data/binding"
 	"fyne.io/fyne/v2/driver/desktop"
+	"fyne.io/fyne/v2/internal/goos"
 	"fyne.io/fyne/v2/theme"
 )
 
@@ -234,6 +236,9 @@ func (s *Select) Tapped(*fyne.PointEvent) {
 // TypedKey is called if a key event happens while this Select is focused.
 func (s *Select) TypedKey(event *fyne.KeyEvent) {
 	if s.Disabled() {
+		return
+	}
+	if runtime.GOOS == goos.Windows && s.typedKeyWindows(event) {
 		return
 	}
 	switch event.Name {

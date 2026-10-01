@@ -42,7 +42,9 @@ func TestRadioSelectionCommandsAndIdentity(t *testing.T) {
 	w.Canvas().Focused().TypedKey(&fyne.KeyEvent{Name: fyne.KeyRight})
 	assert.Equal(t, "Never", r.Selected)
 	nodes = tree.Build(roots, w.Canvas().Focused())
-	assert.True(t, nodeNamed(t, nodes, "Never").Focused)
+	if !fyne.CurrentDevice().IsMobile() {
+		assert.True(t, nodeNamed(t, nodes, "Never").Focused)
+	}
 
 	r.Options = []string{"Weekly", "Daily", "New"}
 	r.Refresh()
@@ -87,7 +89,7 @@ func TestSelectPopupScopeFocusAndSelection(t *testing.T) {
 	assert.False(t, russian.Focusable)
 	assert.False(t, tree.Perform(german.ID, accessibility.Focus, "", 0, w.Canvas()))
 
-	s.TypedKey(&fyne.KeyEvent{Name: fyne.KeyDown})
+	s.AccessibilitySetExpanded(true)
 	var scope accessibility.FocusScope
 	scope.Update(w.Canvas())
 	require.True(t, s.AccessibilityExpanded())

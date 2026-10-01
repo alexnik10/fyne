@@ -65,7 +65,7 @@ func main() {
 }
 
 func showSelectionDemo(application fyne.App) {
-	window := application.NewWindow("Selection accessibility demo 4")
+	window := application.NewWindow("Selection accessibility demo 5")
 	status := widget.NewLabel("Change a choice using the keyboard")
 	language := widget.NewSelect([]string{"English", "Russian", "German"}, func(value string) {
 		status.SetText("Language: " + value)

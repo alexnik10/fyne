@@ -3,6 +3,7 @@ package widget_test
 import (
 	"fmt"
 	"image"
+	"runtime"
 	"runtime/debug"
 	"testing"
 	"time"
@@ -13,6 +14,7 @@ import (
 	"fyne.io/fyne/v2/data/binding"
 	"fyne.io/fyne/v2/driver/software"
 	"fyne.io/fyne/v2/internal/cache"
+	"fyne.io/fyne/v2/internal/goos"
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/test"
 	"fyne.io/fyne/v2/theme"
@@ -253,6 +255,9 @@ func TestSelect_KeyboardControl(t *testing.T) {
 	test.NewTempApp(t)
 
 	t.Run("activate pop-up", func(t *testing.T) {
+		if runtime.GOOS == goos.Windows {
+			t.Skip("Windows combo keyboard behavior is covered by TestSelectWindowsKeyboard")
+		}
 		sel := widget.NewSelect([]string{"Option A", "Option B"}, nil)
 		w := test.NewWindow(&fyne.Container{Layout: layout.NewCenterLayout(), Objects: []fyne.CanvasObject{sel}})
 		defer w.Close()
@@ -282,6 +287,9 @@ func TestSelect_KeyboardControl(t *testing.T) {
 	})
 
 	t.Run("traverse options without pop-up", func(t *testing.T) {
+		if runtime.GOOS == goos.Windows {
+			t.Skip("Windows combo keyboard behavior is covered by TestSelectWindowsKeyboard")
+		}
 		sel := widget.NewSelect([]string{"Option A", "Option B", "Option C"}, nil)
 		w := test.NewWindow(&fyne.Container{Layout: layout.NewCenterLayout(), Objects: []fyne.CanvasObject{sel}})
 		defer w.Close()
