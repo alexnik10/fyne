@@ -22,7 +22,7 @@ func (b *Button) AccessibilityActivate() {
 // AccessibilityActivate runs the link's activation command.
 //
 // Since: 2.9
-func (h *Hyperlink) AccessibilityActivate() { h.invokeAction() }
+func (hl *Hyperlink) AccessibilityActivate() { hl.invokeAction() }
 
 // AccessibilityLabel returns the check's label.
 //
@@ -74,7 +74,7 @@ func (e *Entry) AccessibilityInfo() fyne.AccessibilityInfo {
 // AccessibilityValue returns the value without exposing protected text.
 //
 // Since: 2.9
-func (e *Entry) AccessibilityValue() (string, bool, bool) {
+func (e *Entry) AccessibilityValue() (value string, readOnly, protected bool) {
 	if e.Password {
 		return "", e.Disabled(), true
 	}
@@ -103,7 +103,7 @@ func (*Slider) AccessibilityRole() fyne.AccessibleRole { return fyne.AccessibleR
 // AccessibilityRange returns the range and step.
 //
 // Since: 2.9
-func (s *Slider) AccessibilityRange() (float64, float64, float64, float64) {
+func (s *Slider) AccessibilityRange() (value, minimum, maximum, step float64) {
 	return s.Value, s.Min, s.Max, s.Step
 }
 

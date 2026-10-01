@@ -13,19 +13,25 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
+const (
+	maximumVolume = 10
+	windowWidth   = 520
+	windowHeight  = 420
+)
+
 func main() {
 	application := app.NewWithID("io.fyne.accessibility-demo")
 	window := application.NewWindow("Fyne accessibility")
 	email := widget.NewEntry()
 	email.Validator = func(value string) error {
 		if !strings.Contains(value, "@") {
-			return errors.New("Enter an email address containing @")
+			return errors.New("enter an email address containing @")
 		}
 		return nil
 	}
 	password := widget.NewPasswordEntry()
 	remember := widget.NewCheck("Remember this account", nil)
-	volume := widget.NewSlider(0, 10)
+	volume := widget.NewSlider(0, maximumVolume)
 	status := widget.NewLabel("Ready")
 	form := widget.NewForm(
 		widget.NewFormItem("Email", email),
@@ -50,6 +56,6 @@ func main() {
 		other.Show()
 	})
 	window.SetContent(container.NewVBox(form, status, second))
-	window.Resize(fyne.NewSize(520, 420))
+	window.Resize(fyne.NewSize(windowWidth, windowHeight))
 	window.ShowAndRun()
 }

@@ -26,8 +26,8 @@ type accessibilityBridge struct {
 	handle uintptr
 }
 
-// The window map is event-thread-only. COM callbacks use only the handle registry
-// and enqueue work; no Go pointer is retained by a C provider.
+// The window map is event-thread-only. COM callbacks use the handle registry
+// and marshal work to the window thread; C providers never retain Go pointers.
 var accessibilityWindows = make(map[*window]*accessibilityBridge)
 var accessibilityHandles sync.Map
 var nextAccessibilityHandle atomic.Uint64

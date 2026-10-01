@@ -35,7 +35,7 @@ Baseline: `312219185e6aebb7ac7728abc7044089b657ef27`. The existing
 ## Invariants
 
 - Widget state is authoritative; platform queries use snapshots, not widget reads
-  from arbitrary COM threads. Platform actions are queued and revalidated.
+  from arbitrary COM threads. Platform actions are marshalled and revalidated.
 - Reading focus is distinct from keyboard focus and selection. No shadow Tab
   handler: only the Fyne canvas determines the keyboard focus.
 - Identifiers survive changes to name/value/bounds/order while objects remain

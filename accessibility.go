@@ -89,6 +89,6 @@ type AccessibleValue interface {
 //
 // Since: 2.9
 type AccessibleRange interface {
-	AccessibilityRange() (value, min, max, step float64)
+	AccessibilityRange() (value, minimum, maximum, step float64)
 	AccessibilitySetRangeValue(float64)
 }
