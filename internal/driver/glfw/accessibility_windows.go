@@ -153,8 +153,10 @@ func (w *window) updateAccessibility() {
 		diagnostic.Add(diagnostic.Sample{Kind: "native_snapshot", Window: windowID, DurationUS: int64(stats.snapshot_ms * microsecondsPerMillisecond), Count: len(nodes)})
 		diagnostic.Add(diagnostic.Sample{Kind: "uia_events", Window: windowID, DurationUS: int64(stats.events_ms * microsecondsPerMillisecond), Count: int(stats.event_count)})
 		if stats.event_count > 0 {
-			diagnostic.Add(diagnostic.Sample{Kind: "uia_slowest_event", Window: windowID, DurationUS: int64(stats.slowest_ms * microsecondsPerMillisecond),
-				Node: uint32(stats.slowest_node), EventID: int(stats.slowest_id), EventKind: int(stats.slowest_kind)})
+			diagnostic.Add(diagnostic.Sample{
+				Kind: "uia_slowest_event", Window: windowID, DurationUS: int64(stats.slowest_ms * microsecondsPerMillisecond),
+				Node: uint32(stats.slowest_node), EventID: int(stats.slowest_id), EventKind: int(stats.slowest_kind),
+			})
 		}
 	} else {
 		C.WinAccessibilityUpdate(b.native, data, C.int(len(nodes)))

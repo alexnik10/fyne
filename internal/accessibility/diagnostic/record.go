@@ -115,8 +115,10 @@ func (r *recorder) add(sample Sample) {
 
 func Write(out io.Writer) error {
 	recording.Lock()
-	report := Report{Schema: 1, Started: recording.started.UTC(), Dropped: recording.dropped,
-		Summary: make(map[string]Summary, len(recording.summary)), Samples: append([]Sample(nil), recording.samples...)}
+	report := Report{
+		Schema: 1, Started: recording.started.UTC(), Dropped: recording.dropped,
+		Summary: make(map[string]Summary, len(recording.summary)), Samples: append([]Sample(nil), recording.samples...),
+	}
 	for key, value := range recording.summary {
 		report.Summary[key] = value
 	}

@@ -53,7 +53,7 @@ func TestDiagnosticSaveReportsAndOverwritesOwnFile(t *testing.T) {
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
 	assert.True(t, json.Valid(data))
-	require.NoError(t, os.WriteFile(path, []byte("stale trailing data"), 0600))
+	require.NoError(t, os.WriteFile(path, []byte("stale trailing data"), 0o600))
 	_, err = saveDiagnosticReport()
 	require.NoError(t, err)
 	data, err = os.ReadFile(path)
