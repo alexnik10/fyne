@@ -34,10 +34,14 @@ func TestSelectWindowsKeyboard(t *testing.T) {
 		key  fyne.KeyName
 		want string
 	}{
-		{fyne.KeyUp, "English"}, {fyne.KeyUp, "English"},
-		{fyne.KeyDown, "Russian"}, {fyne.KeyRight, "German"},
-		{fyne.KeyDown, "German"}, {fyne.KeyRight, "German"},
-		{fyne.KeyLeft, "Russian"}, {fyne.KeyUp, "English"},
+		{fyne.KeyUp, "English"},
+		{fyne.KeyUp, "English"},
+		{fyne.KeyDown, "Russian"},
+		{fyne.KeyRight, "German"},
+		{fyne.KeyDown, "German"},
+		{fyne.KeyRight, "German"},
+		{fyne.KeyLeft, "Russian"},
+		{fyne.KeyUp, "English"},
 	} {
 		press(step.key)
 		assert.Equal(t, step.want, s.Selected)
