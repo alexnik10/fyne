@@ -986,6 +986,9 @@ func (e *Entry) eraseSelection() bool {
 	}
 
 	erasedText := provider.deleteFromTo(posA, posB)
+	// Replacement can insert the identical text before updateText runs. It is
+	// still an edit for accessibility, even when the final value is unchanged.
+	e.accessibilityTextRevision++
 	e.CursorRow, e.CursorColumn = e.rowColFromTextPos(posA)
 	e.syncSelectable()
 	e.sel.selectRow, e.sel.selectColumn = e.CursorRow, e.CursorColumn

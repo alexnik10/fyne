@@ -84,6 +84,23 @@ func TestTextSelectionDoesNotEditAndScrollDoesNotMoveCaret(t *testing.T) {
 	assert.Equal(t, entry.Text, entry.SelectedText())
 }
 
+func TestTextRevisionForIdenticalReplacement(t *testing.T) {
+	app := test.NewApp()
+	defer app.Quit()
+	entry := widget.NewEntry()
+	entry.SetText("same")
+	entry.AccessibilitySelectText(0, 4)
+	before := entry.AccessibilityText()
+	clipboard := test.NewClipboard()
+	clipboard.SetContent("same")
+	entry.TypedShortcut(&fyne.ShortcutPaste{Clipboard: clipboard})
+	after := entry.AccessibilityText()
+	assert.Equal(t, before.Text, after.Text)
+	assert.Greater(t, after.Revision, before.Revision)
+	assert.Equal(t, 4, after.Caret)
+	assert.Equal(t, after.SelectionStart, after.SelectionEnd)
+}
+
 func TestSliderStringValueTracksKeyboardRange(t *testing.T) {
 	app := test.NewApp()
 	defer app.Quit()
