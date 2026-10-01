@@ -44,6 +44,13 @@ func (w *window) accessibilityRoots() []accessibility.Root {
 	for i, overlay := range overlays {
 		roots = append(roots, accessibility.Root{Object: overlay, Suppressed: i != len(overlays)-1})
 	}
+	if owner, ok := w.canvas.Overlays().Top().(fyne.AccessibleOverlayOwner); ok {
+		if scope := owner.AccessibilityOverlayOwner(); scope != nil {
+			for i := range roots {
+				roots[i].Suppressed, roots[i].Scope = false, scope
+			}
+		}
+	}
 	return roots
 }
 
@@ -78,6 +85,8 @@ func (w *window) updateAccessibility() {
 		x := &native[i]
 		x.id, x.parent = C.uint32_t(n.ID), C.uint32_t(n.Parent)
 		x.role = roleToCWin(n.Role)
+		x.selection_owner = C.uint32_t(n.SelectionOwner)
+		x.set_position, x.set_size = C.int(n.SetPosition), C.int(n.SetSize)
 		x.name, x.description, x.value = C.CString(n.Name), C.CString(n.Description), C.CString(n.Text)
 		defer C.free(unsafe.Pointer(x.name))
 		defer C.free(unsafe.Pointer(x.description))
@@ -121,7 +130,7 @@ func (w *window) updateAccessibility() {
 				x.positions, x.position_count = positions, C.int(len(doc.Positions))
 			}
 		}
-		flags := []bool{n.Disabled, n.Focusable, n.Focused, n.Required, n.Invalid, n.Invoke, n.Toggle, n.Value, n.Range, n.Checked, n.ReadOnly, n.Protected, n.Document != nil}
+		flags := []bool{n.Disabled, n.Focusable, n.Focused, n.Required, n.Invalid, n.Invoke, n.Toggle, n.Value, n.Range, n.Checked, n.ReadOnly, n.Protected, n.Document != nil, n.Selection, n.Multiple, n.SelectionRequired, n.Selectable, n.Selected, n.Expandable, n.Expanded}
 		for bit, set := range flags {
 			if set {
 				x.flags |= 1 << bit
@@ -147,6 +156,12 @@ func roleToCWin(role fyne.AccessibleRole) C.int {
 		return 6
 	case fyne.AccessibleRoleDialog:
 		return 7
+	case fyne.AccessibleRoleComboBox:
+		return 8
+	case fyne.AccessibleRoleRadio:
+		return 9
+	case fyne.AccessibleRoleListItem:
+		return 10
 	default:
 		return 0
 	}

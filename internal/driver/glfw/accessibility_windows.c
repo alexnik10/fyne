@@ -118,6 +118,9 @@ struct Element {
     IValueProvider value;
     IRangeValueProvider range;
     ITextProvider2 text;
+    ISelectionProvider selection;
+    ISelectionItemProvider selectionItem;
+    IExpandCollapseProvider expand;
     TextRange *textRanges;
     LONG refs;
     uint32_t id;
@@ -135,6 +138,10 @@ static IToggleProviderVtbl toggleVtbl;
 static IValueProviderVtbl valueVtbl;
 static IRangeValueProviderVtbl rangeVtbl;
 static ITextProvider2Vtbl textVtbl;
+static ISelectionProviderVtbl selectionVtbl;
+static ISelectionItemProviderVtbl selectionItemVtbl;
+static IExpandCollapseProviderVtbl expandVtbl;
+static HRESULT selectionArray(Element *, SAFEARRAY **);
 
 static void contextRelease(WinAccessibility *c) {
     if (!InterlockedDecrement(&c->refs)) free(c);
@@ -163,6 +170,8 @@ static Element *newElement(WinAccessibility *c, uint32_t id) {
     e->toggle.lpVtbl = &toggleVtbl; e->value.lpVtbl = &valueVtbl;
     e->range.lpVtbl = &rangeVtbl; e->refs = 1; e->id = id; e->context = c;
     e->text.lpVtbl = &textVtbl;
+    e->selection.lpVtbl = &selectionVtbl; e->selectionItem.lpVtbl = &selectionItemVtbl;
+    e->expand.lpVtbl = &expandVtbl;
     InterlockedIncrement(&c->refs);
     return e;
 }
@@ -181,6 +190,9 @@ static HRESULT query(Element *e, REFIID iid, void **out) {
         if ((flags & WinAccValue) && IsEqualIID(iid, &IID_IValueProvider)) *out = &e->value;
         if ((flags & WinAccRange) && IsEqualIID(iid, &IID_IRangeValueProvider)) *out = &e->range;
         if ((flags & WinAccText) && (IsEqualIID(iid, &IID_ITextProvider) || IsEqualIID(iid, &IID_ITextProvider2))) *out = &e->text;
+        if ((flags & WinAccSelection) && IsEqualIID(iid, &IID_ISelectionProvider)) *out = &e->selection;
+        if ((flags & WinAccSelectable) && IsEqualIID(iid, &IID_ISelectionItemProvider)) *out = &e->selectionItem;
+        if ((flags & WinAccExpandable) && IsEqualIID(iid, &IID_IExpandCollapseProvider)) *out = &e->expand;
         ReleaseSRWLockShared(&e->context->lock);
     }
     if (!*out) return E_NOINTERFACE;
@@ -198,6 +210,9 @@ IUNKNOWN(T, IToggleProvider, toggle)
 IUNKNOWN(V, IValueProvider, value)
 IUNKNOWN(N, IRangeValueProvider, range)
 IUNKNOWN(X, ITextProvider2, text)
+IUNKNOWN(SL, ISelectionProvider, selection)
+IUNKNOWN(SI, ISelectionItemProvider, selectionItem)
+IUNKNOWN(EC, IExpandCollapseProvider, expand)
 
 static HRESULT STDMETHODCALLTYPE options(IRawElementProviderSimple *p, enum ProviderOptions *out) {
     if (!out) return E_POINTER;
@@ -215,6 +230,9 @@ static HRESULT STDMETHODCALLTYPE pattern(IRawElementProviderSimple *p, PATTERNID
     if (id == UIA_ValuePatternId && (flags & WinAccValue)) *out = (IUnknown *)&e->value;
     if (id == UIA_RangeValuePatternId && (flags & WinAccRange)) *out = (IUnknown *)&e->range;
     if ((id == UIA_TextPatternId || id == UIA_TextPattern2Id) && (flags & WinAccText)) *out = (IUnknown *)&e->text;
+    if (id == UIA_SelectionPatternId && (flags & WinAccSelection)) *out = (IUnknown *)&e->selection;
+    if (id == UIA_SelectionItemPatternId && (flags & WinAccSelectable)) *out = (IUnknown *)&e->selectionItem;
+    if (id == UIA_ExpandCollapsePatternId && (flags & WinAccExpandable)) *out = (IUnknown *)&e->expand;
     if (*out) addRef(e);
     ReleaseSRWLockShared(&c->lock); return S_OK;
 }
@@ -231,6 +249,9 @@ static int controlType(int role) {
     case 5: return UIA_EditControlTypeId;
     case 6: return UIA_SliderControlTypeId;
     case 7: return UIA_PaneControlTypeId;
+    case 8: return UIA_ComboBoxControlTypeId;
+    case 9: return UIA_RadioButtonControlTypeId;
+    case 10: return UIA_ListItemControlTypeId;
     default: return UIA_GroupControlTypeId;
     }
 }
@@ -284,6 +305,31 @@ static void propertyValue(WinAccessibility *c, Record *r, PROPERTYID id, VARIANT
     case UIA_RangeValueSmallChangePropertyId: if (f & WinAccRange) variantNumber(out, n->step); break;
     case UIA_RangeValueLargeChangePropertyId: if (f & WinAccRange) variantNumber(out, n->step); break;
     case UIA_RangeValueIsReadOnlyPropertyId: if (f & WinAccRange) variantBool(out, f & WinAccReadOnly); break;
+    case UIA_IsSelectionPatternAvailablePropertyId: variantBool(out, f & WinAccSelection); break;
+    case UIA_IsSelectionItemPatternAvailablePropertyId: variantBool(out, f & WinAccSelectable); break;
+    case UIA_IsExpandCollapsePatternAvailablePropertyId: variantBool(out, f & WinAccExpandable); break;
+    case UIA_SelectionCanSelectMultiplePropertyId: if (f & WinAccSelection) variantBool(out, f & WinAccMultiple); break;
+    case UIA_SelectionIsSelectionRequiredPropertyId: if (f & WinAccSelection) variantBool(out, f & WinAccSelectionRequired); break;
+    case UIA_SelectionItemIsSelectedPropertyId: if (f & WinAccSelectable) variantBool(out, f & WinAccSelected); break;
+    case UIA_SelectionItemSelectionContainerPropertyId:
+        if (f & WinAccSelectable) {
+            Record *owner = find(c, n->selection_owner);
+            if (owner && (owner->data.flags & WinAccSelection)) {
+                out->vt = VT_UNKNOWN; out->punkVal = (IUnknown *)&owner->element->simple; addRef(owner->element);
+            }
+        }
+        break;
+    case UIA_SelectionSelectionPropertyId:
+        if (f & WinAccSelection) {
+            SAFEARRAY *array = NULL;
+            if (SUCCEEDED(selectionArray(r->element, &array))) { out->vt = VT_ARRAY | VT_UNKNOWN; out->parray = array; }
+        }
+        break;
+    case UIA_ExpandCollapseExpandCollapseStatePropertyId:
+        if (f & WinAccExpandable) integer(out, (f & WinAccExpanded) ? ExpandCollapseState_Expanded : ExpandCollapseState_Collapsed);
+        break;
+    case UIA_PositionInSetPropertyId: if (n && n->set_position > 0) integer(out, n->set_position); break;
+    case UIA_SizeOfSetPropertyId: if (n && n->set_size > 0) integer(out, n->set_size); break;
     case UIA_ProviderDescriptionPropertyId: variantString(out, L"Fyne semantic UI Automation provider"); break;
     }
 }
@@ -363,10 +409,26 @@ static HRESULT action(Element *e, int act, char *text, double value) {
     else if (!r && !(e->id == 0 && act == 0)) hr = (HRESULT)UIA_E_NOTSUPPORTED;
     else if (r && (r->data.flags & WinAccDisabled)) hr = (HRESULT)UIA_E_ELEMENTNOTENABLED;
     else if (r) {
-        int required[] = {WinAccFocusable, WinAccInvoke, WinAccToggle, WinAccValue, WinAccRange};
-        if (!(r->data.flags & required[act])) hr = (HRESULT)UIA_E_NOTSUPPORTED;
-        else if (act >= 3 && (r->data.flags & WinAccReadOnly)) hr = (HRESULT)UIA_E_INVALIDOPERATION;
+        int required[] = {WinAccFocusable, WinAccInvoke, WinAccToggle, WinAccValue, WinAccRange, 0,
+            WinAccSelectable, WinAccSelectable, WinAccSelectable, WinAccExpandable, WinAccExpandable};
+        if (act < 0 || act > 10 || !(r->data.flags & required[act])) hr = (HRESULT)UIA_E_NOTSUPPORTED;
+        else if ((act == 3 || act == 4) && (r->data.flags & WinAccReadOnly)) hr = (HRESULT)UIA_E_INVALIDOPERATION;
         else if (act == 4 && (!isfinite(value) || value < r->data.minimum || value > r->data.maximum)) hr = E_INVALIDARG;
+    }
+    if (SUCCEEDED(hr) && act >= 6 && act <= 8) {
+        Record *owner = find(c, r->data.selection_owner);
+        if (!owner || !(owner->data.flags & WinAccSelection)) hr = UNAVAILABLE;
+        else if (owner->data.flags & WinAccDisabled) hr = (HRESULT)UIA_E_ELEMENTNOTENABLED;
+        else {
+            int others = 0;
+            for (int i = 0; i < c->count; ++i) {
+                WinAccessibilityNode *n = &c->records[i].data;
+                if (n->id != e->id && n->selection_owner == owner->data.id && (n->flags & WinAccSelected)) ++others;
+            }
+            if (act == 7 && !(owner->data.flags & WinAccMultiple) && others) hr = (HRESULT)UIA_E_INVALIDOPERATION;
+            if (act == 8 && (r->data.flags & WinAccSelected) && (owner->data.flags & WinAccSelectionRequired) && !others)
+                hr = (HRESULT)UIA_E_INVALIDOPERATION;
+        }
     }
     uintptr_t handle = c->handle; HWND hwnd = c->hwnd;
     ReleaseSRWLockShared(&c->lock);
@@ -488,6 +550,7 @@ static IValueProviderVtbl valueVtbl = {V_QI, V_Add, V_Release, setValue, getValu
 static IRangeValueProviderVtbl rangeVtbl = {N_QI, N_Add, N_Release, setRange, rangeValue, rangeReadOnly, rangeMax, rangeMin, rangeLarge, rangeSmall};
 
 #include "accessibility_text_windows.h"
+#include "accessibility_selection_windows.h"
 
 static LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     WinAccessibility *c = (WinAccessibility *)GetPropW(hwnd, WINDOW_PROPERTY);
@@ -614,7 +677,12 @@ int WinAccessibilityUpdate(WinAccessibility *c, const WinAccessibilityNode *node
         UIA_ControlTypePropertyId, UIA_IsDialogPropertyId, UIA_BoundingRectanglePropertyId,
         UIA_IsInvokePatternAvailablePropertyId, UIA_IsTogglePatternAvailablePropertyId,
         UIA_IsValuePatternAvailablePropertyId, UIA_IsRangeValuePatternAvailablePropertyId,
-        UIA_IsTextPatternAvailablePropertyId, UIA_IsTextPattern2AvailablePropertyId};
+        UIA_IsTextPatternAvailablePropertyId, UIA_IsTextPattern2AvailablePropertyId,
+        UIA_IsSelectionPatternAvailablePropertyId, UIA_IsSelectionItemPatternAvailablePropertyId,
+        UIA_IsExpandCollapsePatternAvailablePropertyId, UIA_SelectionCanSelectMultiplePropertyId,
+        UIA_SelectionIsSelectionRequiredPropertyId, UIA_SelectionItemIsSelectedPropertyId,
+        UIA_ExpandCollapseExpandCollapseStatePropertyId, UIA_PositionInSetPropertyId, UIA_SizeOfSetPropertyId,
+        UIA_IsOffscreenPropertyId};
     for (int i = 0; i < count; ++i) for (int j = 0; j < oldCount; ++j) if (next[i].data.id == old[j].data.id) {
         for (unsigned int k = 0; k < sizeof(properties)/sizeof(properties[0]) && eventsCurrent(c, generation); ++k) {
             // Never emit the old password when a previously public field becomes protected.
@@ -623,6 +691,17 @@ int WinAccessibilityUpdate(WinAccessibility *c, const WinAccessibilityNode *node
             propertyValue(c, &old[j], properties[k], &a); propertyValue(c, &next[i], properties[k], &b);
             if (!equalVariant(&a, &b)) UiaRaiseAutomationPropertyChangedEvent(&next[i].element->simple, properties[k], a, b);
             VariantClear(&a); VariantClear(&b);
+        }
+        if ((next[i].data.flags & WinAccSelectable) &&
+            ((old[j].data.flags ^ next[i].data.flags) & WinAccSelected) && eventsCurrent(c, generation)) {
+            EVENTID event = UIA_SelectionItem_ElementRemovedFromSelectionEventId;
+            if (next[i].data.flags & WinAccSelected) {
+                event = UIA_SelectionItem_ElementSelectedEventId;
+                for (int k = 0; k < count; ++k)
+                    if (next[k].data.id == next[i].data.selection_owner && (next[k].data.flags & WinAccMultiple))
+                        event = UIA_SelectionItem_ElementAddedToSelectionEventId;
+            }
+            UiaRaiseAutomationEvent(&next[i].element->simple, event);
         }
         if ((next[i].data.flags & WinAccText) && eventsCurrent(c, generation)) {
             int textChanged = old[j].data.text_revision != next[i].data.text_revision || wcscmp(old[j].text, next[i].text);

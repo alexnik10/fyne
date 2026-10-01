@@ -62,3 +62,25 @@ formatting and broader screen-reader acceptance as explicit remaining gates.
 Add a regression for each reported failure before distributing the second demo.
 The first user run confirms Tab traversal, form metadata, Check and modal focus;
 the revised text and Slider behavior require another real NVDA run.
+
+
+## Current increment: Select and RadioGroup (demo 4)
+
+The NVDA follow-up confirmed most plain Entry examples, including the intended
+single-word underscore behavior. Keep multiline editing, Narrator, IME and complex
+scripts as explicit remaining text acceptance work.
+
+Start collection gate 6 with Select and RadioGroup: shared selection and disclosure
+capabilities, stable logical options, actual focus mapping, Windows Selection /
+SelectionItem / ExpandCollapse, and event-thread commands. A dropdown must preserve
+its owner's name/identity while excluding unrelated background controls. Selection
+and keyboard highlight must remain distinct until the user commits a choice.
+
+Deliver a Windows executable and a focused acceptance checklist. Automated gates
+include selection/required/disabled behavior, focus restoration and scope, retained
+COM interfaces, event publication and option removal/reordering. Refactor semantic
+snapshot construction into capability helpers to satisfy the existing complexity
+limit without weakening static analysis.
+
+Next increments remain tabs/menus, then List/Tree/Table and virtualization. Other
+platform adapters can consume these capabilities without depending on Windows types.

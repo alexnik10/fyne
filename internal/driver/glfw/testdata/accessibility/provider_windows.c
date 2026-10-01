@@ -9,11 +9,13 @@
 #include <stdio.h>
 static int propertyEvents, structureEvents, focusEvents;
 static int textEvents, selectionEvents, numericEvents, valueEvents;
+static int itemSelectionEvents, itemRemovalEvents, expansionEvents;
 static void (*duringProperty)(void);
 static HRESULT WINAPI propertyEvent(IRawElementProviderSimple *p, PROPERTYID id, VARIANT before, VARIANT after) {
     (void)p; (void)id; (void)before; (void)after; ++propertyEvents;
     if (id == UIA_RangeValueValuePropertyId) { assert(before.vt == VT_R8 && after.vt == VT_R8); ++numericEvents; }
     if (id == UIA_ValueValuePropertyId) { assert(before.vt == VT_BSTR && after.vt == VT_BSTR); ++valueEvents; }
+    if (id == UIA_ExpandCollapseExpandCollapseStatePropertyId) ++expansionEvents;
     if (duringProperty) { void (*fn)(void) = duringProperty; duringProperty = NULL; fn(); }
     return S_OK;
 }
@@ -24,6 +26,8 @@ static HRESULT WINAPI automationEvent(IRawElementProviderSimple *p, EVENTID id) 
     (void)p; if (id == UIA_AutomationFocusChangedEventId) ++focusEvents;
     if (id == UIA_Text_TextChangedEventId) ++textEvents;
     if (id == UIA_Text_TextSelectionChangedEventId) ++selectionEvents;
+    if (id == UIA_SelectionItem_ElementSelectedEventId) ++itemSelectionEvents;
+    if (id == UIA_SelectionItem_ElementRemovedFromSelectionEventId) ++itemRemovalEvents;
     return S_OK;
 }
 #define UiaRaiseAutomationPropertyChangedEvent propertyEvent
@@ -31,7 +35,7 @@ static HRESULT WINAPI automationEvent(IRawElementProviderSimple *p, EVENTID id) 
 #define UiaRaiseAutomationEvent automationEvent
 #include "../../accessibility_windows.c"
 
-static int actions;
+static int actions, lastAction;
 static uintptr_t actionWindow;
 static uint32_t actionID;
 static char actionValue[128];
@@ -41,7 +45,7 @@ int goFyneAccessibilityTextAction(uintptr_t handle, uint32_t id, int start, int 
     textStart = start; textEnd = end; textScroll = scroll; return 1;
 }
 void goFyneAccessibilityAction(uintptr_t handle, uint32_t id, int act, char *value, double number) {
-    (void)act; (void)number; ++actions; actionWindow = handle; actionID = id;
+    lastAction = act; (void)number; ++actions; actionWindow = handle; actionID = id;
     if (value) lstrcpynA(actionValue, value, sizeof(actionValue));
 }
 int goFyneAccessibilityPerform(uintptr_t handle, uint32_t id, int act, char *value, double number) {
@@ -227,10 +231,13 @@ static void testWordNavigation(void) {
     SysFreeString(masked); ITextRangeProvider_Release(range);
     WinAccessibilityCleanup(c); release(entry); DestroyWindow(hwnd);
 }
+#include "selection_windows.h"
+
 int main(void) {
     CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
     testTextProvider();
     testWordNavigation();
+    testSelectionProviders();
     HWND h1 = newWindow(), h2 = newWindow(); assert(h1 && h2);
     WinAccessibility *a = WinAccessibilityCreate(h1, 11), *b = WinAccessibilityCreate(h2, 22);
     assert(a && b && a != b);

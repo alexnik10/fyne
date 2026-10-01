@@ -36,10 +36,11 @@ type Select struct {
 
 	binder basicBinder
 
-	focused bool
-	hovered bool
-	popUp   *PopUpMenu
-	tapAnim *fyne.Animation
+	focused           bool
+	hovered           bool
+	popUp             *PopUpMenu
+	accessibleOptions []*selectOption
+	tapAnim           *fyne.Animation
 }
 
 // NewSelect creates a new select widget with the set list of options and changes handler
@@ -232,8 +233,11 @@ func (s *Select) Tapped(*fyne.PointEvent) {
 
 // TypedKey is called if a key event happens while this Select is focused.
 func (s *Select) TypedKey(event *fyne.KeyEvent) {
+	if s.Disabled() {
+		return
+	}
 	switch event.Name {
-	case fyne.KeySpace, fyne.KeyUp, fyne.KeyDown:
+	case fyne.KeySpace, fyne.KeyUp, fyne.KeyDown, fyne.KeyEnter, fyne.KeyReturn:
 		s.showPopUp()
 	case fyne.KeyRight:
 		i := s.SelectedIndex() + 1
@@ -270,6 +274,10 @@ func (s *Select) popUpPos() fyne.Position {
 }
 
 func (s *Select) showPopUp() {
+	if s.Disabled() || s.AccessibilityExpanded() {
+		return
+	}
+	s.syncAccessibleOptions()
 	items := make([]*fyne.MenuItem, len(s.Options))
 	for i := range s.Options {
 		text := s.Options[i] // capture
@@ -289,15 +297,18 @@ func (s *Select) showPopUp() {
 	}
 	pop := NewPopUpMenu(fyne.NewMenu("", items...), c)
 	pop.alignment = s.Alignment
-	pop.ShowAtPosition(s.popUpPos())
-	pop.Resize(fyne.NewSize(s.Size().Width, pop.MinSize().Height))
+	pop.selectOwner = s
 	pop.OnDismiss = func() {
 		pop.Hide()
 		if s.popUp == pop {
 			s.popUp = nil
 		}
+		s.Refresh()
 	}
 	s.popUp = pop
+	pop.ShowAtPosition(s.popUpPos())
+	pop.Resize(fyne.NewSize(s.Size().Width, pop.MinSize().Height))
+	pop.revealSelectItem()
 }
 
 func (s *Select) tapAnimation() {

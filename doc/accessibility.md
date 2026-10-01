@@ -17,10 +17,11 @@ basic Windows controls, not a claim of complete screen-reader support.
 | Semantic tree | Logical children, names, descriptions, scoped form metadata, stable live-object IDs, hidden ancestor filtering | Logical IDs for recycled collection items, explicit label relationships, reading-order tooling |
 | Button / Hyperlink | Invoke, normal widget command, disabled guard for Button | NVDA and Narrator activation |
 | Check | Toggle, checked property and changes; confirmed with NVDA 2026.2 | Narrator acceptance |
-| Entry | Value, protected masked Text/Text2, caret and single selection, rune-based ranges, plain text navigation, edit/selection events | Repeat NVDA editing acceptance; Narrator, IME, complex scripts, rich text formatting |
-| Slider | RangeValue plus string Value, both change events, bounds, step, readonly and numeric validation | Repeat NVDA adjustment feedback; Narrator acceptance |
+| Entry | Value, protected masked Text/Text2, caret and single selection, rune-based ranges, plain text navigation, edit/selection events | Multiline editing acceptance; Narrator, IME, complex scripts, rich text formatting |
+| Slider | RangeValue plus string Value, both change events, bounds, step, readonly and numeric validation | Broader boundary/disabled checks; Narrator acceptance |
 | Popups | Logical content, dialog marker, top-overlay scope, initial modal focus and restoration; confirmed with NVDA 2026.2 | Narrator acceptance |
 | Windows | Per-window context, fragment hierarchy, stable runtime IDs, snapshot queries, reference-counted detached providers, property/structure/focus events | Actual UIA client and screen-reader acceptance, DPI/multi-monitor coverage |
+| Select / RadioGroup | Selection/SelectionItem, ExpandCollapse, set position, stable options, actual keyboard focus, popup scope | Demo 4 NVDA / Narrator acceptance; large collection patterns remain separate |
 | Other platforms | Public interfaces remain compatible; shared model has no Windows dependency | Migrate each adapter to the shared model |
 
 Use `SetAccessibilityInfo(fyne.AccessibilityInfo{Name: "...", Description: "..."})`
@@ -134,7 +135,9 @@ The Email hint is a persistent form description, not placeholder text. It remain
 available after valid input. Validation errors temporarily take precedence over
 that description. This policy is covered by a regression test.
 
-These follow-up changes still need the user's repeat screen-reader test.
+The user's repeat NVDA runs reported that almost everything worked, then identified
+the word-navigation mismatch described below. This is not complete acceptance of
+every editing scenario or another screen reader.
 Native tests cover the text provider ABI, Unicode/surrogates, caret events,
 selection, retained ranges, privacy, geometry, and both slider value events.
 
@@ -164,4 +167,59 @@ replace any original word boundaries with a single masked word.
 Regressions cover the exact address in both directions, Ctrl+Shift selection,
 trailing punctuation, spaces, hard/soft line breaks, Cyrillic, supplementary
 characters, underscores, native range expansion/movement, ownership of the copied
-boundary data and protected text. Final spoken output still requires an NVDA run.
+boundary data and protected text. The user subsequently reported that almost all
+examples worked and confirmed that `foo_bar` was read as one word, as intended.
+
+
+## Selection follow-up (demo 4)
+
+The platform-independent model now includes selection containers/items,
+expand/collapse, set position/size, keyboard active descendants and popup owners.
+Windows maps these to Selection, SelectionItem and ExpandCollapse providers and
+raises selected/removed and property-change events after committing the snapshot.
+Selection commands are synchronous on the Fyne event thread, with current scope,
+disabled, single-selection and required-selection checks on both sides of the bridge.
+
+Select exposes a read-only string value and stable option objects. Options remain
+queryable with empty bounds while collapsed, so GetSelection still identifies the
+choice. Opening preserves the combo box's ID and contextual form name; only that
+control and its options remain in the active input scope. The popup continues to
+own real keyboard input, with its highlighted item exposed as the active descendant.
+This is separate from the committed selection: Escape cancels the preview; Enter
+commits and returns focus. Arrow navigation reveals clipped popup items; snapshot
+bounds are clipped to the popup viewport. General Scroll/ScrollItem and virtualized
+collections are still a later gate.
+
+RadioGroup exposes its actual keyboard-focusable radio items. Arrows move focus
+and selection together; Enter selects without clearing an already selected item.
+Space retains Fyne's existing behavior: an optional group can clear its selection,
+a Required group cannot. Existing Tab traversal through radio items is retained.
+Items in both controls retain identity by label and occurrence across reordering;
+renaming/removing an option detaches it. Select's string-based API retains its
+existing ambiguity for duplicate option labels (SelectedIndex chooses the first).
+
+Demo 4 adds **Open selection demo** and **Open multiline text demo**. Keep the
+previous form as a regression scenario. On Windows 11 25H2 / NVDA 2026.2 check:
+
+1. Language announces its name, role and current choice. Left/Right change the
+   collapsed choice. Down, Up, Space or Enter opens the popup; the current choice
+   receives initial accessibility focus. Up/Down announce each highlighted option
+   and its position. Escape preserves the old choice; Enter commits. Focus returns
+   to Language in both cases. Background form controls must be inaccessible while open.
+2. Notifications announces each radio label, state and position in its group.
+   Arrows change selection; Enter/Space cannot clear the required selection.
+   Optional appearance starts empty; Space can clear the selected option.
+3. Disable choices removes these controls from keyboard traversal and exposes
+   their disabled state to object navigation. Re-enable and verify normal use.
+4. Notes supports Up/Down, Home/End, Ctrl+arrows, Shift selection across lines,
+   Backspace/Delete, replacement and undo. Check both Cyrillic and the email text.
+   Confirm the earlier password and slider behavior still works in the first window.
+
+Automated tests cover selection commands, scope, focus restoration, required and
+optional selection, item identity, native COM contracts/events, disabled controls,
+empty selections and retained interfaces after removal/closure. Actual speech in
+the new scenarios remains a manual acceptance gate.
+
+- [SelectionItem provider](https://learn.microsoft.com/en-us/windows/win32/api/uiautomationcore/nn-uiautomationcore-iselectionitemprovider)
+- [ExpandCollapse provider](https://learn.microsoft.com/en-us/windows/win32/api/uiautomationcore/nn-uiautomationcore-iexpandcollapseprovider)
+- [ComboBox control](https://learn.microsoft.com/en-us/windows/win32/winauto/uiauto-supportcomboboxcontroltype)

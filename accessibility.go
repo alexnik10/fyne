@@ -15,6 +15,9 @@ const (
 	AccessibleRoleEntry     AccessibleRole = "entry"
 	AccessibleRoleSlider    AccessibleRole = "slider"
 	AccessibleRoleDialog    AccessibleRole = "dialog"
+	AccessibleRoleComboBox  AccessibleRole = "combobox"
+	AccessibleRoleRadio     AccessibleRole = "radio"
+	AccessibleRoleListItem  AccessibleRole = "listitem"
 )
 
 // Accessible interface should be implemented for a widget that should be accessible
@@ -142,3 +145,69 @@ type AccessibleText interface {
 type AccessibleTextScroller interface {
 	AccessibilityScrollText(start, end int, alignTop bool)
 }
+
+// AccessibleSelection describes a container whose logical children can be selected.
+// Required means the last selected item cannot be removed through selection actions.
+//
+// Since: 2.9
+type AccessibleSelection interface {
+	AccessibilitySelection() (multiple, required bool)
+}
+
+// AccessibleSelectable exposes an item's selection owner, state and one-based
+// position in its set. Select replaces the selection; deselect removes this item.
+// Commands return false when the item is detached, disabled or cannot be removed.
+//
+// Since: 2.9
+type AccessibleSelectable interface {
+	AccessibilitySelectionItem() (owner CanvasObject, selected bool, position, count int)
+	AccessibilitySelect(mode AccessibilitySelectionMode) bool
+}
+
+// AccessibleExpandable exposes disclosure without simulating pointer input.
+//
+// Since: 2.9
+type AccessibleExpandable interface {
+	AccessibilityExpanded() bool
+	AccessibilitySetExpanded(bool)
+}
+
+// AccessibleActiveDescendant maps a compound control's actual keyboard focus to
+// the child currently receiving its keyboard commands. It is not a reading cursor.
+// Return nil when the compound control itself should be reported as focused.
+//
+// Since: 2.9
+type AccessibleActiveDescendant interface {
+	AccessibilityActiveDescendant() CanvasObject
+}
+
+// AccessibleFocusHandler routes focus for a logical child through its keyboard
+// owner. It must use the real canvas focus, never maintain an independent cursor.
+//
+// Since: 2.9
+type AccessibleFocusHandler interface {
+	AccessibilityFocusable() bool
+	AccessibilityFocus() bool
+}
+
+// AccessibleOverlayOwner identifies a control whose popup is represented by its
+// own semantic children. While this overlay captures input, adapters expose only
+// that owner and its descendants, preserving the owner's identity and metadata.
+// Return nil for an ordinary overlay.
+//
+// Since: 2.9
+type AccessibleOverlayOwner interface {
+	AccessibilityOverlayOwner() CanvasObject
+}
+
+// AccessibilitySelectionMode identifies a selection command.
+//
+// Since: 2.9
+type AccessibilitySelectionMode int
+
+// Selection commands distinguish replacing a selection from extending it.
+const (
+	AccessibilitySelectReplace AccessibilitySelectionMode = iota
+	AccessibilitySelectAdd
+	AccessibilitySelectRemove
+)

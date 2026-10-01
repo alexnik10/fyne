@@ -7,7 +7,6 @@ package accessibility
 import (
 	"math"
 	"reflect"
-	"strings"
 	"unicode/utf8"
 
 	"fyne.io/fyne/v2"
@@ -21,6 +20,12 @@ const (
 	Toggle
 	SetValue
 	SetRangeValue
+	_ // reserved for native text commands
+	Select
+	AddToSelection
+	RemoveFromSelection
+	Expand
+	Collapse
 )
 
 // Root can retain identity for background content without exposing it. This is
@@ -28,6 +33,8 @@ const (
 type Root struct {
 	Object     fyne.CanvasObject
 	Suppressed bool
+	// Scope exposes only this object and its subtree, retaining ancestor metadata.
+	Scope fyne.CanvasObject
 }
 
 // Node is a value-only snapshot. ID zero denotes the platform window root.
@@ -43,6 +50,10 @@ type Node struct {
 	Text                                            string
 	Document                                        *fyne.AccessibilityTextInfo
 	Number, Min, Max, Step                          float64
+	Selection, Multiple, SelectionRequired          bool
+	Selectable, Selected, Expandable, Expanded      bool
+	SelectionOwner                                  uint32
+	SetPosition, SetSize                            int
 }
 
 type Tree struct {
@@ -62,8 +73,8 @@ func (t *Tree) Build(roots []Root, focused fyne.Focusable) []Node {
 	t.objects = make(map[uint32]fyne.CanvasObject)
 	t.nodes = make(map[uint32]Node)
 	var out []Node
-	var visit func(fyne.CanvasObject, fyne.Position, uint32, bool, []fyne.AccessibleChildDescriber)
-	visit = func(obj fyne.CanvasObject, pos fyne.Position, parent uint32, hidden bool, describers []fyne.AccessibleChildDescriber) {
+	var visit func(fyne.CanvasObject, fyne.Position, uint32, bool, fyne.CanvasObject, []fyne.AccessibleChildDescriber)
+	visit = func(obj fyne.CanvasObject, pos fyne.Position, parent uint32, hidden bool, scope fyne.CanvasObject, describers []fyne.AccessibleChildDescriber) {
 		if obj == nil || !reflect.TypeOf(obj).Comparable() || seen[obj] {
 			return
 		}
@@ -74,7 +85,10 @@ func (t *Tree) Build(roots []Root, focused fyne.Focusable) []Node {
 		seen[obj] = true // also guards malformed child cycles
 		hidden = hidden || !obj.Visible()
 		pos = pos.Add(obj.Position())
-		if a, ok := obj.(fyne.Accessible); ok && !hidden {
+		if obj == scope {
+			scope = nil
+		}
+		if a, ok := obj.(fyne.Accessible); ok && !hidden && scope == nil {
 			id := t.ids[obj]
 			if id == 0 {
 				t.next++
@@ -92,48 +106,7 @@ func (t *Tree) Build(roots []Root, focused fyne.Focusable) []Node {
 			if d, ok := obj.(fyne.AccessibleDescribed); ok {
 				applyInfo(&n, d.AccessibilityInfo())
 			}
-			if d, ok := obj.(fyne.Disableable); ok {
-				n.Disabled = d.Disabled()
-			}
-			if f, ok := obj.(fyne.Focusable); ok {
-				n.Focusable = !n.Disabled
-				n.Focused = f == focused
-			}
-			_, n.Invoke = obj.(fyne.AccessibleActionable)
-			if c, ok := obj.(fyne.AccessibleToggler); ok {
-				n.Toggle = true
-				n.Checked = c.AccessibilityChecked()
-			}
-			if value, ok := obj.(fyne.AccessibleValue); ok {
-				n.Value = true
-				n.Text, n.ReadOnly, n.Protected = value.AccessibilityValue()
-				if n.Protected {
-					n.Text = ""
-				}
-			}
-			if r, ok := obj.(fyne.AccessibleRange); ok {
-				n.Range = true
-				n.Number, n.Min, n.Max, n.Step = r.AccessibilityRange()
-			}
-			if text, ok := obj.(fyne.AccessibleText); ok {
-				document := text.AccessibilityText()
-				length := utf8.RuneCountInString(document.Text)
-				if n.Protected {
-					// Defend against a custom control accidentally returning clear text.
-					document.Text = strings.Repeat("•", length)
-					document.WordBoundaries = []int{0}
-					if length != 0 {
-						document.WordBoundaries = append(document.WordBoundaries, length)
-					}
-				}
-				document.Caret = min(max(document.Caret, 0), length)
-				document.SelectionStart = min(max(document.SelectionStart, 0), length)
-				document.SelectionEnd = min(max(document.SelectionEnd, document.SelectionStart), length)
-				document.Positions = append([]fyne.AccessibilityTextPosition(nil), document.Positions...)
-				document.WordBoundaries = append([]int(nil), document.WordBoundaries...)
-				n.Document = &document
-			}
-			n.ReadOnly = n.ReadOnly || n.Disabled
+			populateCapabilities(&n, obj)
 			out = append(out, n)
 			t.nodes[id] = n
 			t.objects[id] = obj
@@ -149,17 +122,18 @@ func (t *Tree) Build(roots []Root, focused fyne.Focusable) []Node {
 			children = c.Objects
 		}
 		for _, c := range children {
-			visit(c, pos, parent, hidden, describers)
+			visit(c, pos, parent, hidden, scope, describers)
 		}
 	}
 	for _, root := range roots {
-		visit(root.Object, fyne.Position{}, 0, root.Suppressed, nil)
+		visit(root.Object, fyne.Position{}, 0, root.Suppressed, root.Scope, nil)
 	}
 	for obj := range t.ids {
 		if !seen[obj] {
 			delete(t.ids, obj)
 		}
 	}
+	t.resolveRelations(out, focused)
 	return out
 }
 
@@ -202,8 +176,15 @@ func applyInfo(n *Node, info fyne.AccessibilityInfo) {
 
 // FocusedID resolves the real canvas focus without creating a second focus model.
 func (t *Tree) FocusedID(focused fyne.Focusable) uint32 {
-	for id, obj := range t.objects {
-		if f, ok := obj.(fyne.Focusable); ok && f == focused {
+	var target fyne.CanvasObject
+	if delegate, ok := focused.(fyne.AccessibleActiveDescendant); ok {
+		target = delegate.AccessibilityActiveDescendant()
+	}
+	if target == nil {
+		target, _ = focused.(fyne.CanvasObject)
+	}
+	if id := t.ids[target]; id != 0 {
+		if _, live := t.objects[id]; live {
 			return id
 		}
 	}
@@ -219,14 +200,27 @@ func (t *Tree) Perform(id uint32, action Action, text string, number float64, ca
 		return false
 	}
 	n := t.nodes[id]
+	if n.Disabled {
+		return false
+	}
 	if d, ok := obj.(fyne.Disableable); ok && d.Disabled() {
 		return false
 	}
 	switch action {
 	case Focus:
+		if f, ok := obj.(fyne.AccessibleFocusHandler); ok {
+			return f.AccessibilityFocusable() && f.AccessibilityFocus()
+		}
 		if f, ok := obj.(fyne.Focusable); ok && canvas != nil {
 			canvas.Focus(f)
 			return canvas.Focused() == f
+		}
+	case Select, AddToSelection, RemoveFromSelection:
+		return t.performSelection(n, obj, action)
+	case Expand, Collapse:
+		if e, ok := obj.(fyne.AccessibleExpandable); ok {
+			e.AccessibilitySetExpanded(action == Expand)
+			return e.AccessibilityExpanded() == (action == Expand)
 		}
 	case Activate:
 		if a, ok := obj.(fyne.AccessibleActionable); ok {

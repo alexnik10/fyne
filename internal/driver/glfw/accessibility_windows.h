@@ -11,14 +11,17 @@ enum {
     WinAccRequired = 8, WinAccInvalid = 16, WinAccInvoke = 32,
     WinAccToggle = 64, WinAccValue = 128, WinAccRange = 256,
     WinAccChecked = 512, WinAccReadOnly = 1024, WinAccProtected = 2048,
-    WinAccText = 4096
+    WinAccText = 4096, WinAccSelection = 8192, WinAccMultiple = 16384,
+    WinAccSelectionRequired = 32768, WinAccSelectable = 65536,
+    WinAccSelected = 131072, WinAccExpandable = 262144, WinAccExpanded = 524288
 };
 typedef struct {
     double x, y, height;
     int line;
 } WinAccessibilityTextPosition;
 typedef struct {
-    uint32_t id, parent;
+    uint32_t id, parent, selection_owner;
+    int set_position, set_size;
     int role, flags;
     const char *name, *description, *value;
     double x, y, width, height;

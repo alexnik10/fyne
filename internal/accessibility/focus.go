@@ -17,6 +17,11 @@ func (s *FocusScope) Update(canvas fyne.Canvas) {
 		return
 	}
 	s.top = top
+	if top != nil {
+		if f, ok := canvas.Focused().(fyne.AccessibleFocusHandler); ok {
+			f.AccessibilityFocus()
+		}
+	}
 	if top != nil && canvas.Focused() == nil {
 		canvas.FocusNext()
 	}

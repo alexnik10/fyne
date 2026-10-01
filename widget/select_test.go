@@ -278,7 +278,7 @@ func TestSelect_KeyboardControl(t *testing.T) {
 
 		test.AssertRendersToMarkup(t, "select/kbdctrl_none_selected.xml", c)
 		sel.TypedKey(&fyne.KeyEvent{Name: fyne.KeyEnter})
-		test.AssertRendersToMarkup(t, "select/kbdctrl_none_selected.xml", c)
+		test.AssertRendersToMarkup(t, "select/kbdctrl_none_selected_popup.xml", c)
 	})
 
 	t.Run("traverse options without pop-up", func(t *testing.T) {
