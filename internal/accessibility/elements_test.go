@@ -83,8 +83,14 @@ type indexedSource struct {
 	elements map[string]fyne.AccessibilityElement
 }
 
-func (s *indexedSource) ChildCount(parent string) int             { return len(s.children[parent]) }
-func (s *indexedSource) ChildKey(parent string, index int) string { return s.children[parent][index] }
+func (s *indexedSource) ChildCount(parent string) int {
+	return len(s.children[parent])
+}
+
+func (s *indexedSource) ChildKey(parent string, index int) string {
+	return s.children[parent][index]
+}
+
 func (s *indexedSource) Element(key string) (fyne.AccessibilityElement, bool) {
 	element, ok := s.elements[key]
 	return element, ok
