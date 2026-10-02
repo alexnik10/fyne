@@ -44,6 +44,8 @@ type Node struct {
 	Role                                            fyne.AccessibleRole
 	Position                                        fyne.Position
 	Size                                            fyne.Size
+	BoundsPosition                                  fyne.Position
+	BoundsSize                                      fyne.Size
 	Disabled, Focusable, Focused, Required, Invalid bool
 	Invoke, Toggle, Value, Range                    bool
 	Checked, ReadOnly, Protected                    bool
@@ -57,24 +59,35 @@ type Node struct {
 }
 
 type Tree struct {
-	next    uint32
-	ids     map[fyne.CanvasObject]uint32
-	objects map[uint32]fyne.CanvasObject
-	nodes   map[uint32]Node
+	next     uint32
+	ids      map[fyne.CanvasObject]uint32
+	objects  map[uint32]fyne.CanvasObject
+	nodes    map[uint32]Node
+	children map[fyne.CanvasObject][]fyne.CanvasObject
+	Issues   []Issue
+}
+
+// Issue describes an authoring problem detected while building the tree.
+// Messages contain no widget text or values.
+type Issue struct {
+	Object        fyne.CanvasObject
+	Code, Message string
 }
 
 // Build produces a preorder snapshot, preserving IDs for still attached objects.
-// Renderer internals are deliberately not a fallback for semantic children.
+// Transparent widgets use renderer children; accessible leaves remain boundaries.
 func (t *Tree) Build(roots []Root, focused fyne.Focusable) []Node {
 	if t.ids == nil {
 		t.ids = make(map[fyne.CanvasObject]uint32)
+		t.children = make(map[fyne.CanvasObject][]fyne.CanvasObject)
 	}
 	seen := make(map[fyne.CanvasObject]bool)
 	t.objects = make(map[uint32]fyne.CanvasObject)
 	t.nodes = make(map[uint32]Node)
+	t.Issues = nil
 	var out []Node
-	var visit func(fyne.CanvasObject, fyne.Position, uint32, bool, fyne.CanvasObject, []fyne.AccessibleChildDescriber)
-	visit = func(obj fyne.CanvasObject, pos fyne.Position, parent uint32, hidden bool, scope fyne.CanvasObject, describers []fyne.AccessibleChildDescriber) {
+	var visit func(fyne.CanvasObject, fyne.Position, uint32, bool, fyne.CanvasObject, []fyne.AccessibleChildDescriber, *bounds)
+	visit = func(obj fyne.CanvasObject, pos fyne.Position, parent uint32, hidden bool, scope fyne.CanvasObject, describers []fyne.AccessibleChildDescriber, clip *bounds) {
 		if obj == nil || !reflect.TypeOf(obj).Comparable() || seen[obj] {
 			return
 		}
@@ -83,50 +96,47 @@ func (t *Tree) Build(roots []Root, focused fyne.Focusable) []Node {
 			return
 		}
 		seen[obj] = true // also guards malformed child cycles
-		hidden = hidden || !obj.Visible()
+		mode := compositionMode(obj)
+		hidden = hidden || !obj.Visible() || mode == fyne.AccessibilityExclude
 		pos = pos.Add(obj.Position())
+		if hidden {
+			// Preserve IDs while an attached subtree is hidden/suppressed. Do not
+			// construct hidden renderers or ask hidden controls for live semantics.
+			for _, child := range t.children[obj] {
+				visit(child, pos, parent, true, scope, describers, clip)
+			}
+			return
+		}
 		if obj == scope {
 			scope = nil
 		}
-		if a, ok := obj.(fyne.Accessible); ok && !hidden && scope == nil {
-			id := t.ids[obj]
-			if id == 0 {
-				t.next++
-				id = t.next
-				t.ids[obj] = id
-			}
-			n := Node{ID: id, Parent: parent, Name: a.AccessibilityLabel(), Role: a.AccessibilityRole(), Position: pos, Size: obj.Size()}
-			// Layout-only containers do not need to be spoken as "Container".
-			if _, plain := obj.(*fyne.Container); plain {
-				n.Name = ""
-			}
-			for _, d := range describers {
-				applyInfo(&n, d.AccessibilityChildInfo(obj))
-			}
-			if d, ok := obj.(fyne.AccessibleDescribed); ok {
-				applyInfo(&n, d.AccessibilityInfo())
-			}
-			populateCapabilities(&n, obj)
+		_, accessible := obj.(fyne.Accessible)
+		if !accessible && mode == fyne.AccessibilityAuto && scope == nil {
+			t.checkUnrepresented(obj)
+		}
+		if (accessible || mode == fyne.AccessibilityGroup) && mode != fyne.AccessibilityTransparent && scope == nil {
+			n := t.snapshotNode(obj, pos, parent, describers, clip)
 			out = append(out, n)
-			t.nodes[id] = n
-			t.objects[id] = obj
-			parent = id
+			parent = n.ID
 		}
 		if d, ok := obj.(fyne.AccessibleChildDescriber); ok {
 			describers = append(append([]fyne.AccessibleChildDescriber(nil), describers...), d)
 		}
-		var children []fyne.CanvasObject
-		if c, ok := obj.(fyne.AccessibleChildren); ok {
-			children = c.AccessibilityChildren()
-		} else if c, ok := obj.(*fyne.Container); ok {
-			children = c.Objects
-		}
+		children := semanticChildren(obj, mode)
+		clear(t.children[obj])
+		t.children[obj] = append(t.children[obj][:0], children...)
+		clip = childClip(obj, pos, clip)
 		for _, c := range children {
-			visit(c, pos, parent, hidden, scope, describers)
+			visit(c, pos, parent, false, scope, describers, clip)
 		}
 	}
 	for _, root := range roots {
-		visit(root.Object, fyne.Position{}, 0, root.Suppressed, root.Scope, nil)
+		visit(root.Object, fyne.Position{}, 0, root.Suppressed, root.Scope, nil, nil)
+	}
+	for obj := range t.children {
+		if !seen[obj] {
+			delete(t.children, obj)
+		}
 	}
 	for obj := range t.ids {
 		if !seen[obj] {
@@ -134,6 +144,10 @@ func (t *Tree) Build(roots []Root, focused fyne.Focusable) []Node {
 		}
 	}
 	t.resolveRelations(out, focused)
+	if focused != nil && t.FocusedID(focused) == 0 {
+		obj, _ := focused.(fyne.CanvasObject)
+		t.Issues = append(t.Issues, Issue{obj, "unrepresented-focus", "Keyboard focus has no exposed semantic node or active descendant."})
+	}
 	return out
 }
 
@@ -189,6 +203,15 @@ func (t *Tree) FocusedID(focused fyne.Focusable) uint32 {
 		}
 	}
 	return 0
+}
+
+// NodeForObject returns the currently exposed node for an original object.
+func (t *Tree) NodeForObject(obj fyne.CanvasObject) (Node, bool) {
+	if obj == nil || !reflect.TypeOf(obj).Comparable() {
+		return Node{}, false
+	}
+	n, ok := t.nodes[t.ids[obj]]
+	return n, ok
 }
 
 // Perform revalidates an action against the latest tree. Rebuild immediately

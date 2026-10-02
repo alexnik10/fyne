@@ -38,22 +38,7 @@ var (
 )
 
 func (w *window) accessibilityRoots() []accessibility.Root {
-	overlays := w.canvas.Overlays().List()
-	roots := []accessibility.Root{
-		{Object: w.canvas.Content(), Suppressed: len(overlays) != 0},
-		{Object: w.canvas.menu, Suppressed: len(overlays) != 0},
-	}
-	for i, overlay := range overlays {
-		roots = append(roots, accessibility.Root{Object: overlay, Suppressed: i != len(overlays)-1})
-	}
-	if owner, ok := w.canvas.Overlays().Top().(fyne.AccessibleOverlayOwner); ok {
-		if scope := owner.AccessibilityOverlayOwner(); scope != nil {
-			for i := range roots {
-				roots[i].Suppressed, roots[i].Scope = false, scope
-			}
-		}
-	}
-	return roots
+	return accessibility.Roots(w.canvas, w.canvas.menu)
 }
 
 func (w *window) updateAccessibility() {
@@ -96,10 +81,12 @@ func (w *window) updateAccessibility() {
 		defer C.free(unsafe.Pointer(x.name))
 		defer C.free(unsafe.Pointer(x.description))
 		defer C.free(unsafe.Pointer(x.value))
-		x.x, x.y = C.double(scale.ToScreenCoordinate(w.canvas, n.Position.X)), C.double(scale.ToScreenCoordinate(w.canvas, n.Position.Y))
-		x.width, x.height = C.double(scale.ToScreenCoordinate(w.canvas, n.Size.Width)), C.double(scale.ToScreenCoordinate(w.canvas, n.Size.Height))
+		x.x, x.y = C.double(scale.ToScreenCoordinate(w.canvas, n.BoundsPosition.X)), C.double(scale.ToScreenCoordinate(w.canvas, n.BoundsPosition.Y))
+		x.width, x.height = C.double(scale.ToScreenCoordinate(w.canvas, n.BoundsSize.Width)), C.double(scale.ToScreenCoordinate(w.canvas, n.BoundsSize.Height))
 		x.number, x.minimum, x.maximum, x.step = C.double(n.Number), C.double(n.Min), C.double(n.Max), C.double(n.Step)
 		if doc := n.Document; doc != nil {
+			originX := C.double(scale.ToScreenCoordinate(w.canvas, n.Position.X))
+			originY := C.double(scale.ToScreenCoordinate(w.canvas, n.Position.Y))
 			x.text = C.CString(doc.Text)
 			defer C.free(unsafe.Pointer(x.text))
 			x.caret, x.selection_start, x.selection_end = C.int(doc.Caret), C.int(doc.SelectionStart), C.int(doc.SelectionEnd)
@@ -115,8 +102,8 @@ func (w *window) updateAccessibility() {
 				}
 				x.word_boundaries, x.word_boundary_count = words, C.int(len(doc.WordBoundaries))
 			}
-			x.viewport_x = x.x + C.double(scale.ToScreenCoordinate(w.canvas, doc.ViewportPosition.X))
-			x.viewport_y = x.y + C.double(scale.ToScreenCoordinate(w.canvas, doc.ViewportPosition.Y))
+			x.viewport_x = originX + C.double(scale.ToScreenCoordinate(w.canvas, doc.ViewportPosition.X))
+			x.viewport_y = originY + C.double(scale.ToScreenCoordinate(w.canvas, doc.ViewportPosition.Y))
 			x.viewport_width = C.double(scale.ToScreenCoordinate(w.canvas, doc.ViewportSize.Width))
 			x.viewport_height = C.double(scale.ToScreenCoordinate(w.canvas, doc.ViewportSize.Height))
 			if len(doc.Positions) != 0 {
@@ -127,8 +114,8 @@ func (w *window) updateAccessibility() {
 				defer C.free(unsafe.Pointer(positions))
 				for j, p := range doc.Positions {
 					point := &unsafe.Slice(positions, len(doc.Positions))[j]
-					point.x = x.x + C.double(scale.ToScreenCoordinate(w.canvas, p.Position.X))
-					point.y = x.y + C.double(scale.ToScreenCoordinate(w.canvas, p.Position.Y))
+					point.x = originX + C.double(scale.ToScreenCoordinate(w.canvas, p.Position.X))
+					point.y = originY + C.double(scale.ToScreenCoordinate(w.canvas, p.Position.Y))
 					point.height = C.double(scale.ToScreenCoordinate(w.canvas, p.Height))
 					point.line = C.int(p.Line)
 				}

@@ -1,5 +1,8 @@
 # Windows accessibility development
 
+See [Accessibility for custom components](accessibility-authoring.md) for automatic
+composition, explicit modes, boundaries, stable identity and public test helpers.
+
 Build and run the acceptance example:
 
 ```sh

@@ -44,10 +44,45 @@ type AccessibleDescribed interface {
 	AccessibilityInfo() AccessibilityInfo
 }
 
+// AccessibilityMode controls how an object composes its accessibility subtree.
+// It does not change rendering, keyboard traversal or pointer handling.
+//
+// Since: 2.9
+type AccessibilityMode uint8
+
+const (
+	// AccessibilityAuto preserves Accessible nodes and explicit logical children.
+	// Containers expose their contents. Other widgets without Accessible are
+	// transparent: their renderer is traversed until semantic boundaries are met.
+	AccessibilityAuto AccessibilityMode = iota
+	// AccessibilityTransparent omits the object's own semantics, retaining children.
+	AccessibilityTransparent
+	// AccessibilityGroup exposes a node and its children. Without Accessible, the
+	// node has the container role and uses AccessibilityInfo for its metadata.
+	AccessibilityGroup
+	// AccessibilitySingle exposes only this object's own Accessible semantics.
+	// It never merges names, states or commands from descendants. Without Accessible
+	// it exposes no node, and can guard renderer internals awaiting semantic support.
+	AccessibilitySingle
+	// AccessibilityExclude omits this object and its entire subtree.
+	AccessibilityExclude
+)
+
+// AccessibleComposition optionally overrides automatic semantic composition.
+// Single and Exclude stop child traversal, even when AccessibleChildren exists.
+// Transparent and Group use explicit children when supplied, otherwise renderer
+// children. Auto treats an Accessible without explicit children as a leaf.
+//
+// Since: 2.9
+type AccessibleComposition interface {
+	AccessibilityMode() AccessibilityMode
+}
+
 // AccessibleChildren defines logical children in reading order. Positions are
 // relative to this object, as with Container.Objects. Implementations must keep
 // child objects stable across refreshes. Decorative renderer objects are omitted.
-// An accessible object without this interface is a semantic leaf.
+// This list replaces automatic children; even a nil or empty list is definitive.
+// An accessible object without this interface is a semantic leaf in Auto mode.
 //
 // Since: 2.9
 type AccessibleChildren interface {

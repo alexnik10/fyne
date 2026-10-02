@@ -20,6 +20,24 @@ type BaseWidget struct {
 	impl              fyne.Widget
 	themeCache        fyne.Theme
 	accessibilityInfo fyne.AccessibilityInfo
+	accessibilityMode fyne.AccessibilityMode
+}
+
+// AccessibilityMode returns this widget's semantic composition mode.
+//
+// Since: 2.9
+func (w *BaseWidget) AccessibilityMode() fyne.AccessibilityMode {
+	return w.accessibilityMode
+}
+
+// SetAccessibilityMode controls whether accessibility exposes this widget,
+// its children, or both. It does not change keyboard or pointer interaction.
+// Call on the Fyne event thread, like other widget setters.
+//
+// Since: 2.9
+func (w *BaseWidget) SetAccessibilityMode(mode fyne.AccessibilityMode) {
+	w.accessibilityMode = mode
+	w.Refresh()
 }
 
 // AccessibilityInfo returns the optional semantic metadata for this widget.

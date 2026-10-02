@@ -13,6 +13,7 @@ import (
 	"time"
 	"unsafe"
 
+	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/widget"
 
@@ -68,6 +69,21 @@ func TestMainLoopNativeWorkWithoutFrames(t *testing.T) {
 	funcQueue.Close()
 }
 
+type nativeSemanticComposite struct {
+	widget.BaseWidget
+	content fyne.CanvasObject
+}
+
+func newNativeSemanticComposite(content fyne.CanvasObject) *nativeSemanticComposite {
+	c := &nativeSemanticComposite{content: content}
+	c.ExtendBaseWidget(c)
+	return c
+}
+
+func (c *nativeSemanticComposite) CreateRenderer() fyne.WidgetRenderer {
+	return widget.NewSimpleRenderer(c.content)
+}
+
 func TestMainLoopNativeInvoke(t *testing.T) {
 	w := createWindow("UIA Invoke queue regression")
 	defer w.Close()
@@ -79,7 +95,7 @@ func TestMainLoopNativeInvoke(t *testing.T) {
 			popup.Hide()
 			events <- "close"
 		})
-		popup = widget.NewModalPopUp(closeButton, w.canvas)
+		popup = widget.NewModalPopUp(newNativeSemanticComposite(closeButton), w.canvas)
 		button := widget.NewButton("Open queue test dialog", func() {
 			popup.Show()
 			events <- "open"
@@ -88,7 +104,8 @@ func TestMainLoopNativeInvoke(t *testing.T) {
 		})
 		link := widget.NewHyperlink("Queue test link", nil)
 		link.OnTapped = func() { events <- "link" }
-		w.window.SetContent(container.NewVBox(button, link))
+		w.window.SetContent(container.NewAccessibilityGroup("Queue test actions",
+			newNativeSemanticComposite(container.NewVBox(button, link))))
 		w.window.Show()
 		w.window.updateAccessibility()
 		hwnd = uintptr(unsafe.Pointer(w.view().GetWin32Window()))
