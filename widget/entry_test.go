@@ -239,9 +239,17 @@ func TestEntry_Control_Word(t *testing.T) {
 	entry.CursorColumn = 3
 	selectNextWord := &desktop.CustomShortcut{KeyName: fyne.KeyRight, Modifier: moveWordModifier | fyne.KeyModifierShift}
 	entry.TypedShortcut(selectNextWord)
-	assert.Equal(t, "d1", entry.SelectedText())
+	if runtime.GOOS == "windows" {
+		assert.Equal(t, "d1 ", entry.SelectedText())
+	} else {
+		assert.Equal(t, "d1", entry.SelectedText())
+	}
 	entry.TypedShortcut(selectNextWord)
-	assert.Equal(t, "d1 word2", entry.SelectedText())
+	if runtime.GOOS == "windows" {
+		assert.Equal(t, "d1 word2 ", entry.SelectedText())
+	} else {
+		assert.Equal(t, "d1 word2", entry.SelectedText())
+	}
 
 	// unselect when no shift press
 	entry.TypedShortcut(nextWord)

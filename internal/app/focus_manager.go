@@ -90,13 +90,9 @@ func (f *FocusManager) FocusPrevious() {
 }
 
 func (f *FocusManager) nextInChain(current fyne.Focusable) fyne.Focusable {
-	return f.nextWithWalker(current, driver.WalkVisibleObjectTree)
-}
-
-func (f *FocusManager) nextWithWalker(current fyne.Focusable, walker walkerFunc) fyne.Focusable {
 	var next fyne.Focusable
 	found := current == nil // if we have no starting point then pretend we matched already
-	walker(f.content, func(obj fyne.CanvasObject, _ fyne.Position, _ fyne.Position, _ fyne.Size) bool {
+	driver.WalkVisibleObjectTree(f.content, func(obj fyne.CanvasObject, _ fyne.Position, _ fyne.Position, _ fyne.Size) bool {
 		if w, ok := obj.(fyne.Disableable); ok && w.Disabled() {
 			// disabled widget cannot receive focus
 			return false
@@ -126,7 +122,26 @@ func (f *FocusManager) nextWithWalker(current fyne.Focusable, walker walkerFunc)
 }
 
 func (f *FocusManager) previousInChain(current fyne.Focusable) fyne.Focusable {
-	return f.nextWithWalker(current, driver.ReverseWalkVisibleObjectTree)
+	// Find the predecessor in the forward chain. Reversing sibling order still
+	// visits a focusable parent before its children, so it cannot reverse Tab.
+	var previous fyne.Focusable
+	driver.WalkVisibleObjectTree(f.content, func(obj fyne.CanvasObject, _ fyne.Position, _ fyne.Position, _ fyne.Size) bool {
+		if w, ok := obj.(fyne.Disableable); ok && w.Disabled() {
+			return false
+		}
+		focus, ok := obj.(fyne.Focusable)
+		if !ok {
+			return false
+		}
+		if co, _ := current.(fyne.CanvasObject); obj == co && previous != nil {
+			return true
+		}
+		previous = focus
+		return false
+	}, nil)
+
+	// With no predecessor (or no current focus), wrap to the last item.
+	return previous
 }
 
 func (f *FocusManager) switchFocusTo(obj fyne.Focusable) {
@@ -142,9 +157,3 @@ func (f *FocusManager) switchFocusTo(obj fyne.Focusable) {
 		obj.FocusGained()
 	}
 }
-
-type walkerFunc func(
-	fyne.CanvasObject,
-	func(fyne.CanvasObject, fyne.Position, fyne.Position, fyne.Size) bool,
-	func(fyne.CanvasObject, fyne.Position, fyne.CanvasObject),
-) bool

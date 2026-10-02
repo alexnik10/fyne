@@ -113,7 +113,8 @@ type Entry struct {
 
 	// undoStack stores the data necessary for undo/redo functionality
 	// See entryUndoStack for implementation details.
-	undoStack entryUndoStack
+	undoStack                 entryUndoStack
+	accessibilityTextRevision uint64
 
 	// rich records that the content of this entry is held as styled segments,
 	// managed by a RichTextEntry, rather than being generated from Text.
@@ -158,6 +159,7 @@ func NewPasswordEntry() *Entry {
 }
 
 // AcceptsTab returns if Entry accepts the Tab key or not.
+// Multiline entries insert a tab; Ctrl+Tab and Ctrl+Shift+Tab move keyboard focus.
 //
 // Since: 2.1
 func (e *Entry) AcceptsTab() bool {
@@ -930,6 +932,9 @@ func (e *Entry) TypedRune(r rune) {
 
 // TypedShortcut implements the Shortcutable interface
 func (e *Entry) TypedShortcut(shortcut fyne.Shortcut) {
+	if e.handleFocusShortcut(shortcut) {
+		return
+	}
 	e.shortcut.TypedShortcut(shortcut)
 }
 
@@ -985,6 +990,9 @@ func (e *Entry) eraseSelection() bool {
 	}
 
 	erasedText := provider.deleteFromTo(posA, posB)
+	// Replacement can insert the identical text before updateText runs. It is
+	// still an edit for accessibility, even when the final value is unchanged.
+	e.accessibilityTextRevision++
 	e.CursorRow, e.CursorColumn = e.rowColFromTextPos(posA)
 	e.syncSelectable()
 	e.sel.selectRow, e.sel.selectColumn = e.CursorRow, e.CursorColumn
@@ -1101,6 +1109,14 @@ func (e *Entry) registerShortcut() {
 	})
 
 	moveWord := func(s fyne.Shortcut) {
+		shortcut, ok := s.(*desktop.CustomShortcut)
+		if !ok {
+			return
+		}
+		if runtime.GOOS == goos.Windows {
+			e.moveWordWindows(shortcut.KeyName == fyne.KeyRight)
+			return
+		}
 		row := e.textProvider().row(e.CursorRow)
 		start, end := getTextWhitespaceRegion(row, e.CursorColumn, true)
 		if start == -1 || end == -1 {
@@ -1108,7 +1124,7 @@ func (e *Entry) registerShortcut() {
 		}
 
 		e.setFieldsAndRefresh(func() {
-			if s.(*desktop.CustomShortcut).KeyName == fyne.KeyLeft {
+			if shortcut.KeyName == fyne.KeyLeft {
 				if e.CursorColumn == 0 {
 					if e.CursorRow > 0 {
 						e.CursorRow--
@@ -1454,6 +1470,9 @@ func (e *Entry) updateMousePointer(p fyne.Position, rightClick bool) {
 // It assumes that a lock exists on the widget.
 func (e *Entry) updateText(text string, fromBinding bool) bool {
 	changed := e.Text != text
+	if changed {
+		e.accessibilityTextRevision++
+	}
 	wasEmpty := e.Text == ""
 	e.Text = text
 	if e.onRequiredChanged != nil {

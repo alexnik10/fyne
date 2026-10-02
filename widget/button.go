@@ -204,15 +204,7 @@ func (b *Button) Tapped(*fyne.PointEvent) {
 		c.Focus(nil) // the focus manager won't get this Tap and we are not focusable
 	}
 
-	if b.Disabled() {
-		return
-	}
-
-	b.tapAnimation()
-
-	if onTapped := b.OnTapped; onTapped != nil {
-		onTapped()
-	}
+	b.AccessibilityActivate()
 }
 
 // TypedRune is a hook called by the input handling logic on text input events if this object is focused.
@@ -222,7 +214,7 @@ func (*Button) TypedRune(rune) {
 // TypedKey is a hook called by the input handling logic on key events if this object is focused.
 func (b *Button) TypedKey(ev *fyne.KeyEvent) {
 	if ev.Name == fyne.KeySpace {
-		b.Tapped(nil)
+		b.AccessibilityActivate()
 	}
 }
 

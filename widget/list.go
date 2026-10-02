@@ -16,7 +16,8 @@ import (
 	"fyne.io/fyne/v2/theme"
 )
 
-// ListItemID uniquely identifies an item within a list.
+// ListItemID is the zero-based position of an item within a list.
+// Use List.ItemKey to identify a model item across insertion and reordering.
 type ListItemID = int
 
 // Declare conformity with interfaces.
@@ -54,6 +55,23 @@ type List struct {
 	// change other properties of the list itself.
 	UpdateItem func(id ListItemID, item fyne.CanvasObject) `json:"-"`
 
+	// ItemKey optionally returns a permanent, nonempty, unique model key for a
+	// row. Set it before using the list, and call Refresh after model changes.
+	// Selection, keyboard highlight and custom heights then follow keys across
+	// reordering. Callbacks and ListItemID still use positions. On removal,
+	// OnUnselected receives the old position; moving a selected item does not
+	// select it again. Without ItemKey, identity and state belong to positions.
+	//
+	// Since: 2.9
+	ItemKey func(id ListItemID) string `json:"-"`
+
+	// DescribeItem supplies accessible metadata from the model, including
+	// offscreen rows, without constructing or updating visual cells. The fallback
+	// name is "Item N"; provide this callback for meaningful row names.
+	//
+	// Since: 2.9
+	DescribeItem func(id ListItemID) fyne.AccessibilityInfo `json:"-"`
+
 	// OnSelected is a callback to be notified when a given item
 	// in the list has been selected.
 	OnSelected func(id ListItemID) `json:"-"`
@@ -82,6 +100,12 @@ type List struct {
 	offsetY          float32
 	offsetUpdated    func(fyne.Position)
 	minSizeCache     fyne.Size
+
+	itemKeys              []string
+	keyed                 bool
+	lifetimes             collectionLifetimes
+	accessibilityCache    *listAccessibilitySource
+	accessibilityRevision uint64
 
 	lastBind *listBind
 }
@@ -147,6 +171,7 @@ func (l *List) Bind(data binding.DataList, update func(di binding.DataItem, o fy
 // CreateRenderer is a private method to Fyne which links this widget to its renderer.
 func (l *List) CreateRenderer() fyne.WidgetRenderer {
 	l.ExtendBaseWidget(l)
+	l.ensureItemKeys()
 
 	if f := l.CreateItem; f != nil && l.itemMin.IsZero() {
 		item := createItemAndApplyThemeScope(f, l)
@@ -212,6 +237,7 @@ func (l *List) SetItemHeight(id ListItemID, height float32) {
 	l.itemHeights[id] = height
 
 	if refresh {
+		l.accessibilityCache = nil
 		l.RefreshItem(id)
 	}
 }
@@ -261,7 +287,7 @@ func (l *List) scrollWithoutItemCheckTo(id ListItemID) {
 	}
 	if y < l.scroller.Offset.Y {
 		l.scroller.Offset.Y = y
-	} else if y+l.itemMin.Height > l.scroller.Offset.Y+l.scroller.Size().Height {
+	} else if y+lastItemHeight > l.scroller.Offset.Y+l.scroller.Size().Height {
 		l.scroller.Offset.Y = y + lastItemHeight - l.scroller.Size().Height
 	}
 	l.offsetUpdated(l.scroller.Offset)
@@ -282,7 +308,8 @@ func (l *List) Resize(s fyne.Size) {
 //
 // Since: 2.8
 func (l *List) Highlight(id ListItemID) {
-	if l.Length() == 0 {
+	l.ensureItemKeys()
+	if l.Length == nil || l.Length() == 0 {
 		return
 	}
 
@@ -291,7 +318,7 @@ func (l *List) Highlight(id ListItemID) {
 		newID = 0
 	}
 
-	if id > l.Length() {
+	if id >= l.Length() {
 		newID = l.Length() - 1
 	}
 
@@ -305,6 +332,7 @@ func (l *List) Highlight(id ListItemID) {
 
 // Select add the item identified by the given ID to the selection.
 func (l *List) Select(id ListItemID) {
+	l.ensureItemKeys()
 	if len(l.selected) > 0 && id == l.selected[0] {
 		return
 	}
@@ -326,7 +354,7 @@ func (l *List) Select(id ListItemID) {
 		}
 	}()
 	l.scrollWithoutItemCheckTo(id)
-	l.Refresh()
+	l.BaseWidget.Refresh()
 }
 
 // ScrollTo scrolls to the item represented by id
@@ -341,7 +369,7 @@ func (l *List) ScrollTo(id ListItemID) {
 		return
 	}
 	l.scrollWithoutItemCheckTo(id)
-	l.Refresh()
+	l.BaseWidget.Refresh()
 }
 
 // ScrollToBottom scrolls to the end of the list
@@ -390,6 +418,10 @@ func (l *List) GetScrollOffset() float32 {
 
 // TypedKey is called if a key event happens while this List is focused.
 func (l *List) TypedKey(event *fyne.KeyEvent) {
+	l.ensureItemKeys()
+	if l.Length == nil || l.Length() == 0 {
+		return
+	}
 	oldFocus := l.currentHighlight
 
 	switch event.Name {
@@ -432,7 +464,7 @@ func (l *List) Unselect(id ListItemID) {
 	}
 
 	l.selected = nil
-	l.Refresh()
+	l.BaseWidget.Refresh()
 	if f := l.OnUnselected; f != nil {
 		f(id)
 	}
@@ -448,7 +480,7 @@ func (l *List) UnselectAll() {
 
 	selected := l.selected
 	l.selected = nil
-	l.Refresh()
+	l.BaseWidget.Refresh()
 	if f := l.OnUnselected; f != nil {
 		for _, id := range selected {
 			f(id)
@@ -458,6 +490,8 @@ func (l *List) UnselectAll() {
 
 // Refresh causes this List to be redrawn in its current state
 func (l *List) Refresh() {
+	l.accessibilityCache = nil
+	l.reconcileItems()
 	l.minSizeCache = fyne.Size{}
 	l.BaseWidget.Refresh()
 }
@@ -472,6 +506,9 @@ func (l *List) contentMinSize() fyne.Size {
 		return fyne.NewSize(0, 0)
 	}
 	items := l.Length()
+	if items <= 0 {
+		return fyne.NewSize(l.itemMin.Width, 0)
+	}
 
 	if len(l.itemHeights) == 0 {
 		return fyne.NewSize(l.itemMin.Width,

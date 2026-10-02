@@ -1,0 +1,91 @@
+name: Accessibility
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  semantics:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v6
+        with:
+          go-version: stable
+      - run: go test -race -tags ci ./internal/app ./internal/async ./internal/accessibility ./widget ./internal/widget ./container ./test
+      - name: Public API from an external Go module
+        working-directory: test/testdata/accessibility
+        run: go test -mod=readonly -race -tags ci ./...
+      - name: Diagnostic recorder and demo tests
+        run: go test -race -tags ci,accessibilitydiagnostics ./internal/accessibility/diagnostic ./cmd/accessibility_demo
+      - name: Large collection snapshot measurements
+        run: go test -tags ci ./internal/accessibility -run '^$' -bench BenchmarkCollectionSnapshots -benchtime=10x
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Native UI Automation regression tests
+        shell: bash
+        run: |
+          gcc -std=c11 -Wall -Werror=incompatible-pointer-types internal/driver/glfw/testdata/accessibility/provider_windows.c -o provider-test.exe -loleaut32 -lole32 -luuid
+          ./provider-test.exe
+      - uses: actions/setup-go@v6
+        with:
+          go-version: stable
+          cache-dependency-path: go.sum
+      - name: Build actual GLFW accessibility driver
+        run: go build -tags accessibility -ldflags="-s -w -H=windowsgui" ./cmd/accessibility_demo
+      - name: Build diagnostic demo
+        run: go build -tags accessibility,accessibilitydiagnostics -ldflags="-s -w -H=windowsgui" -o accessibility_diagnostic.exe ./cmd/accessibility_demo
+      - name: Semantic and widget tests with accessibility enabled
+        run: go test -race -tags accessibility,ci ./internal/app ./internal/accessibility ./widget ./internal/widget ./container ./test
+      - name: External custom components on Windows
+        working-directory: test/testdata/accessibility
+        run: go test -mod=readonly -race -tags accessibility,ci ./...
+      - name: Diagnostic tests
+        run: go test -race -tags accessibility,ci,accessibilitydiagnostics ./internal/accessibility/diagnostic ./cmd/accessibility_demo
+      - name: Upload demo for manual screen-reader acceptance
+        uses: actions/upload-artifact@v5
+        with:
+          name: accessibility-demo-windows
+          path: |
+            accessibility_demo.exe
+            accessibility_diagnostic.exe
+  native_loop:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Software OpenGL for real GLFW windows on the hosted runner
+        uses: ssciwr/setup-mesa-dist-win@2dfeaebfa514f74c2b8cd8d27108c31486d33e72 # v3
+        with:
+          version: '26.0.3'
+      - uses: actions/setup-go@v6
+        with:
+          go-version: stable
+          # Go's build cache tracks source and build flags itself. Keep native
+          # dependencies reusable when tests or provider code change.
+          cache-dependency-path: go.sum
+      - name: Native main-loop wake and work-order tests
+        run: go test -race -tags accessibility ./internal/driver/glfw -run 'TestMainLoopNative|TestWindow_SetTitle|TestWindow_PasswordEntryTabOrder' -timeout 2m
+      - name: Repeat collection discovery and asynchronous model updates
+        run: go test -race -tags accessibility ./internal/driver/glfw -run 'TestMainLoopNative(Tree|List)$' -count=3 -timeout 3m
+  uia_queries:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Real UI Automation query latency
+        shell: pwsh
+        run: |
+          gcc -std=c11 -Wall -Werror=incompatible-pointer-types internal/driver/glfw/testdata/accessibility/query_host_windows.c -o query-host.exe -loleaut32 -lole32 -luuid
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+          & cmd /c "`"$vs\Common7\Tools\VsDevCmd.bat`" -arch=x64 && cl /nologo /EHsc /std:c++17 internal\driver\glfw\testdata\accessibility\query_client_windows.cpp /Fe:query-client.exe /link ole32.lib oleaut32.lib uiautomationcore.lib"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ./query-client.exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

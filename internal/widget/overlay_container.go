@@ -23,6 +23,19 @@ type OverlayContainer struct {
 	shown, manual bool
 }
 
+// AccessibilityChildren excludes the overlay's decorative background.
+func (o *OverlayContainer) AccessibilityChildren() []fyne.CanvasObject {
+	return []fyne.CanvasObject{o.Content}
+}
+
+// AccessibilityOverlayOwner forwards a compound control's popup association.
+func (o *OverlayContainer) AccessibilityOverlayOwner() fyne.CanvasObject {
+	if owner, ok := o.Content.(fyne.AccessibleOverlayOwner); ok {
+		return owner.AccessibilityOverlayOwner()
+	}
+	return nil
+}
+
 // NewOverlayContainer creates an OverlayContainer.
 func NewOverlayContainer(c fyne.CanvasObject, canvas fyne.Canvas, onDismiss func()) *OverlayContainer {
 	o := &OverlayContainer{canvas: canvas, Content: c, onDismiss: onDismiss}

@@ -30,6 +30,8 @@ type radioItem struct {
 	Label    string
 	Selected bool
 
+	group   *RadioGroup
+	index   int
 	focused bool
 	hovered bool
 	onTap   func(item *radioItem)
@@ -100,7 +102,28 @@ func (i *radioItem) Tapped(_ *fyne.PointEvent) {
 }
 
 // TypedKey is called when this item receives a key event.
-func (*radioItem) TypedKey(_ *fyne.KeyEvent) {
+func (i *radioItem) TypedKey(event *fyne.KeyEvent) {
+	if i.group == nil || i.Disabled() || i.group.Disabled() || i.index >= len(i.group.items) || i.group.items[i.index] != i {
+		return
+	}
+	idx := i.index
+	switch event.Name {
+	case fyne.KeyUp, fyne.KeyLeft:
+		idx = (idx + len(i.group.items) - 1) % len(i.group.items)
+	case fyne.KeyDown, fyne.KeyRight:
+		idx = (idx + 1) % len(i.group.items)
+	case fyne.KeyEnter, fyne.KeyReturn:
+		i.AccessibilitySelect(fyne.AccessibilitySelectReplace)
+		return
+	default:
+		return
+	}
+	item, ok := i.group.items[idx].(*radioItem)
+	if !ok {
+		return
+	}
+	focusIfNotMobile(item)
+	item.AccessibilitySelect(fyne.AccessibilitySelectReplace)
 }
 
 // TypedRune is called when this item receives a char event.

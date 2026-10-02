@@ -13,8 +13,9 @@ var (
 // PopUpMenu is a Menu which displays itself in an OverlayContainer.
 type PopUpMenu struct {
 	*Menu
-	canvas  fyne.Canvas
-	overlay *widget.OverlayContainer
+	canvas      fyne.Canvas
+	overlay     *widget.OverlayContainer
+	selectOwner *Select
 }
 
 // NewPopUpMenu creates a new, reusable popup menu. You can show it using ShowAtPosition.
@@ -118,6 +119,10 @@ func (p *PopUpMenu) ShowAtRelativePosition(rel fyne.Position, to fyne.CanvasObje
 
 // TypedKey handles key events. It allows keyboard control of the pop-up menu.
 func (p *PopUpMenu) TypedKey(e *fyne.KeyEvent) {
+	defer p.revealSelectItem()
+	if p.typedSelectKey(e) {
+		return
+	}
 	switch e.Name {
 	case fyne.KeyDown:
 		p.ActivateNext()
