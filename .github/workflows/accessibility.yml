@@ -32,9 +32,7 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version: stable
-          cache-dependency-path: |
-            go.sum
-            .github/workflows/accessibility.yml
+          cache-dependency-path: go.sum
       - name: Build actual GLFW accessibility driver
         run: go build -tags accessibility -ldflags="-s -w -H=windowsgui" ./cmd/accessibility_demo
       - name: Build diagnostic demo
@@ -66,10 +64,9 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version: stable
-          cache-dependency-path: |
-            go.sum
-            .github/workflows/accessibility.yml
-            internal/driver/glfw/loop_wait_windows_test.go
+          # Go's build cache tracks source and build flags itself. Keep native
+          # dependencies reusable when tests or provider code change.
+          cache-dependency-path: go.sum
       - name: Native main-loop wake and work-order tests
         run: go test -race -tags accessibility ./internal/driver/glfw -run 'TestMainLoopNative|TestWindow_SetTitle|TestWindow_PasswordEntryTabOrder' -timeout 2m
   uia_queries:

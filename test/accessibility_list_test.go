@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/test"
 	"fyne.io/fyne/v2/widget"
 	"github.com/stretchr/testify/assert"
@@ -251,4 +252,36 @@ func TestAccessibilityListPositionalRetirementAndFirstHighlight(t *testing.T) {
 	c, _ := s.Element(list, "c")
 	assert.True(t, c.Focused)
 	assert.False(t, c.Selected)
+}
+
+func TestAccessibilityListFocusSurvivesInvokedReorder(t *testing.T) {
+	test.NewTempApp(t)
+	items := make([]string, 120)
+	for i := range items {
+		items[i] = fmt.Sprintf("item-%03d", i)
+	}
+	list := widget.NewList(func() int { return len(items) },
+		func() fyne.CanvasObject { return widget.NewLabel("Template") },
+		func(id int, obj fyne.CanvasObject) { obj.(*widget.Label).SetText(items[id]) })
+	list.ItemKey = func(id int) string { return items[id] }
+	list.DescribeItem = func(id int) fyne.AccessibilityInfo { return fyne.AccessibilityInfo{Name: items[id]} }
+	list.SetAccessibilityInfo(fyne.AccessibilityInfo{Name: "Native list"})
+	reverse := widget.NewButton("Reverse list", func() { slices.Reverse(items); list.Refresh() })
+	w := test.NewWindow(container.NewBorder(nil, reverse, nil, nil, list))
+	defer w.Close()
+	w.Resize(fyne.NewSize(350, 280))
+	s := test.NewAccessibilityTree(w.Canvas())
+	last, _ := s.Element(list, "item-119")
+	button, _ := s.Node(reverse)
+	require.True(t, s.Perform(last.ID, test.AccessibilityScrollIntoView, "", 0))
+	require.True(t, s.Perform(last.ID, test.AccessibilitySelect, "", 0))
+	require.True(t, s.Perform(last.ID, test.AccessibilityFocus, "", 0))
+	last2, _ := s.Element(list, "item-119")
+	require.True(t, last2.Focused)
+	require.True(t, s.Perform(button.ID, test.AccessibilityActivate, "", 0))
+	last2, _ = s.Element(list, "item-119")
+	assert.True(t, last2.Focused)
+	assert.True(t, last2.Selected)
+	assert.Equal(t, "item-119", list.AccessibilityActiveElement())
+	assert.Same(t, list, w.Canvas().Focused())
 }
