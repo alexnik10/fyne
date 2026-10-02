@@ -188,6 +188,64 @@ func TestAccessibilityTreeHierarchyFocusAndLifetime(t *testing.T) {
 	require.Empty(t, s.Issues())
 }
 
+func TestAccessibilityTreeArrowExpansionKeepsFocus(t *testing.T) {
+	test.NewTempApp(t)
+	tree := widget.NewTreeWithStrings(map[string][]string{"": {"folder", "empty"}, "folder": {"leaf"}, "empty": {}})
+	w := test.NewWindow(tree)
+	defer w.Close()
+	w.Resize(fyne.NewSize(240, 150))
+	w.Canvas().Focus(tree)
+	s := test.NewAccessibilityTree(w.Canvas())
+	root, ok := s.Node(tree)
+	require.True(t, ok)
+	assert.Empty(t, root.Description, "trees must not inject generic keyboard instructions")
+	folder, ok := s.Element(tree, "folder")
+	require.True(t, ok)
+	require.True(t, folder.Focused)
+
+	highlighted, selected := 0, 0
+	tree.OnHighlighted = func(string) { highlighted++ }
+	tree.OnSelected = func(string) { selected++ }
+	steps := []struct {
+		key         fyne.KeyName
+		active      string
+		folderOpen  bool
+		highlighted int
+	}{
+		{fyne.KeyRight, "folder", true, 0}, // Only expand.
+		{fyne.KeyRight, "leaf", true, 1},   // Enter the open branch.
+		{fyne.KeyRight, "leaf", true, 1},   // Leaf: no movement.
+		{fyne.KeyLeft, "folder", true, 2},  // Return to parent.
+		{fyne.KeyLeft, "folder", false, 2}, // Only collapse.
+		{fyne.KeyLeft, "folder", false, 2}, // Closed top-level node: no movement.
+		{fyne.KeyRight, "folder", true, 2},
+		{fyne.KeyDown, "leaf", true, 3}, // Explorer sequence from the NVDA report.
+		{fyne.KeyDown, "empty", true, 4},
+		{fyne.KeyRight, "empty", true, 4}, // Expand an empty branch without moving.
+		{fyne.KeyRight, "empty", true, 4},
+		{fyne.KeyLeft, "empty", true, 4},
+	}
+	for i, step := range steps {
+		w.Canvas().Focused().TypedKey(&fyne.KeyEvent{Name: step.key})
+		assert.Same(t, tree, w.Canvas().Focused(), "step %d", i)
+		assert.Equal(t, step.active, tree.AccessibilityActiveElement(), "step %d", i)
+		assert.Equal(t, step.folderOpen, tree.IsBranchOpen("folder"), "step %d", i)
+		assert.Equal(t, step.highlighted, highlighted, "step %d", i)
+		assert.Zero(t, selected, "navigation must not select, step %d", i)
+		focused := make([]string, 0, 1)
+		for _, node := range s.Snapshot() {
+			if node.Focused {
+				focused = append(focused, node.Name)
+			}
+		}
+		assert.Equal(t, []string{step.active}, focused, "semantic focus, step %d", i)
+		current, ok := s.Element(tree, "folder")
+		require.True(t, ok)
+		assert.Equal(t, folder.ID, current.ID)
+		assert.Equal(t, step.folderOpen, current.Expanded)
+	}
+}
+
 func TestAccessibilityTreeOffscreenDoesNotMaterializeCells(t *testing.T) {
 	test.NewTempApp(t)
 	ids := make([]string, 1000)

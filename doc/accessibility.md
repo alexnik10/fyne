@@ -422,7 +422,10 @@ contains Documents with 200 reports and Archive with Read me.
 1. Tab into the tree. Check its name, item name, level, sibling position/count,
    branch expanded/collapsed state and leaf state. Arrow keys move actual focus;
    Space selects. Selection and focus should remain distinguishable.
-2. Expand Documents. Navigate to Report 200 or use Go to Report 200. It should
+2. Press Right on collapsed Documents: it expands and keeps focus. Press Right
+   again (or Down) to enter Report 1. Left returns to Documents; another Left
+   collapses it without moving focus. The tree has no default spoken keyboard
+   instructions. Navigate to Report 200 or use Go to Report 200. It should
    scroll into view without losing its identity. UIA ScrollItem alone must not
    select it or move keyboard focus.
 3. Collapse Documents while a report is highlighted. Focus should move to the

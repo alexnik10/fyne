@@ -33,7 +33,7 @@ func showTreeDemo(application fyne.App) {
 		func(bool) fyne.CanvasObject { return widget.NewLabel("Template") },
 		func(id string, _ bool, object fyne.CanvasObject) { object.(*widget.Label).SetText(names[id]) })
 	tree.DescribeNode = func(id string) fyne.AccessibilityInfo { return fyne.AccessibilityInfo{Name: names[id]} }
-	tree.SetAccessibilityInfo(fyne.AccessibilityInfo{Name: "Project files", Description: "Arrow keys navigate and expand branches. Space selects a report."})
+	tree.SetAccessibilityInfo(fyne.AccessibilityInfo{Name: "Project files"})
 	status := widget.NewLabel("No report selected")
 	tree.OnSelected = func(id string) { status.SetText("Selected: " + names[id]) }
 	tree.OnUnselected = func(string) { status.SetText("No report selected") }

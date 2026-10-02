@@ -446,8 +446,12 @@ func (t *Tree) TypedKey(event *fyne.KeyEvent) {
 			})
 		}
 	case fyne.KeyRight:
-		if t.IsBranch(t.currentHighlight) {
+		if !t.IsBranch(t.currentHighlight) {
+			break
+		}
+		if !t.IsBranchOpen(t.currentHighlight) {
 			t.OpenBranch(t.currentHighlight)
+			break // Expanding preserves focus; a second Right enters the branch.
 		}
 		children := []TreeNodeID{}
 		if childUIDs := t.ChildUIDs; childUIDs != nil {
