@@ -101,10 +101,10 @@ func (i *treeAccessibilityItem) AccessibilityInfo() fyne.AccessibilityInfo {
 	}
 	return fyne.AccessibilityInfo{}
 }
-func (i *treeAccessibilityItem) AccessibilityHierarchy() (int, int, int) {
+func (i *treeAccessibilityItem) AccessibilityHierarchy() (level, position, count int) {
 	return i.level, i.index, i.count
 }
-func (i *treeAccessibilityItem) AccessibilitySelectionItem() (fyne.CanvasObject, bool, int, int) {
+func (i *treeAccessibilityItem) AccessibilitySelectionItem() (owner fyne.CanvasObject, selected bool, position, count int) {
 	return i.owner.super(), contains(i.owner.selected, i.id), i.index, i.count
 }
 func (i *treeAccessibilityItem) AccessibilitySelect(mode fyne.AccessibilitySelectionMode) bool {

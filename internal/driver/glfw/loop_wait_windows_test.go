@@ -178,10 +178,11 @@ func TestMainLoopNativeTree(t *testing.T) {
 	default:
 		t.Fatal("UIA selection did not reach the Tree model")
 	}
-	runOnMain(func() {
-		require.Equal(t, "item-119", tree.AccessibilityActiveElement())
-		require.Same(t, tree, w.canvas.Focused())
-	})
+	var active string
+	var focused fyne.Focusable
+	runOnMain(func() { active, focused = tree.AccessibilityActiveElement(), w.canvas.Focused() })
+	require.Equal(t, "item-119", active)
+	require.Same(t, tree, focused)
 }
 
 // TestMain runs the actual GLFW loop on its locked native thread. Exercise work

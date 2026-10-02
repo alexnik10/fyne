@@ -21,7 +21,7 @@ type keyedControl struct {
 	calls   []string
 }
 
-func (c *keyedControl) CreateRenderer() fyne.WidgetRenderer {
+func (*keyedControl) CreateRenderer() fyne.WidgetRenderer {
 	return widget.NewSimpleRenderer(widget.NewLabel("Decoration"))
 }
 func (c *keyedControl) AccessibilityElements() []fyne.AccessibilityElement {
