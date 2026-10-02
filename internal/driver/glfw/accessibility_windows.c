@@ -29,6 +29,31 @@ typedef struct {
 } ActionRequest;
 static UINT actionMessage;
 
+// One process-lifetime event, shared by the GLFW main loop and Go work/tick
+// producers. It must remain valid during concurrent wakeups and app shutdown.
+static INIT_ONCE wakeOnce = INIT_ONCE_STATIC_INIT;
+static HANDLE mainLoopWake;
+static BOOL CALLBACK createWake(PINIT_ONCE once, PVOID parameter, PVOID *context) {
+    (void)once; (void)parameter; (void)context;
+    mainLoopWake = CreateEventW(NULL, FALSE, FALSE, NULL);
+    return mainLoopWake != NULL;
+}
+void WinAccessibilityWake(void) {
+    if (InitOnceExecuteOnce(&wakeOnce, createWake, NULL, NULL)) SetEvent(mainLoopWake);
+}
+int WinAccessibilityWaitForMessage(uint32_t timeout) {
+    if (!InitOnceExecuteOnce(&wakeOnce, createWake, NULL, NULL)) return 0;
+    DWORD result = MsgWaitForMultipleObjectsEx(1, &mainLoopWake, timeout, QS_SENDMESSAGE, MWMO_INPUTAVAILABLE);
+    if (result == WAIT_FAILED) return 0;
+    if (result == WAIT_OBJECT_0 + 1) {
+        // PeekMessage dispatches sent messages even when it returns no posted
+        // message. Do not remove keyboard/pointer messages from GLFW's queue.
+        MSG msg;
+        PeekMessageW(&msg, NULL, 0, 0, PM_NOREMOVE | PM_QS_SENDMESSAGE);
+    }
+    return 1;
+}
+
 // MinGW distributions do not consistently ship a UIAutomationCore import
 // library. Resolve the documented entry points from the system DLL once.
 static INIT_ONCE uiaOnce = INIT_ONCE_STATIC_INIT;

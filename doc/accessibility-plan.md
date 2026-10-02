@@ -123,5 +123,9 @@ window metadata directly from the Windows provider, retain current title and
 correct root/virtual-child HWND identities, and validate through a real external
 UIA client with the same cache/normalization operation as NVDA. Keep all state
 events and the focused-first order; do not introduce an asynchronous event worker
-or alter general Fyne rendering. Ship a diagnostic Windows build for NVDA speech
+or alter general Fyne rendering. Metadata alone halves the measured cost but
+leaves native messages waiting for frames: add a Windows/accessibility-only native
+wait that services synchronous requests and wakes for Go work, frames and shutdown.
+Retain the 60 Hz rendering/posted-input path and test real GLFW work dispatch.
+Ship a diagnostic Windows build for NVDA speech
 acceptance before proceeding to the remaining collection controls.

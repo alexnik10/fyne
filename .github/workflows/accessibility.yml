@@ -33,6 +33,8 @@ jobs:
         run: go build -tags accessibility -ldflags="-s -w -H=windowsgui" ./cmd/accessibility_demo
       - name: Build diagnostic demo
         run: go build -tags accessibility,accessibilitydiagnostics -ldflags="-s -w -H=windowsgui" -o accessibility_diagnostic.exe ./cmd/accessibility_demo
+      - name: Native main-loop wake and work-order tests
+        run: go test -race -tags accessibility ./internal/driver/glfw -run 'TestMainLoopNative|TestWindow_SetTitle' -timeout 2m
       - name: Semantic and widget tests with accessibility enabled
         run: go test -race -tags accessibility,ci ./internal/accessibility ./widget ./internal/widget
       - name: Diagnostic tests

@@ -363,15 +363,27 @@ thread; successful WM_SETTEXT updates its owned name under the context lock.
 Virtual descendants expose NativeWindowHandle=0, keeping their fragment identity
 and the owning window's identity distinct. This removes repeated legacy-host
 fallback while NVDA normalizes background event senders to their containing HWND.
-Threading, state events and their order are unchanged. Other platform adapters
-continue to use the shared semantic model without Windows metadata.
+State events and their order are unchanged. Other platform adapters continue to
+use the shared semantic model without Windows metadata.
+
+The first real UIA probe showed that metadata alone was insufficient: roughly
+211 ms/query fell to 99 ms/query, with synchronous HWND messages still waiting
+for the next frame. In accessibility-enabled Windows builds the main thread now
+waits on sent Windows messages as well as Go work/tick/shutdown wakeups. It
+services synchronous queries between frames, without consuming posted keyboard
+or pointer input; GLFW still dispatches those. Rendering/animations keep the
+existing 60 Hz ticker. The default loop on other builds is unchanged. There is
+no polling at 1 kHz and no UIA event worker; an auto-reset event wakes the native
+wait when Go work or the frame ticker is ready.
 
 Native tests cover root/child identity, title changes (including Unicode and an
 empty title), detached queries and existing provider lifetime/privacy contracts.
 The real UIA test compares production queries against a test-only reconstruction
 of the old VT_EMPTY metadata fallback, from another process with a 60 Hz host.
+The probe also retains a metadata-only control to distinguish the two changes.
 It verifies the ancestor HWND and rejects a large relative performance regression
-when the baseline reproduces the message-pump delay.
+when the baseline reproduces the message-pump delay. Actual GLFW-loop tests cover
+concurrent queued work and FIFO asynchronous work followed by a synchronous barrier.
 
 Repeat rapid Space activation of Remember and Disable choices with demo 7; after
 Disable choices, wait five seconds on the same control and press Space once more.

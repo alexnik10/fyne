@@ -48,4 +48,7 @@ typedef struct {
 int WinAccessibilityUpdateWithStats(WinAccessibility *, const WinAccessibilityNode *, int count, WinAccessibilityStats *);
 void WinAccessibilityFocus(WinAccessibility *, uint32_t id);
 void WinAccessibilityCleanup(WinAccessibility *);
+// Main-thread wait services synchronous HWND queries; posted input stays with GLFW.
+int WinAccessibilityWaitForMessage(uint32_t timeout);
+void WinAccessibilityWake(void);
 #endif

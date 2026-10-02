@@ -32,7 +32,8 @@ static LRESULT CALLBACK fixtureProc(HWND hwnd, UINT message, WPARAM wp, LPARAM l
     return DefWindowProcW(hwnd, message, wp, lp);
 }
 int main(int argc, char **argv) {
-    cachedMetadata = argc > 1 && !strcmp(argv[1], "cached");
+    cachedMetadata = argc > 1 && strcmp(argv[1], "baseline");
+    int messageWait = argc > 1 && !strcmp(argv[1], "cached");
     WNDCLASSW cls = {.lpfnWndProc=fixtureProc, .hInstance=GetModuleHandleW(NULL), .lpszClassName=L"FyneUIAQueryTest"};
     if (!RegisterClassW(&cls)) return 1;
     HWND hwnd = CreateWindowW(cls.lpszClassName, L"Fyne UIA query test", WS_OVERLAPPEDWINDOW,
@@ -59,7 +60,7 @@ int main(int argc, char **argv) {
             if (msg.message == WM_QUIT) { quit = 1; break; }
             TranslateMessage(&msg); DispatchMessageW(&msg);
         }
-        Sleep(16);
+        if (messageWait) WinAccessibilityWaitForMessage(16); else Sleep(16);
     }
     WinAccessibilityCleanup(c); DestroyWindow(hwnd);
     for (int i=0; i<0x10000; ++i) if (messages[i]) printf("message 0x%04x: %ld\n", i, messages[i]);

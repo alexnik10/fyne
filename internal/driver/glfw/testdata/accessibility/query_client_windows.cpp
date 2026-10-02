@@ -71,11 +71,13 @@ static double run(const wchar_t *mode) {
 }
 int main() {
     check(CoInitializeEx(nullptr, COINIT_MULTITHREADED));
-    double baseline = run(L"baseline"), cached = run(L"cached");
+    double baseline = run(L"baseline");
+    run(L"metadata"); // Show the remaining cost if native queries still wait for a frame.
+    double cached = run(L"cached");
     printf("HWND normalization ratio cached/baseline: %.3f\n", cached/baseline);
     // Gate a large relative regression when the old host fallback reproduces
     // message-pump stalls. Avoid a tight machine-dependent latency threshold.
-    if (baseline >= 400 && cached >= baseline * 0.5) {
+    if (baseline >= 400 && cached >= baseline * 0.2) {
         fprintf(stderr, "Cached HWND queries still depend on the native polling interval\n");
         return 8;
     }
