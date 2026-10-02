@@ -114,6 +114,7 @@ func (t *Tree) resolveRelations(out []Node, focused fyne.Focusable) {
 	focusedID := t.FocusedID(focused)
 	for i := range out {
 		n := &out[i]
+		n.ItemContainer = t.nodes[n.ID].ItemContainer
 		if item, ok := t.objects[n.ID].(fyne.AccessibleSelectable); ok {
 			owner, _, _, _ := item.AccessibilitySelectionItem()
 			n.SelectionOwner = t.ids[owner]

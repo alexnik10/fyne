@@ -18,6 +18,8 @@ jobs:
         run: go test -mod=readonly -race -tags ci ./...
       - name: Diagnostic recorder and demo tests
         run: go test -race -tags ci,accessibilitydiagnostics ./internal/accessibility/diagnostic ./cmd/accessibility_demo
+      - name: Large collection snapshot measurements
+        run: go test -tags ci ./internal/accessibility -run '^$' -bench BenchmarkCollectionSnapshots -benchtime=10x
   windows:
     runs-on: windows-latest
     steps:

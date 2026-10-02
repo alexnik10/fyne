@@ -18,6 +18,7 @@
 extern void goFyneAccessibilityAction(uintptr_t, uint32_t, int, char *, double);
 extern int goFyneAccessibilityPerform(uintptr_t, uint32_t, int, char *, double);
 extern int goFyneAccessibilityTextAction(uintptr_t, uint32_t, int, int, int, int);
+extern int goFyneAccessibilityFindItem(uintptr_t, uint32_t, uint32_t, int, char *, uint32_t *);
 typedef struct {
     uintptr_t handle;
     uint32_t id;
@@ -26,6 +27,8 @@ typedef struct {
     double number;
     HRESULT result;
     int start, end, scroll, alignTop;
+    uint32_t startAfter, resultID;
+    int property;
 } ActionRequest;
 static UINT actionMessage;
 
@@ -114,6 +117,8 @@ typedef struct {
 // message dispatch that publishes a newer snapshot or closes the window.
 typedef struct {
     LONG refs;
+    int count;
+    Record **byID;
     Record records[];
 } Snapshot;
 static void holdRecords(Record *records) {
@@ -149,6 +154,9 @@ struct Element {
     ISelectionItemProvider selectionItem;
     IExpandCollapseProvider expand;
     IScrollItemProvider scrollItem;
+    IItemContainerProvider itemContainer;
+    IVirtualizedItemProvider virtualizedItem;
+    int virtualized;
     TextRange *textRanges;
     LONG refs;
     uint32_t id;
@@ -170,6 +178,8 @@ static ISelectionProviderVtbl selectionVtbl;
 static ISelectionItemProviderVtbl selectionItemVtbl;
 static IExpandCollapseProviderVtbl expandVtbl;
 static IScrollItemProviderVtbl scrollItemVtbl;
+static IItemContainerProviderVtbl itemContainerVtbl;
+static IVirtualizedItemProviderVtbl virtualizedItemVtbl;
 static HRESULT selectionArray(Element *, SAFEARRAY **);
 static WCHAR *windowName(HWND);
 
@@ -182,9 +192,22 @@ static ULONG release(Element *e) {
     if (!refs) { WinAccessibility *c = e->context; free(e); contextRelease(c); }
     return refs;
 }
-static Record *find(WinAccessibility *c, uint32_t id) {
-    for (int i = 0; i < c->count; ++i) if (c->records[i].data.id == id) return &c->records[i];
+static Record *findRecords(Record *records, uint32_t id) {
+    if (!records) return NULL;
+    Snapshot *s = (Snapshot *)((char *)records - offsetof(Snapshot, records));
+    int lo = 0, hi = s->count;
+    while (lo < hi) {
+        int mid = lo + (hi - lo) / 2;
+        Record *r = s->byID[mid];
+        if (r->data.id == id) return r;
+        if (r->data.id < id) lo = mid + 1; else hi = mid;
+    }
     return NULL;
+}
+static Record *find(WinAccessibility *c, uint32_t id) { return findRecords(c->records, id); }
+static int compareRecordIDs(const void *a, const void *b) {
+    uint32_t x = (*(Record *const *)a)->data.id, y = (*(Record *const *)b)->data.id;
+    return (x > y) - (x < y);
 }
 static int alive(Element *e) { return !e->context->closed && (!e->id || find(e->context, e->id)); }
 static Element *elementFor(WinAccessibility *c, uint32_t id) {
@@ -203,6 +226,8 @@ static Element *newElement(WinAccessibility *c, uint32_t id) {
     e->selection.lpVtbl = &selectionVtbl; e->selectionItem.lpVtbl = &selectionItemVtbl;
     e->expand.lpVtbl = &expandVtbl;
     e->scrollItem.lpVtbl = &scrollItemVtbl;
+    e->itemContainer.lpVtbl = &itemContainerVtbl;
+    e->virtualizedItem.lpVtbl = &virtualizedItemVtbl;
     InterlockedIncrement(&c->refs);
     return e;
 }
@@ -225,6 +250,8 @@ static HRESULT query(Element *e, REFIID iid, void **out) {
         if ((flags & WinAccSelectable) && IsEqualIID(iid, &IID_ISelectionItemProvider)) *out = &e->selectionItem;
         if ((flags & (WinAccExpandable|WinAccLeaf)) && IsEqualIID(iid, &IID_IExpandCollapseProvider)) *out = &e->expand;
         if ((flags & WinAccScrollItem) && IsEqualIID(iid, &IID_IScrollItemProvider)) *out = &e->scrollItem;
+        if ((flags & WinAccItemContainer) && IsEqualIID(iid, &IID_IItemContainerProvider)) *out = &e->itemContainer;
+        if (e->virtualized && !e->context->closed && IsEqualIID(iid, &IID_IVirtualizedItemProvider)) *out = &e->virtualizedItem;
         ReleaseSRWLockShared(&e->context->lock);
     }
     if (!*out) return E_NOINTERFACE;
@@ -246,6 +273,8 @@ IUNKNOWN(SL, ISelectionProvider, selection)
 IUNKNOWN(SI, ISelectionItemProvider, selectionItem)
 IUNKNOWN(EC, IExpandCollapseProvider, expand)
 IUNKNOWN(SC, IScrollItemProvider, scrollItem)
+IUNKNOWN(IC, IItemContainerProvider, itemContainer)
+IUNKNOWN(VI, IVirtualizedItemProvider, virtualizedItem)
 
 static HRESULT STDMETHODCALLTYPE options(IRawElementProviderSimple *p, enum ProviderOptions *out) {
     if (!out) return E_POINTER;
@@ -256,6 +285,10 @@ static HRESULT STDMETHODCALLTYPE pattern(IRawElementProviderSimple *p, PATTERNID
     *out = NULL;
     Element *e = OWNER(p, simple); WinAccessibility *c = e->context;
     AcquireSRWLockShared(&c->lock);
+    if (id == UIA_VirtualizedItemPatternId && e->virtualized && !c->closed) {
+        *out = (IUnknown *)&e->virtualizedItem; addRef(e);
+        ReleaseSRWLockShared(&c->lock); return S_OK;
+    }
     if (!alive(e)) { ReleaseSRWLockShared(&c->lock); return UNAVAILABLE; }
     Record *r = find(c, e->id); int flags = r ? r->data.flags : 0;
     if (id == UIA_InvokePatternId && (flags & WinAccInvoke)) *out = (IUnknown *)&e->invoke;
@@ -267,6 +300,7 @@ static HRESULT STDMETHODCALLTYPE pattern(IRawElementProviderSimple *p, PATTERNID
     if (id == UIA_SelectionItemPatternId && (flags & WinAccSelectable)) *out = (IUnknown *)&e->selectionItem;
     if (id == UIA_ExpandCollapsePatternId && (flags & (WinAccExpandable|WinAccLeaf))) *out = (IUnknown *)&e->expand;
     if (id == UIA_ScrollItemPatternId && (flags & WinAccScrollItem)) *out = (IUnknown *)&e->scrollItem;
+    if (id == UIA_ItemContainerPatternId && (flags & WinAccItemContainer)) *out = (IUnknown *)&e->itemContainer;
     if (*out) addRef(e);
     ReleaseSRWLockShared(&c->lock); return S_OK;
 }
@@ -351,6 +385,8 @@ static void propertyValue(WinAccessibility *c, Record *r, PROPERTYID id, VARIANT
     case UIA_RangeValueLargeChangePropertyId: if (f & WinAccRange) variantNumber(out, n->step); break;
     case UIA_RangeValueIsReadOnlyPropertyId: if (f & WinAccRange) variantBool(out, f & WinAccReadOnly); break;
     case UIA_IsScrollItemPatternAvailablePropertyId: variantBool(out, f & WinAccScrollItem); break;
+    case UIA_IsItemContainerPatternAvailablePropertyId: variantBool(out, f & WinAccItemContainer); break;
+    case UIA_IsVirtualizedItemPatternAvailablePropertyId: variantBool(out, f & WinAccVirtualizedItem); break;
     case UIA_IsSelectionPatternAvailablePropertyId: variantBool(out, f & WinAccSelection); break;
     case UIA_IsSelectionItemPatternAvailablePropertyId: variantBool(out, f & WinAccSelectable); break;
     case UIA_IsExpandCollapsePatternAvailablePropertyId: variantBool(out, f & (WinAccExpandable|WinAccLeaf)); break;
@@ -599,6 +635,7 @@ static IRangeValueProviderVtbl rangeVtbl = {N_QI, N_Add, N_Release, setRange, ra
 
 #include "accessibility_text_windows.h"
 #include "accessibility_selection_windows.h"
+#include "accessibility_collection_windows.h"
 
 static LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     WinAccessibility *c = (WinAccessibility *)GetPropW(hwnd, WINDOW_PROPERTY);
@@ -606,7 +643,9 @@ static LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     if (msg == actionMessage) {
         ActionRequest *request = (ActionRequest *)lp;
         if (request->handle == c->handle) {
-            int success = request->action == 5
+            int success = request->action == 13
+                ? goFyneAccessibilityFindItem(request->handle, request->id, request->startAfter, request->property, request->text, &request->resultID)
+                : request->action == 5
                 ? goFyneAccessibilityTextAction(request->handle, request->id, request->start, request->end, request->scroll, request->alignTop)
                 : goFyneAccessibilityPerform(request->handle, request->id, request->action, request->text, request->number);
             request->result = success ? S_OK : UNAVAILABLE;
@@ -650,6 +689,7 @@ static void freeRecords(Record *records, int count) {
     if (!records) return;
     Snapshot *snapshot = (Snapshot *)((char *)records - offsetof(Snapshot, records));
     if (InterlockedDecrement(&snapshot->refs)) return;
+    free(snapshot->byID);
     for (int i = 0; i < count; ++i) {
         free(records[i].name); free(records[i].description); free(records[i].value);
         free(records[i].text); free(records[i].offsets); free(records[i].positions);
@@ -711,10 +751,13 @@ int WinAccessibilityUpdateWithStats(WinAccessibility *c, const WinAccessibilityN
     Snapshot *snapshot = calloc(1, sizeof(*snapshot) + count * sizeof(Record));
     if (!snapshot) return 0;
     snapshot->refs = 1;
+    snapshot->count = count;
+    snapshot->byID = count ? calloc(count, sizeof(Record *)) : NULL;
+    if (count && !snapshot->byID) { free(snapshot); return 0; }
     Record *next = snapshot->records;
     uint32_t focused = 0;
     AcquireSRWLockExclusive(&c->lock);
-    if (c->closed) { ReleaseSRWLockExclusive(&c->lock); free(snapshot); return 0; }
+    if (c->closed) { ReleaseSRWLockExclusive(&c->lock); freeRecords(next, count); return 0; }
     for (int i = 0; i < count; ++i) {
         Record *r = &next[i]; r->data = nodes[i];
         // No borrowed strings or Go memory survives this call.
@@ -730,14 +773,17 @@ int WinAccessibilityUpdateWithStats(WinAccessibility *c, const WinAccessibilityN
         if (!r->name || !r->description || !r->value || !r->element || !textOK) {
             ReleaseSRWLockExclusive(&c->lock); freeRecords(next, count); return 0;
         }
+        snapshot->byID[i] = r;
         if (nodes[i].flags & WinAccFocused) focused = nodes[i].id;
     }
+    if (count) qsort(snapshot->byID, count, sizeof(Record *), compareRecordIDs);
     Record *old = c->records; int oldCount = c->count;
     int structure = count != oldCount;
     for (int i = 0; !structure && i < count; ++i) structure = old[i].data.id != next[i].data.id || old[i].data.parent != next[i].data.parent;
     int foreground = GetForegroundWindow() == c->hwnd;
     int focusChanged = c->focus != focused || c->foreground != foreground;
     for (int i = 0; i < count; ++i) {
+        next[i].element->virtualized = !!(next[i].data.flags & WinAccVirtualizedItem);
         Record *previous = find(c, next[i].data.id);
         if (previous) updateTextRanges(previous, &next[i]);
     }
@@ -764,13 +810,16 @@ int WinAccessibilityUpdateWithStats(WinAccessibility *c, const WinAccessibilityN
         UIA_IsExpandCollapsePatternAvailablePropertyId, UIA_SelectionCanSelectMultiplePropertyId,
         UIA_SelectionIsSelectionRequiredPropertyId, UIA_SelectionItemIsSelectedPropertyId,
         UIA_ExpandCollapseExpandCollapseStatePropertyId, UIA_PositionInSetPropertyId, UIA_SizeOfSetPropertyId,
-        UIA_IsOffscreenPropertyId, UIA_LevelPropertyId, UIA_IsScrollItemPatternAvailablePropertyId};
+        UIA_IsOffscreenPropertyId, UIA_LevelPropertyId, UIA_IsScrollItemPatternAvailablePropertyId,
+        UIA_IsItemContainerPatternAvailablePropertyId, UIA_IsVirtualizedItemPatternAvailablePropertyId};
     // Announce the user's focused control before potentially slow client calls
     // for every affected background control (e.g. "Disable choices"). The whole
     // snapshot is already committed, so reentrant queries see all state changes.
     for (int pass = 0; pass < 2; ++pass) for (int i = 0; i < count; ++i) {
         if ((next[i].data.id == focused) != (pass == 0)) continue;
-        for (int j = 0; j < oldCount; ++j) if (next[i].data.id == old[j].data.id) {
+        Record *previous = findRecords(old, next[i].data.id);
+        if (previous) {
+            int j = (int)(previous - old);
             for (unsigned int k = 0; k < sizeof(properties)/sizeof(properties[0]) && eventsCurrent(c, generation); ++k) {
                 // Never emit the old password when a previously public field becomes protected.
                 if (properties[k] == UIA_ValueValuePropertyId && ((old[j].data.flags | next[i].data.flags) & WinAccProtected)) continue;
@@ -797,7 +846,6 @@ int WinAccessibilityUpdateWithStats(WinAccessibility *c, const WinAccessibilityN
                     old[j].data.selection_start != next[i].data.selection_start || old[j].data.selection_end != next[i].data.selection_end))
                     diagnosticAutomation(stats, next[i].element, UIA_Text_TextSelectionChangedEventId);
             }
-            break;
         }
     }
     if (focusChanged && foreground && focusElement && eventsCurrent(c, generation)) diagnosticAutomation(stats, focusElement, UIA_AutomationFocusChangedEventId);

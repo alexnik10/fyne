@@ -1,6 +1,8 @@
 package widget
 
 import (
+	"sort"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/theme"
 )
@@ -27,16 +29,23 @@ func (t *Tree) AccessibilityActiveElement() string { return t.currentHighlight }
 
 // AccessibilityCollection separates tree topology from per-node semantics.
 // Model keys include closed descendants, whose descriptions are not requested.
-// No CreateNode or UpdateNode calls are made. Topology enumeration is O(N).
+// No CreateNode or UpdateNode calls are made. Topology is cached until Refresh;
+// viewport lookup is logarithmic in the number of expanded rows.
 //
 // Since: 2.9
 func (t *Tree) AccessibilityCollection() fyne.AccessibilityCollection {
-	source := &treeAccessibilitySource{children: make(map[string][]string), nodes: make(map[string]treeAccessibilityNode)}
+	pad := t.Theme().Size(theme.SizeNamePadding)
+	if cached := t.accessibilityCache; cached != nil && cached.padding == pad && cached.leafHeight == t.leafMinSize.Height && cached.branchHeight == t.branchMinSize.Height {
+		return cached
+	}
+	source := &treeAccessibilitySource{owner: t, padding: pad, leafHeight: t.leafMinSize.Height, branchHeight: t.branchMinSize.Height, children: make(map[string][]string), nodes: make(map[string]treeAccessibilityNode)}
+	t.accessibilityRevision++
+	source.revision = t.accessibilityRevision
 	if t.IsBranch == nil {
 		t.lifetimes.update(nil)
 		return source
 	}
-	pad, y := t.Theme().Size(theme.SizeNamePadding), float32(0)
+	y := float32(0)
 	var keys []string
 	var visit func(TreeNodeID, TreeNodeID, int, int, int, bool)
 	visit = func(id, parent TreeNodeID, level, position, count int, hidden bool) {
@@ -60,8 +69,9 @@ func (t *Tree) AccessibilityCollection() fyne.AccessibilityCollection {
 			if branch {
 				height = t.branchMinSize.Height
 			}
-			node.item.position = fyne.NewPos(0, y-t.offset.Y)
+			node.item.position = fyne.NewPos(0, y)
 			node.item.size = fyne.NewSize(t.Size().Width, height)
+			source.visible = append(source.visible, id)
 			y += height
 		}
 		source.nodes[id] = node
@@ -83,6 +93,7 @@ func (t *Tree) AccessibilityCollection() fyne.AccessibilityCollection {
 	}
 	t.lifetimes.update(keys)
 	source.generations = t.lifetimes.generations
+	t.accessibilityCache = source
 	return source
 }
 
@@ -119,9 +130,37 @@ type treeAccessibilityNode struct {
 }
 
 type treeAccessibilitySource struct {
-	children    map[string][]string
-	nodes       map[string]treeAccessibilityNode
-	generations map[string]uint64
+	owner                             *Tree
+	visible                           []string
+	padding, leafHeight, branchHeight float32
+	revision                          uint64
+	children                          map[string][]string
+	nodes                             map[string]treeAccessibilityNode
+	generations                       map[string]uint64
+}
+
+func (s *treeAccessibilitySource) Revision() uint64 { return s.revision }
+
+func (s *treeAccessibilitySource) ViewportKeys() []string {
+	top, bottom := s.owner.offset.Y, s.owner.offset.Y+s.owner.Size().Height
+	first := sort.Search(len(s.visible), func(i int) bool { n := s.nodes[s.visible[i]].item; return n.position.Y+n.size.Height >= top })
+	last := sort.Search(len(s.visible), func(i int) bool { return s.nodes[s.visible[i]].item.position.Y > bottom })
+	return s.visible[first:last]
+}
+
+func (s *treeAccessibilitySource) SelectedKeys() []string {
+	var keys []string
+	for _, key := range s.owner.selected {
+		if n, ok := s.nodes[key]; ok && !n.hidden {
+			keys = append(keys, key)
+		}
+	}
+	return keys
+}
+
+func (s *treeAccessibilitySource) Index(key string) (string, int, bool) {
+	node, ok := s.nodes[key]
+	return node.parent, node.item.index - 1, ok && !node.hidden
 }
 
 func (s *treeAccessibilitySource) ChildCount(parent string) int { return len(s.children[parent]) }
@@ -141,6 +180,8 @@ func (s *treeAccessibilitySource) Element(key string) (fyne.AccessibilityElement
 	element := fyne.AccessibilityElement{Key: key, Parent: node.parent, Hidden: node.hidden, Generation: s.generations[key]}
 	if !node.hidden {
 		node.item.generation = element.Generation
+		node.item.position.Y -= s.owner.offset.Y
+		node.item.size.Width = s.owner.Size().Width
 		element.Object = &node.item
 		if node.branch {
 			element.Object = &treeAccessibilityBranch{&node.item}
@@ -161,11 +202,12 @@ type treeAccessibilityItem struct {
 }
 
 func (i *treeAccessibilityItem) attached() bool {
+	source := i.owner.AccessibilityCollection().(*treeAccessibilitySource)
 	if i.owner.lifetimes.generations[i.id] != i.generation {
 		return false
 	}
-	_, found := i.owner.accessibilityPath(i.id)
-	return found
+	node, found := source.nodes[i.id]
+	return found && !node.hidden
 }
 
 func (i *treeAccessibilityItem) AccessibilityLabel() string { return i.id }

@@ -27,6 +27,7 @@ const (
 	Expand
 	Collapse
 	ScrollIntoView
+	Realize
 )
 
 // Root can retain identity for background content without exposing it. This is
@@ -59,16 +60,19 @@ type Node struct {
 	SetPosition, SetSize                            int
 	Level                                           int
 	ScrollItem                                      bool
+	ItemContainer, VirtualizedItem                  bool
 }
 
 type Tree struct {
-	next     uint32
-	ids      map[fyne.CanvasObject]uint32
-	objects  map[uint32]fyne.CanvasObject
-	nodes    map[uint32]Node
-	children map[fyne.CanvasObject][]fyne.CanvasObject
-	elements map[fyne.CanvasObject]map[string]elementIdentity
-	Issues   []Issue
+	next        uint32
+	ids         map[fyne.CanvasObject]uint32
+	objects     map[uint32]fyne.CanvasObject
+	nodes       map[uint32]Node
+	children    map[fyne.CanvasObject][]fyne.CanvasObject
+	elements    map[fyne.CanvasObject]map[string]elementIdentity
+	collections map[fyne.CanvasObject]*collectionState
+	elementRefs map[uint32]elementReference
+	Issues      []Issue
 }
 
 // Issue describes an authoring problem detected while building the tree.
@@ -85,6 +89,11 @@ func (t *Tree) Build(roots []Root, focused fyne.Focusable) []Node {
 		t.ids = make(map[fyne.CanvasObject]uint32)
 		t.children = make(map[fyne.CanvasObject][]fyne.CanvasObject)
 		t.elements = make(map[fyne.CanvasObject]map[string]elementIdentity)
+		t.collections = make(map[fyne.CanvasObject]*collectionState)
+		t.elementRefs = make(map[uint32]elementReference)
+	}
+	for _, collection := range t.collections {
+		collection.active = false
 	}
 	seen := make(map[fyne.CanvasObject]bool)
 	t.objects = make(map[uint32]fyne.CanvasObject)
@@ -130,7 +139,7 @@ func (t *Tree) Build(roots []Root, focused fyne.Focusable) []Node {
 				return
 			}
 		}
-		delete(t.elements, obj)
+		t.forgetElements(obj)
 		children := semanticChildren(obj, mode)
 		clear(t.children[obj])
 		t.children[obj] = append(t.children[obj][:0], children...)
@@ -154,7 +163,7 @@ func (t *Tree) Build(roots []Root, focused fyne.Focusable) []Node {
 	}
 	for obj := range t.elements {
 		if !seen[obj] {
-			delete(t.elements, obj)
+			t.forgetElements(obj)
 		}
 	}
 	t.resolveRelations(out, focused)

@@ -25,8 +25,8 @@ $branch = Find-Name 'folder'
 $expand = $branch.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern)
 if (Find-Name 'item-119') { throw 'Collapsed child was exposed' }
 $expand.Expand()
-Wait-Until { $null -ne (Find-Name 'item-119') }
-$leaf = Find-Name 'item-119'
+$items = $branch.GetCurrentPattern([System.Windows.Automation.ItemContainerPattern]::Pattern)
+$leaf = $items.FindItemByProperty($null, [System.Windows.Automation.AutomationElement]::NameProperty, 'item-119')
 $id = Runtime-ID $leaf
 if ($leaf.Current.ControlType -ne [System.Windows.Automation.ControlType]::TreeItem) { throw 'Wrong item role' }
 if (!$leaf.Current.IsOffscreen) { throw 'Unrendered last item must be offscreen' }
@@ -63,8 +63,8 @@ $rejected = $false
 try { $select.Select() } catch { $rejected = $true }
 if (!$rejected) { throw 'Removed stale command was accepted' }
 Invoke-Name 'Restore target'
-Wait-Until { $null -ne (Find-Name 'item-119') }
-$leaf = Find-Name 'item-119'
+Wait-Until { $null -ne $items.FindItemByProperty($null, [System.Windows.Automation.AutomationElement]::NameProperty, 'item-119') }
+$leaf = $items.FindItemByProperty($null, [System.Windows.Automation.AutomationElement]::NameProperty, 'item-119')
 if ((Runtime-ID $leaf) -eq $id) { throw 'Restored item reused a removed identity' }
 $leaf.SetFocus()
 Write-Output 'Tree roles, hierarchy, leaf state, scroll, selection, focus, stable keys and stale commands passed.'

@@ -41,6 +41,9 @@ func (t *Tree) snapshotElements(owner fyne.CanvasObject, pos fyne.Position, pare
 	}
 	if indexed {
 		if source := collection.AccessibilityCollection(); source != nil {
+			if view, ok := source.(fyne.AccessibilityCollectionView); ok && parent != 0 && parent == t.ids[owner] {
+				return s.window(view), true
+			}
 			s.visit(source, "", make(map[string]bool))
 		}
 	} else {

@@ -31,10 +31,20 @@ $list = Find-Name 'Native list'
 if ($list.Current.ControlType -ne [System.Windows.Automation.ControlType]::List) { throw 'Wrong list role' }
 $selection = $list.GetCurrentPattern([System.Windows.Automation.SelectionPattern]::Pattern)
 if ($selection.Current.CanSelectMultiple -or $selection.Current.IsSelectionRequired) { throw 'Wrong selection policy' }
-$item = Find-Name 'item-119'
+$items = $list.GetCurrentPattern([System.Windows.Automation.ItemContainerPattern]::Pattern)
+if (Find-Name 'item-119') { throw 'Offscreen item eagerly exposed' }
+$item = $items.FindItemByProperty($null, [System.Windows.Automation.AutomationElement]::NameProperty, 'item-119')
 $id = Runtime-ID $item
 if ($item.Current.ControlType -ne [System.Windows.Automation.ControlType]::ListItem) { throw 'Wrong item role' }
-if (!$item.Current.IsOffscreen) { throw 'Unrendered last item must be offscreen' }
+if (!$item.Current.IsOffscreen) { throw 'Unrendered item must be offscreen' }
+$virtual = $item.GetCurrentPattern([System.Windows.Automation.VirtualizedItemPattern]::Pattern)
+# Fill the bounded request cache; the retained virtualized interface must revive
+# the same model item after eviction, without selecting or scrolling it.
+$next = $null
+for ($i = 0; $i -lt 75; $i++) { $next = $items.FindItemByProperty($next, $null, $null) }
+$virtual.Realize()
+if ((Runtime-ID $item) -ne $id) { throw 'Realization changed identity' }
+if (!$item.Current.IsOffscreen) { throw 'Realization scrolled the item' }
 $parent = [System.Windows.Automation.TreeWalker]::RawViewWalker.GetParent($item)
 if ((Runtime-ID $parent) -ne (Runtime-ID $list)) { throw 'Wrong semantic parent' }
 $item.GetCurrentPattern([System.Windows.Automation.ScrollItemPattern]::Pattern).ScrollIntoView()
@@ -65,4 +75,4 @@ if (!$rejected) { throw 'Replaced stale command was accepted' }
 $item = Find-Name 'item-119'
 if ($item.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Current.IsSelected) { throw 'Replacement inherited selection' }
 $item.SetFocus()
-Write-Output 'List roles, hierarchy, scroll, selection, focus, reorder and between-snapshot replacement passed.'
+Write-Output 'ItemContainer search, eviction, VirtualizedItem realization, List roles, hierarchy, scroll, selection, focus, reorder and between-snapshot replacement passed.'

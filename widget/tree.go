@@ -65,15 +65,17 @@ type Tree struct {
 	// Since: 2.9
 	DescribeNode func(id TreeNodeID) fyne.AccessibilityInfo `json:"-"`
 
-	lifetimes        collectionLifetimes
-	branchMinSize    fyne.Size
-	currentHighlight TreeNodeID
-	focused          bool
-	leafMinSize      fyne.Size
-	offset           fyne.Position
-	open             map[TreeNodeID]bool
-	scroller         *widget.Scroll
-	selected         []TreeNodeID
+	lifetimes             collectionLifetimes
+	accessibilityCache    *treeAccessibilitySource
+	accessibilityRevision uint64
+	branchMinSize         fyne.Size
+	currentHighlight      TreeNodeID
+	focused               bool
+	leafMinSize           fyne.Size
+	offset                fyne.Position
+	open                  map[TreeNodeID]bool
+	scroller              *widget.Scroll
+	selected              []TreeNodeID
 }
 
 // NewTree returns a new performant tree widget defined by the passed functions.
@@ -204,6 +206,7 @@ func (t *Tree) FocusGained() {
 // Refresh updates the tree and reconciles keyboard highlight and selection with
 // the current model, including removal and collapsed ancestors.
 func (t *Tree) Refresh() {
+	t.accessibilityCache = nil
 	if t.lifetimes.generations != nil {
 		t.AccessibilityCollection() // Retire published identities between adapter snapshots.
 	}
@@ -214,7 +217,7 @@ func (t *Tree) Refresh() {
 // FocusLost is called after this Tree has lost focus.
 func (t *Tree) FocusLost() {
 	t.focused = false
-	t.Refresh() // Item(t.currentHighlight)
+	t.RefreshItem(t.currentHighlight)
 }
 
 // MinSize returns the size that this widget should not shrink below.
@@ -388,7 +391,7 @@ func (t *Tree) Select(uid TreeNodeID) {
 		}
 	}
 	t.selected = []TreeNodeID{uid}
-	t.Refresh()
+	t.BaseWidget.Refresh()
 	t.ScrollTo(uid)
 	if f := t.OnSelected; f != nil {
 		f(uid)
@@ -490,7 +493,7 @@ func (t *Tree) Unselect(uid TreeNodeID) {
 	}
 
 	t.selected = nil
-	t.Refresh()
+	t.BaseWidget.Refresh()
 	if f := t.OnUnselected; f != nil {
 		f(uid)
 	}
@@ -506,7 +509,7 @@ func (t *Tree) UnselectAll() {
 
 	selected := t.selected
 	t.selected = nil
-	t.Refresh()
+	t.BaseWidget.Refresh()
 	if f := t.OnUnselected; f != nil {
 		for _, uid := range selected {
 			f(uid)

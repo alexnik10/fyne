@@ -16,12 +16,14 @@ const (
 	treeDemoDocuments = "documents"
 	treeDemoArchive   = "archive"
 	treeDemoReadme    = "readme"
-	treeDemoTarget    = "document-199"
 )
 
-func showTreeDemo(application fyne.App) {
-	w := application.NewWindow("Keyed tree accessibility")
-	children := make([]string, treeDemoCount)
+func showTreeDemo(application fyne.App) { showTreeDemoSize(application, treeDemoCount) }
+
+func showTreeDemoSize(application fyne.App, count int) {
+	w := application.NewWindow(fmt.Sprintf("Tree accessibility — %d reports", count))
+	treeDemoTarget := fmt.Sprintf("document-%03d", count-1)
+	children := make([]string, count)
 	names := map[string]string{treeDemoDocuments: "Documents", treeDemoArchive: "Archive", treeDemoReadme: "Read me"}
 	for i := range children {
 		children[i] = fmt.Sprintf("document-%03d", i)
@@ -38,21 +40,21 @@ func showTreeDemo(application fyne.App) {
 	tree.OnSelected = func(id string) { status.SetText("Selected: " + names[id]) }
 	tree.OnUnselected = func(string) { status.SetText("No report selected") }
 	reverse := widget.NewButton("Reverse reports", func() { slices.Reverse(data[treeDemoDocuments]); tree.Refresh() })
-	remove := widget.NewButton("Remove Report 200", func() {
+	remove := widget.NewButton(fmt.Sprintf("Remove Report %d", count), func() {
 		data[treeDemoDocuments] = slices.DeleteFunc(data[treeDemoDocuments], func(id string) bool { return id == treeDemoTarget })
 		tree.Refresh()
 	})
-	restore := widget.NewButton("Restore Report 200", func() {
+	restore := widget.NewButton(fmt.Sprintf("Restore Report %d", count), func() {
 		if !slices.Contains(data[treeDemoDocuments], treeDemoTarget) {
 			data[treeDemoDocuments] = append(data[treeDemoDocuments], treeDemoTarget)
 			tree.Refresh()
 		}
 	})
-	reveal := widget.NewButton("Go to Report 200", func() {
+	reveal := widget.NewButton(fmt.Sprintf("Go to Report %d", count), func() {
 		tree.Highlight(treeDemoTarget)
 		w.Canvas().Focus(tree)
 	})
-	hint := widget.NewLabel("Check names, level, position, expansion and selection. Report 200 starts outside the viewport. Reorder, remove and restore it to check identity.")
+	hint := widget.NewLabel(fmt.Sprintf("%d reports. Check names, level, position, expansion and selection. Reorder, remove and restore the last report to check identity.", count))
 	hint.Wrapping = fyne.TextWrapWord
 	actions := container.NewVBox(status, container.NewGridWithColumns(2, reverse, reveal, remove, restore), widget.NewButton("Close tree demo", w.Close))
 	w.SetContent(container.NewBorder(hint, actions, nil, nil, tree))

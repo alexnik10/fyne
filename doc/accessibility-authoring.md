@@ -181,7 +181,7 @@ tree.SetAccessibilityInfo(fyne.AccessibilityInfo{Name: "Project files"})
 ```
 
 Without DescribeNode the name is TreeNodeID, matching NewTreeWithStrings. The
-snapshot enumerates model IDs, including collapsed branches, but never calls
+cached model index includes collapsed branches, but never calls
 CreateNode/UpdateNode or allocates visual cells. ChildUIDs must therefore support
 model enumeration without loading UI objects. Tree uses the indexed source, and
 closed descendants have no semantic objects or description calls. Reparenting a
@@ -189,19 +189,20 @@ key preserves identity; collapsing preserves descendant lifetimes; removing a ke
 at Refresh retires it even when its branch is closed and no adapter snapshot runs
 before reinsertion. Existing snapshot-slice callers remain supported.
 
-The source contract permits individual lookup, but the current shared builder
-still enumerates all keys and describes all exposed items, including offscreen
-items. Building List/Tree topology and geometry costs O(N). UIA snapshot
-publication has additional native costs. Native demand paging, ItemContainer and
-VirtualizedItem/realization for remotely loaded models remain separate work;
-this change does not claim bounded memory or constant-time snapshot updates.
+List and Tree implement `AccessibilityCollectionView` to publish only the
+viewport, selection, keyboard highlight and a bounded request cache, with ancestors.
+Topology/geometry indexing at Refresh is O(N); ordinary semantic updates describe
+only the materialized view. Offscreen discovery uses Windows ItemContainer;
+VirtualizedItem.Realize restores evicted semantics without rendering, scrolling
+or changing selection/focus. See [Large collections](accessibility-collections.md)
+for the public source contract, measurements and remaining costs.
 
 Windows maps leaves to ExpandCollapse LeafNode, branches to Expanded/Collapsed,
 and exposes Selection/SelectionItem, Level, PositionInSet, SizeOfSet and ScrollItem.
 Collapsed descendants are omitted; scrolled-off descendants remain discoverable.
 This follows the [Microsoft TreeItem contract](https://learn.microsoft.com/en-us/windows/win32/winauto/uiauto-supporttreeitemcontroltype).
-All model nodes have semantics, so UIA VirtualizedItem is not advertised merely
-because renderer cells are recycled.
+VirtualizedItem represents evicted semantic nodes, independently of recycled
+renderer cells. Removed model generations cannot be realized again.
 
 ### List
 

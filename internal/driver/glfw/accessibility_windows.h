@@ -14,7 +14,8 @@ enum {
     WinAccText = 4096, WinAccSelection = 8192, WinAccMultiple = 16384,
     WinAccSelectionRequired = 32768, WinAccSelectable = 65536,
     WinAccSelected = 131072, WinAccExpandable = 262144, WinAccExpanded = 524288,
-    WinAccLeaf = 1048576, WinAccScrollItem = 2097152
+    WinAccLeaf = 1048576, WinAccScrollItem = 2097152,
+    WinAccItemContainer = 4194304, WinAccVirtualizedItem = 8388608
 };
 typedef struct {
     double x, y, height;

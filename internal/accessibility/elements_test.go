@@ -145,7 +145,7 @@ func TestListIdentityBeforeFirstRenderer(t *testing.T) {
 	first, ok := tree.NodeForElement(list, "a")
 	require.True(t, ok)
 	assert.Zero(t, created, "reading semantics before layout must not construct cells")
-	assert.Equal(t, 2, described)
+	assert.Equal(t, 1, described, "unrequested offscreen rows need no description")
 	list.Refresh()
 	tree.Build(roots, nil)
 	first2, _ := tree.NodeForElement(list, "a")

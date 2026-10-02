@@ -171,3 +171,20 @@ The demo includes a separate keyed List window. NVDA/Narrator acceptance remains
 pending. The shared and native adapters still publish full snapshots; demand
 paging, ItemContainer/VirtualizedItem, Table and other platform adapters remain
 follow-up work. A per-item source is the extension point, not a paging claim.
+
+## Current increment: demand-driven large collections
+
+Prioritize performance before tabs, menus and Table. The earlier Tree Right-arrow
+correction has been accepted with NVDA. See the
+[collection design and measurements](accessibility-collections.md).
+
+List and Tree cache the model and publish viewport/selection/highlight plus a
+bounded request cache. Windows uses ItemContainer and VirtualizedItem for
+offscreen discovery and semantic realization. Compact identities survive eviction;
+removed generations stay retired. Native indexes replace quadratic matching.
+Initial indexing and structural Refresh remain O(N); renderer costs are separate.
+
+Gates include bounded work on 100,000 records, eviction/realization, stale IDs,
+modal/collapse scope, external-module tests, native C lifetime/index tests and
+cross-process UIA discovery. Ship a size-selectable demo and request a separate
+NVDA/Narrator run; warm semantic benchmarks do not prove speech responsiveness.

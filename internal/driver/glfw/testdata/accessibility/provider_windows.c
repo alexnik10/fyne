@@ -42,6 +42,13 @@ static uintptr_t actionWindow;
 static uint32_t actionID;
 static char actionValue[128];
 static int textStart, textEnd, textScroll;
+static uint32_t findResult, findStart;
+static int findProperty;
+int goFyneAccessibilityFindItem(uintptr_t h, uint32_t id, uint32_t start, int prop, char *value, uint32_t *out) {
+    actionWindow = h; actionID = id; findStart = start; findProperty = prop;
+    if (value) lstrcpynA(actionValue, value, sizeof(actionValue));
+    *out = findResult; return 1;
+}
 int goFyneAccessibilityTextAction(uintptr_t handle, uint32_t id, int start, int end, int scroll, int alignTop) {
     (void)alignTop; actionWindow = handle; actionID = id;
     textStart = start; textEnd = end; textScroll = scroll; return 1;
@@ -236,8 +243,63 @@ static void testWordNavigation(void) {
 #include "selection_windows.h"
 #include "feedback_windows.h"
 
+static void testCollectionProviders(void) {
+    HWND hwnd = newWindow(); assert(hwnd);
+    WinAccessibility *c = WinAccessibilityCreate(hwnd, 71); assert(c);
+    WinAccessibilityNode nodes[] = {
+        {.id=10, .role=13, .flags=WinAccItemContainer|WinAccSelection, .name="List"},
+        {.id=11, .parent=10, .role=10, .flags=WinAccVirtualizedItem|WinAccScrollItem|WinAccSelectable, .selection_owner=10, .name="Row"}
+    };
+    assert(WinAccessibilityUpdate(c, nodes, 2));
+    Element *owner = retain(c, 10), *item = retain(c, 11);
+    IUnknown *patternObject = NULL;
+    assert(pattern(&owner->simple, UIA_ItemContainerPatternId, &patternObject) == S_OK && patternObject);
+    IUnknown_Release(patternObject);
+    assert(pattern(&item->simple, UIA_VirtualizedItemPatternId, &patternObject) == S_OK && patternObject);
+    IUnknown_Release(patternObject);
+    VARIANT v; variantString(&v, L"Row");
+    IRawElementProviderSimple *result = NULL;
+    findResult = 11;
+    assert(findItem(&owner->itemContainer, NULL, UIA_NamePropertyId, v, &result) == S_OK && result == &item->simple);
+    assert(actionWindow == 71 && actionID == 10 && findStart == 0 && findProperty == 1 && !strcmp(actionValue, "Row"));
+    IRawElementProviderSimple_Release(result);
+    VariantClear(&v); VariantInit(&v);
+    findResult = 0;
+    assert(findItem(&owner->itemContainer, &item->simple, 0, v, &result) == S_OK && !result && findStart == 11);
+    assert(findItem(&owner->itemContainer, NULL, UIA_NamePropertyId, v, &result) == E_INVALIDARG);
+    assert(findItem(&owner->itemContainer, NULL, UIA_IsEnabledPropertyId, v, &result) == (HRESULT)UIA_E_NOTSUPPORTED);
+    // Evicted providers retain VirtualizedItem, but ordinary queries fail until
+    // the model realizes the ID again. The old COM interface then reads new data.
+    assert(WinAccessibilityUpdate(c, nodes, 1));
+    assert(property(&item->simple, UIA_NamePropertyId, &v) == UNAVAILABLE);
+    assert(pattern(&item->simple, UIA_VirtualizedItemPatternId, &patternObject) == S_OK && patternObject);
+    assert(IVirtualizedItemProvider_Realize((IVirtualizedItemProvider *)patternObject) == S_OK && lastAction == 12 && actionID == 11);
+    IUnknown_Release(patternObject);
+    assert(WinAccessibilityUpdate(c, nodes, 2));
+    assert(property(&item->simple, UIA_NamePropertyId, &v) == S_OK && !wcscmp(v.bstrVal, L"Row")); VariantClear(&v);
+    WinAccessibilityCleanup(c);
+    assert(realizeItem(&item->virtualizedItem) == UNAVAILABLE);
+    release(owner); release(item); DestroyWindow(hwnd);
+}
+
+static void testLargeSnapshotIndex(void) {
+    HWND hwnd = newWindow(); assert(hwnd);
+    WinAccessibility *c = WinAccessibilityCreate(hwnd, 72); assert(c);
+    const int count = 10000;
+    WinAccessibilityNode *nodes = calloc(count, sizeof(*nodes)); assert(nodes);
+    for (int i = 0; i < count; ++i) { nodes[i].id = (uint32_t)(count-i)*7; nodes[i].name = "Row"; }
+    assert(WinAccessibilityUpdate(c, nodes, count));
+    for (int i = 0; i < count; ++i) assert(find(c, nodes[i].id) == &c->records[i]);
+    WinAccessibilityStats stats;
+    assert(WinAccessibilityUpdateWithStats(c, nodes, count, &stats));
+    printf("10000-node indexed native update: snapshot %.3f ms, events %.3f ms\n", stats.snapshot_ms, stats.events_ms);
+    free(nodes); WinAccessibilityCleanup(c); DestroyWindow(hwnd);
+}
+
 int main(void) {
     CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
+    testCollectionProviders();
+    testLargeSnapshotIndex();
     testWindowMetadata();
     testTextProvider();
     testWordNavigation();

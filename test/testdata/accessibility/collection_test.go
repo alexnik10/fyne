@@ -12,6 +12,13 @@ type collection struct{ widget.BaseWidget }
 
 type collectionSource struct{}
 
+var _ fyne.AccessibilityCollectionView = collectionSource{}
+
+func (collectionSource) Revision() uint64                     { return 1 }
+func (collectionSource) ViewportKeys() []string               { return nil }
+func (collectionSource) SelectedKeys() []string               { return nil }
+func (collectionSource) Index(key string) (string, int, bool) { return "", 0, key == "record" }
+
 func (*collection) CreateRenderer() fyne.WidgetRenderer {
 	return widget.NewSimpleRenderer(widget.NewLabel("Decorative renderer"))
 }
@@ -46,6 +53,9 @@ func TestPublicIndexedCollection(t *testing.T) {
 	w := test.NewWindow(c)
 	defer w.Close()
 	s := test.NewAccessibilityTree(w.Canvas())
+	if len(s.Snapshot()) != 1 {
+		t.Fatal("offscreen model record was eagerly described")
+	}
 	element, ok := s.Element(c, "record")
 	if !ok || element.Name != "Model record" || len(s.Snapshot()) != 2 || len(s.Issues()) != 0 {
 		t.Fatal("public indexed source did not replace renderer semantics")

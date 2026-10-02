@@ -60,7 +60,8 @@ func TestVirtualizedWidgetsDoNotExposeRecycledRendererItems(t *testing.T) {
 	defer w.Close()
 	var tree accessibility.Tree
 	nodes := tree.Build([]accessibility.Root{{Object: list}}, nil)
-	require.Len(t, nodes, 101)
+	require.Greater(t, len(nodes), 1)
+	require.Less(t, len(nodes), 101, "only the viewport is materialized")
 	assert.Equal(t, fyne.AccessibleRoleList, nodes[0].Role)
 	for _, item := range nodes[1:] {
 		assert.Equal(t, fyne.AccessibleRoleListItem, item.Role)

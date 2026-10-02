@@ -101,9 +101,11 @@ type List struct {
 	offsetUpdated    func(fyne.Position)
 	minSizeCache     fyne.Size
 
-	itemKeys  []string
-	keyed     bool
-	lifetimes collectionLifetimes
+	itemKeys              []string
+	keyed                 bool
+	lifetimes             collectionLifetimes
+	accessibilityCache    *listAccessibilitySource
+	accessibilityRevision uint64
 
 	lastBind *listBind
 }
@@ -235,6 +237,7 @@ func (l *List) SetItemHeight(id ListItemID, height float32) {
 	l.itemHeights[id] = height
 
 	if refresh {
+		l.accessibilityCache = nil
 		l.RefreshItem(id)
 	}
 }
@@ -351,7 +354,7 @@ func (l *List) Select(id ListItemID) {
 		}
 	}()
 	l.scrollWithoutItemCheckTo(id)
-	l.Refresh()
+	l.BaseWidget.Refresh()
 }
 
 // ScrollTo scrolls to the item represented by id
@@ -366,7 +369,7 @@ func (l *List) ScrollTo(id ListItemID) {
 		return
 	}
 	l.scrollWithoutItemCheckTo(id)
-	l.Refresh()
+	l.BaseWidget.Refresh()
 }
 
 // ScrollToBottom scrolls to the end of the list
@@ -461,7 +464,7 @@ func (l *List) Unselect(id ListItemID) {
 	}
 
 	l.selected = nil
-	l.Refresh()
+	l.BaseWidget.Refresh()
 	if f := l.OnUnselected; f != nil {
 		f(id)
 	}
@@ -477,7 +480,7 @@ func (l *List) UnselectAll() {
 
 	selected := l.selected
 	l.selected = nil
-	l.Refresh()
+	l.BaseWidget.Refresh()
 	if f := l.OnUnselected; f != nil {
 		for _, id := range selected {
 			f(id)
@@ -487,6 +490,7 @@ func (l *List) UnselectAll() {
 
 // Refresh causes this List to be redrawn in its current state
 func (l *List) Refresh() {
+	l.accessibilityCache = nil
 	l.reconcileItems()
 	l.minSizeCache = fyne.Size{}
 	l.BaseWidget.Refresh()

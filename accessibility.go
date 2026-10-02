@@ -119,6 +119,24 @@ type AccessibilityElement struct {
 	Generation uint64
 }
 
+// AccessibilityCollectionView optionally limits eagerly published semantics to
+// the viewport and selection. Adapters can request any other non-hidden element
+// through Element, without scrolling, selecting or creating a renderer cell.
+// Index returns the logical parent and zero-based sibling index for a live key.
+// ViewportKeys and SelectedKeys must contain only live, non-hidden keys; parents
+// are included by the adapter. The source is used only on the Fyne event thread.
+// Model changes must be followed by Refresh before querying the collection.
+//
+// Since: 2.9
+type AccessibilityCollectionView interface {
+	AccessibilityCollection
+	// Revision changes whenever keys, hierarchy or generations change.
+	Revision() uint64
+	ViewportKeys() []string
+	SelectedKeys() []string
+	Index(key string) (parent string, index int, ok bool)
+}
+
 // AccessibilityCollection separates model topology from per-item semantics.
 // The empty parent denotes the owner; all other keys are nonempty and unique
 // within it. ChildKey returns the child at a zero-based index, or empty for an
@@ -128,7 +146,7 @@ type AccessibilityElement struct {
 // A source is used synchronously on the Fyne event thread, until the next model
 // mutation. Querying it must not render cells, move focus or change selection.
 // Adapters may request individual items or enumerate the whole source. The
-// current snapshot adapter enumerates it; this interface does not promise paging.
+// AccessibilityCollectionView enables bounded, on-demand publication.
 //
 // Since: 2.9
 type AccessibilityCollection interface {

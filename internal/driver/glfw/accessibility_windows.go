@@ -123,7 +123,7 @@ func (w *window) updateAccessibility() {
 				x.positions, x.position_count = positions, C.int(len(doc.Positions))
 			}
 		}
-		flags := []bool{n.Disabled, n.Focusable, n.Focused, n.Required, n.Invalid, n.Invoke, n.Toggle, n.Value, n.Range, n.Checked, n.ReadOnly, n.Protected, n.Document != nil, n.Selection, n.Multiple, n.SelectionRequired, n.Selectable, n.Selected, n.Expandable, n.Expanded, n.Role == fyne.AccessibleRoleTreeItem && !n.Expandable, n.ScrollItem}
+		flags := []bool{n.Disabled, n.Focusable, n.Focused, n.Required, n.Invalid, n.Invoke, n.Toggle, n.Value, n.Range, n.Checked, n.ReadOnly, n.Protected, n.Document != nil, n.Selection, n.Multiple, n.SelectionRequired, n.Selectable, n.Selected, n.Expandable, n.Expanded, n.Role == fyne.AccessibleRoleTreeItem && !n.Expandable, n.ScrollItem, n.ItemContainer, n.VirtualizedItem}
 		for bit, set := range flags {
 			if set {
 				x.flags |= 1 << bit
@@ -224,7 +224,9 @@ func performAccessibilityAction(handle uintptr, id uint32, action accessibility.
 		diagnostic.Add(diagnostic.Sample{Kind: "uia_toggle_request", Window: diagnostic.WindowID(b.window), Node: id})
 	}
 	accepted := id == 0 && action == accessibility.Focus
-	if !accepted {
+	if action == accessibility.Realize {
+		accepted = b.tree.Realize(id)
+	} else if !accepted {
 		accepted = b.tree.Perform(id, action, text, number, b.window.canvas)
 	}
 	if accepted && action == accessibility.Focus {
@@ -232,6 +234,36 @@ func performAccessibilityAction(handle uintptr, id uint32, action accessibility.
 	}
 	b.window.updateAccessibility()
 	return accepted
+}
+
+//export goFyneAccessibilityFindItem
+func goFyneAccessibilityFindItem(handle C.uintptr_t, container, start C.uint32_t, property C.int, value *C.char, result *C.uint32_t) C.int {
+	stored, ok := accessibilityHandles.Load(uintptr(handle))
+	if !ok {
+		return 0
+	}
+	b := stored.(*accessibilityBridge)
+	if b.window.closing || b.window.view() == nil {
+		return 0
+	}
+	// Called by the HWND procedure, with no native provider lock held.
+	b.tree.Build(b.window.accessibilityRoots(), b.window.canvas.Focused())
+	owner, key, valid := b.tree.FindItem(uint32(container), uint32(start), accessibility.FindProperty(property), C.GoString(value))
+	if !valid {
+		return 0
+	}
+	if key == "" {
+		return 1
+	}
+	if !b.tree.RequestElement(owner, key) {
+		return 0
+	}
+	b.window.updateAccessibility()
+	if node, exists := b.tree.NodeForElement(owner, key); exists {
+		*result = C.uint32_t(node.ID)
+		return 1
+	}
+	return 0
 }
 
 //export goFyneAccessibilityTextAction

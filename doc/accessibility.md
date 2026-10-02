@@ -3,6 +3,10 @@
 See [Accessibility for custom components](accessibility-authoring.md) for automatic
 composition, explicit modes, boundaries, stable identity and public test helpers.
 
+See [Large collections](accessibility-collections.md) for current demand-driven
+List/Tree publication, Windows discovery/realization, measurements and acceptance.
+Historical full-snapshot notes below describe earlier increments.
+
 Build and run the acceptance example:
 
 ```sh

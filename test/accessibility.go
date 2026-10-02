@@ -30,6 +30,7 @@ type AccessibilityNode struct {
 	SetPosition, SetSize                            int
 	Level                                           int
 	ScrollItem                                      bool
+	ItemContainer, VirtualizedItem                  bool
 }
 
 // AccessibilityAction is a command supported by a semantic node.
@@ -116,6 +117,9 @@ func (t *AccessibilityTree) Node(object fyne.CanvasObject) (AccessibilityNode, b
 // transient semantic object or a renderer cell. Hidden elements are not returned.
 func (t *AccessibilityTree) Element(owner fyne.CanvasObject, key string) (AccessibilityNode, bool) {
 	t.Snapshot()
+	if t.tree.RequestElement(owner, key) {
+		t.Snapshot()
+	}
 	n, ok := t.tree.NodeForElement(owner, key)
 	return AccessibilityNode(n), ok
 }
@@ -125,6 +129,9 @@ func (t *AccessibilityTree) Element(owner fyne.CanvasObject, key string) (Access
 // only by SetValue and SetRangeValue. True means the command was dispatched.
 func (t *AccessibilityTree) Perform(id uint32, action AccessibilityAction, value string, number float64) bool {
 	t.Snapshot()
+	if t.tree.Realize(id) {
+		t.Snapshot()
+	}
 	return t.tree.Perform(id, accessibility.Action(action), value, number, t.canvas)
 }
 

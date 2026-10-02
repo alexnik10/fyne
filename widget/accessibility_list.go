@@ -2,6 +2,7 @@ package widget
 
 import (
 	"slices"
+	"sort"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/lang"
@@ -35,11 +36,15 @@ func (l *List) AccessibilityActiveElement() string {
 
 // AccessibilityCollection provides indexed topology and model-based semantics,
 // independently of pooled renderer cells. Positional keys are decimal ListItemIDs
-// unless ItemKey is set. Building topology and geometry is O(N); descriptions are
-// requested only when the adapter reads an item's semantics.
+// unless ItemKey is set. Topology and geometry are cached until Refresh or a
+// geometry change. Descriptions are requested only for materialized semantics.
 //
 // Since: 2.9
 func (l *List) AccessibilityCollection() fyne.AccessibilityCollection {
+	pad := l.Theme().Size(theme.SizeNamePadding)
+	if cached := l.accessibilityCache; cached != nil && cached.height == l.itemMin.Height && cached.padding == pad {
+		return cached
+	}
 	keys, indices := l.modelKeys()
 	if l.itemKeys == nil && l.ItemKey != nil {
 		// The first semantic query can precede rendering. Establish the model
@@ -47,19 +52,23 @@ func (l *List) AccessibilityCollection() fyne.AccessibilityCollection {
 		l.itemKeys, l.keyed = keys, true
 	}
 	l.lifetimes.update(keys)
+	l.accessibilityRevision++
 	source := &listAccessibilitySource{
 		owner: l, keys: keys, indices: indices,
+		height: l.itemMin.Height, padding: pad,
+		revision:    l.accessibilityRevision,
 		generations: l.lifetimes.generations, positions: make([]float32, len(keys)), heights: make([]float32, len(keys)),
 	}
-	pad, y := l.Theme().Size(theme.SizeNamePadding), float32(0)
+	y := float32(0)
 	for index := range keys {
 		height := l.itemMin.Height
 		if h, ok := l.itemHeights[index]; ok {
 			height = h
 		}
-		source.positions[index], source.heights[index] = y-l.offsetY, height
+		source.positions[index], source.heights[index] = y, height
 		y += height + pad
 	}
+	l.accessibilityCache = source
 	return source
 }
 
@@ -69,6 +78,32 @@ type listAccessibilitySource struct {
 	indices            map[string]int
 	generations        map[string]uint64
 	positions, heights []float32
+	height, padding    float32
+	revision           uint64
+}
+
+func (s *listAccessibilitySource) Revision() uint64 { return s.revision }
+
+func (s *listAccessibilitySource) ViewportKeys() []string {
+	top, bottom := s.owner.offsetY, s.owner.offsetY+s.owner.Size().Height
+	first := sort.Search(len(s.keys), func(i int) bool { return s.positions[i]+s.heights[i] >= top })
+	last := sort.Search(len(s.keys), func(i int) bool { return s.positions[i] > bottom })
+	return s.keys[first:last]
+}
+
+func (s *listAccessibilitySource) SelectedKeys() []string {
+	var keys []string
+	for _, index := range s.owner.selected {
+		if index >= 0 && index < len(s.keys) {
+			keys = append(keys, s.keys[index])
+		}
+	}
+	return keys
+}
+
+func (s *listAccessibilitySource) Index(key string) (string, int, bool) {
+	index, ok := s.indices[key]
+	return "", index, ok && index >= 0
 }
 
 func (s *listAccessibilitySource) ChildCount(parent string) int {
@@ -93,7 +128,7 @@ func (s *listAccessibilitySource) Element(key string) (fyne.AccessibilityElement
 	generation := s.generations[key]
 	item := &listAccessibilityItem{
 		owner: s.owner, key: key, index: index, count: len(s.keys), generation: generation,
-		position: fyne.NewPos(0, s.positions[index]), size: fyne.NewSize(s.owner.Size().Width, s.heights[index]),
+		position: fyne.NewPos(0, s.positions[index]-s.owner.offsetY), size: fyne.NewSize(s.owner.Size().Width, s.heights[index]),
 	}
 	return fyne.AccessibilityElement{Key: key, Object: item, Generation: generation}, true
 }
@@ -127,11 +162,11 @@ func (i *listAccessibilityItem) AccessibilitySelectionItem() (owner fyne.CanvasO
 }
 
 func (i *listAccessibilityItem) resolve() int {
+	source := i.owner.AccessibilityCollection().(*listAccessibilitySource)
 	if i.owner.lifetimes.generations[i.key] != i.generation {
 		return -1
 	}
-	_, indices := i.owner.modelKeys()
-	if index, ok := indices[i.key]; ok {
+	if index, ok := source.indices[i.key]; ok {
 		return index
 	}
 	return -1
