@@ -71,6 +71,8 @@ jobs:
           cache-dependency-path: go.sum
       - name: Native main-loop wake and work-order tests
         run: go test -race -tags accessibility ./internal/driver/glfw -run 'TestMainLoopNative|TestWindow_SetTitle|TestWindow_PasswordEntryTabOrder' -timeout 2m
+      - name: Repeat collection discovery and asynchronous model updates
+        run: go test -race -tags accessibility ./internal/driver/glfw -run 'TestMainLoopNative(Tree|List)$' -count=3 -timeout 3m
   uia_queries:
     runs-on: windows-latest
     steps:

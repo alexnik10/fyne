@@ -18,7 +18,16 @@ function Find-Name([string]$name) {
 function Wait-Until([scriptblock]$check) {
     $deadline = [DateTime]::UtcNow.AddSeconds(5)
     do {
-        if (& $check) { return }
+        try {
+            if (& $check) { return }
+        } catch {
+            # Invoke is asynchronous. A row returned just before a model update
+            # can become virtualized before UIA finishes reading it. Retry only
+            # that documented lifetime error; persistent failures still time out.
+            $errorObject = $_.Exception
+            if (!($errorObject -is [System.Windows.Automation.ElementNotAvailableException]) -and
+                !($errorObject.InnerException -is [System.Windows.Automation.ElementNotAvailableException])) { throw }
+        }
         Start-Sleep -Milliseconds 25
     } while ([DateTime]::UtcNow -lt $deadline)
     throw "UIA list condition timed out: $check"
@@ -56,7 +65,7 @@ if (!$select.Current.IsSelected) { throw 'Selection did not update' }
 if ((Runtime-ID $select.Current.SelectionContainer) -ne (Runtime-ID $list)) { throw 'Wrong selection owner' }
 $item.SetFocus()
 Invoke-Name 'Reverse list'
-Wait-Until { [System.Windows.Automation.TreeWalker]::RawViewWalker.GetFirstChild($list).Current.Name -eq 'item-119' }
+Wait-Until { $items.FindItemByProperty($null, $null, $null).Current.Name -eq 'item-119' }
 $item = Find-Name 'item-119'
 if ((Runtime-ID $item) -ne $id) { throw 'Reorder changed identity' }
 # UIA can focus the invoking button before its callback. Return to the list

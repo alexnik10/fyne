@@ -10,7 +10,16 @@ function Find-Name([string]$name) {
 function Wait-Until([scriptblock]$check) {
     $deadline = [DateTime]::UtcNow.AddSeconds(5)
     do {
-        if (& $check) { return }
+        try {
+            if (& $check) { return }
+        } catch {
+            # Invoke is asynchronous. A row returned just before a model update
+            # can become virtualized before UIA finishes reading it. Retry only
+            # that documented lifetime error; persistent failures still time out.
+            $errorObject = $_.Exception
+            if (!($errorObject -is [System.Windows.Automation.ElementNotAvailableException]) -and
+                !($errorObject.InnerException -is [System.Windows.Automation.ElementNotAvailableException])) { throw }
+        }
         Start-Sleep -Milliseconds 25
     } while ([DateTime]::UtcNow -lt $deadline)
     throw "UIA tree condition timed out: $check"
@@ -53,7 +62,7 @@ Wait-Until { $null -ne (Find-Name 'item-119') }
 $leaf = Find-Name 'item-119'
 if ((Runtime-ID $leaf) -ne $id) { throw 'Collapse changed identity' }
 Invoke-Name 'Reverse tree'
-Wait-Until { [System.Windows.Automation.TreeWalker]::RawViewWalker.GetFirstChild($branch).Current.Name -eq 'item-119' }
+Wait-Until { $items.FindItemByProperty($null, $null, $null).Current.Name -eq 'item-119' }
 $leaf = Find-Name 'item-119'
 if ((Runtime-ID $leaf) -ne $id) { throw 'Reorder changed identity' }
 $select = $leaf.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern)
