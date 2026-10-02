@@ -26,6 +26,7 @@ const (
 	RemoveFromSelection
 	Expand
 	Collapse
+	ScrollIntoView
 )
 
 // Root can retain identity for background content without exposing it. This is
@@ -56,6 +57,8 @@ type Node struct {
 	Selectable, Selected, Expandable, Expanded      bool
 	SelectionOwner                                  uint32
 	SetPosition, SetSize                            int
+	Level                                           int
+	ScrollItem                                      bool
 }
 
 type Tree struct {
@@ -64,6 +67,7 @@ type Tree struct {
 	objects  map[uint32]fyne.CanvasObject
 	nodes    map[uint32]Node
 	children map[fyne.CanvasObject][]fyne.CanvasObject
+	elements map[fyne.CanvasObject]map[string]uint32
 	Issues   []Issue
 }
 
@@ -80,6 +84,7 @@ func (t *Tree) Build(roots []Root, focused fyne.Focusable) []Node {
 	if t.ids == nil {
 		t.ids = make(map[fyne.CanvasObject]uint32)
 		t.children = make(map[fyne.CanvasObject][]fyne.CanvasObject)
+		t.elements = make(map[fyne.CanvasObject]map[string]uint32)
 	}
 	seen := make(map[fyne.CanvasObject]bool)
 	t.objects = make(map[uint32]fyne.CanvasObject)
@@ -88,11 +93,7 @@ func (t *Tree) Build(roots []Root, focused fyne.Focusable) []Node {
 	var out []Node
 	var visit func(fyne.CanvasObject, fyne.Position, uint32, bool, fyne.CanvasObject, []fyne.AccessibleChildDescriber, *bounds)
 	visit = func(obj fyne.CanvasObject, pos fyne.Position, parent uint32, hidden bool, scope fyne.CanvasObject, describers []fyne.AccessibleChildDescriber, clip *bounds) {
-		if obj == nil || !reflect.TypeOf(obj).Comparable() || seen[obj] {
-			return
-		}
-		v := reflect.ValueOf(obj)
-		if v.Kind() == reflect.Pointer && v.IsNil() {
+		if !validObject(obj) || seen[obj] {
 			return
 		}
 		seen[obj] = true // also guards malformed child cycles
@@ -122,6 +123,12 @@ func (t *Tree) Build(roots []Root, focused fyne.Focusable) []Node {
 		if d, ok := obj.(fyne.AccessibleChildDescriber); ok {
 			describers = append(append([]fyne.AccessibleChildDescriber(nil), describers...), d)
 		}
+		if elements, ok := obj.(fyne.AccessibleElements); ok && mode != fyne.AccessibilitySingle {
+			out = append(out, t.snapshotElements(obj, elements, pos, parent, scope, describers, clip)...)
+			delete(t.children, obj)
+			return
+		}
+		delete(t.elements, obj)
 		children := semanticChildren(obj, mode)
 		clear(t.children[obj])
 		t.children[obj] = append(t.children[obj][:0], children...)
@@ -141,6 +148,11 @@ func (t *Tree) Build(roots []Root, focused fyne.Focusable) []Node {
 	for obj := range t.ids {
 		if !seen[obj] {
 			delete(t.ids, obj)
+		}
+	}
+	for obj := range t.elements {
+		if !seen[obj] {
+			delete(t.elements, obj)
 		}
 	}
 	t.resolveRelations(out, focused)
@@ -178,18 +190,29 @@ func (t *Tree) ScrollText(id uint32, start, end int, alignTop bool) bool {
 }
 
 func applyInfo(n *Node, info fyne.AccessibilityInfo) {
-	if info.Name != "" {
+	if info.NameSet || info.Name != "" {
 		n.Name = info.Name
 	}
-	if info.Description != "" {
+	if info.DescriptionSet || info.Description != "" {
 		n.Description = info.Description
 	}
-	n.Required = n.Required || info.Required
-	n.Invalid = n.Invalid || info.Invalid
+	if info.RequiredSet || info.Required {
+		n.Required = info.Required
+	}
+	if info.InvalidSet || info.Invalid {
+		n.Invalid = info.Invalid
+	}
 }
 
 // FocusedID resolves the real canvas focus without creating a second focus model.
 func (t *Tree) FocusedID(focused fyne.Focusable) uint32 {
+	if delegate, ok := focused.(fyne.AccessibleActiveElement); ok {
+		owner, _ := focused.(fyne.CanvasObject)
+		if key := delegate.AccessibilityActiveElement(); key != "" {
+			return t.liveID(t.elements[owner][key])
+		}
+		return t.liveID(t.ids[owner])
+	}
 	var target fyne.CanvasObject
 	if delegate, ok := focused.(fyne.AccessibleActiveDescendant); ok {
 		target = delegate.AccessibilityActiveDescendant()
@@ -241,9 +264,10 @@ func (t *Tree) Perform(id uint32, action Action, text string, number float64, ca
 	case Select, AddToSelection, RemoveFromSelection:
 		return t.performSelection(n, obj, action)
 	case Expand, Collapse:
-		if e, ok := obj.(fyne.AccessibleExpandable); ok {
-			e.AccessibilitySetExpanded(action == Expand)
-			return e.AccessibilityExpanded() == (action == Expand)
+		return performExpansion(obj, action == Expand)
+	case ScrollIntoView:
+		if s, ok := obj.(fyne.AccessibleScrollItem); ok {
+			return s.AccessibilityScrollIntoView()
 		}
 	case Activate:
 		if a, ok := obj.(fyne.AccessibleActionable); ok {

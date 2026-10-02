@@ -60,7 +60,8 @@ func main() {
 	})
 	choices := widget.NewButton("Open selection demo", func() { showSelectionDemo(application) })
 	textEditing := widget.NewButton("Open multiline text demo", func() { showTextDemo(application) })
-	content := []fyne.CanvasObject{form, status, choices, textEditing, second}
+	trees := widget.NewButton("Open tree demo", func() { showTreeDemo(application) })
+	content := []fyne.CanvasObject{form, status, choices, textEditing, trees, second}
 	content = append(content, diagnosticControls(window)...)
 	window.SetContent(container.NewVBox(content...))
 	window.Resize(fyne.NewSize(windowWidth, windowHeight))

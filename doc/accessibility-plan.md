@@ -129,3 +129,26 @@ wait that services synchronous requests and wakes for Go work, frames and shutdo
 Retain the 60 Hz rendering/posted-input path and test real GLFW work dispatch.
 Ship a diagnostic Windows build for NVDA speech
 acceptance before proceeding to the remaining collection controls.
+
+
+## Current increment: keyed Tree and unambiguous metadata
+
+Introduce owner/key logical snapshots independently of renderer object identity,
+using TreeNodeID as the first stable model key. Retain hidden descriptors, prune
+observed removals, reject stale commands, and use fresh semantic objects for
+commands. Add model-based Tree descriptions, hierarchy and sibling metadata,
+selection, expansion, actual keyboard highlight and offscreen item scrolling.
+No visual cells are created for the complete semantic model. Model enumeration
+is currently O(N); lazy/paged semantics and List/Table keys remain later work.
+
+Before freezing the API, distinguish unset metadata from explicit empty strings
+and false via per-field Set flags. Specify fallback/context/own precedence, Entry
+validation defaults and resetting to inheritance. Metadata overrides do not
+modify validation or form submission.
+
+Gates: public helper regressions (including 1,000 model items without cell
+materialization), independent external-module tests, native provider lifetime and
+LeafNode/ScrollItem checks, and a real separate-process UIA Tree scenario through
+GLFW. The demo adds a Tree window with 200 reports and reorder/remove/restore.
+Manual NVDA/Narrator speech acceptance remains required; automated UIA does not
+establish speech quality or acceptance of demo 7 rapid-toggle behavior.

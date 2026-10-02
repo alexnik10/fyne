@@ -57,6 +57,14 @@ type Tree struct {
 	// Since: 2.8
 	OnHighlighted func(id TreeNodeID) `json:"-"`
 
+	// DescribeNode supplies accessible names and descriptions directly from the
+	// model, including offscreen nodes. It must not create or update renderer cells.
+	// The default name is the TreeNodeID, as in NewTreeWithStrings. Use NameSet to
+	// explicitly provide an empty name. Keys must identify model items, not rows.
+	//
+	// Since: 2.9
+	DescribeNode func(id TreeNodeID) fyne.AccessibilityInfo `json:"-"`
+
 	branchMinSize    fyne.Size
 	currentHighlight TreeNodeID
 	focused          bool
@@ -176,8 +184,10 @@ func (t *Tree) IsBranchOpen(uid TreeNodeID) bool {
 // FocusGained is called after this Tree has gained focus.
 func (t *Tree) FocusGained() {
 	if t.currentHighlight == "" {
-		if childUIDs := t.ChildUIDs; childUIDs != nil {
-			if ids := childUIDs(""); len(ids) > 0 {
+		if t.Root != "" {
+			t.setItemFocus(t.Root)
+		} else if childUIDs := t.ChildUIDs; childUIDs != nil {
+			if ids := childUIDs(t.Root); len(ids) > 0 {
 				t.setItemFocus(ids[0])
 			}
 		}
@@ -188,6 +198,13 @@ func (t *Tree) FocusGained() {
 	if f := t.OnHighlighted; f != nil {
 		f(t.currentHighlight)
 	}
+}
+
+// Refresh updates the tree and reconciles keyboard highlight and selection with
+// the current model, including removal and collapsed ancestors.
+func (t *Tree) Refresh() {
+	t.reconcileAccessibilityState()
+	t.BaseWidget.Refresh()
 }
 
 // FocusLost is called after this Tree has lost focus.

@@ -63,14 +63,19 @@ func (e *Entry) AccessibilityLabel() string { return e.PlaceHolder }
 // Since: 2.9
 func (*Entry) AccessibilityRole() fyne.AccessibleRole { return fyne.AccessibleRoleEntry }
 
-// AccessibilityInfo includes the entry's current validation error.
+// AccessibilityInfo includes the entry's current validation error unless explicit
+// Invalid or Description metadata overrides it. This does not change validation.
 //
 // Since: 2.9
 func (e *Entry) AccessibilityInfo() fyne.AccessibilityInfo {
 	info := e.BaseWidget.AccessibilityInfo()
 	if e.validationError != nil {
-		info.Invalid = true
-		info.Description = e.validationError.Error()
+		if !info.InvalidSet {
+			info.Invalid = true
+		}
+		if !info.DescriptionSet && info.Description == "" {
+			info.Description = e.validationError.Error()
+		}
 	}
 	return info
 }
@@ -263,7 +268,8 @@ func (f *Form) AccessibilityChildInfo(child fyne.CanvasObject) fyne.Accessibilit
 		if item.Widget != child {
 			continue
 		}
-		info := fyne.AccessibilityInfo{Name: item.Text, Description: item.HintText, Required: item.Required, Invalid: item.invalid}
+		info := fyne.AccessibilityInfo{Name: item.Text, Description: item.HintText, Required: item.Required, Invalid: item.invalid,
+			RequiredSet: true, InvalidSet: true}
 		if item.validationError != nil {
 			info.Description = item.validationError.Error()
 		}

@@ -77,6 +77,7 @@ func (w *window) updateAccessibility() {
 		x.role = roleToCWin(n.Role)
 		x.selection_owner = C.uint32_t(n.SelectionOwner)
 		x.set_position, x.set_size = C.int(n.SetPosition), C.int(n.SetSize)
+		x.level = C.int(n.Level)
 		x.name, x.description, x.value = C.CString(n.Name), C.CString(n.Description), C.CString(n.Text)
 		defer C.free(unsafe.Pointer(x.name))
 		defer C.free(unsafe.Pointer(x.description))
@@ -122,7 +123,7 @@ func (w *window) updateAccessibility() {
 				x.positions, x.position_count = positions, C.int(len(doc.Positions))
 			}
 		}
-		flags := []bool{n.Disabled, n.Focusable, n.Focused, n.Required, n.Invalid, n.Invoke, n.Toggle, n.Value, n.Range, n.Checked, n.ReadOnly, n.Protected, n.Document != nil, n.Selection, n.Multiple, n.SelectionRequired, n.Selectable, n.Selected, n.Expandable, n.Expanded}
+		flags := []bool{n.Disabled, n.Focusable, n.Focused, n.Required, n.Invalid, n.Invoke, n.Toggle, n.Value, n.Range, n.Checked, n.ReadOnly, n.Protected, n.Document != nil, n.Selection, n.Multiple, n.SelectionRequired, n.Selectable, n.Selected, n.Expandable, n.Expanded, n.Role == fyne.AccessibleRoleTreeItem && !n.Expandable, n.ScrollItem}
 		for bit, set := range flags {
 			if set {
 				x.flags |= 1 << bit
@@ -172,6 +173,10 @@ func roleToCWin(role fyne.AccessibleRole) C.int {
 		return 9
 	case fyne.AccessibleRoleListItem:
 		return 10
+	case fyne.AccessibleRoleTree:
+		return 11
+	case fyne.AccessibleRoleTreeItem:
+		return 12
 	default:
 		return 0
 	}

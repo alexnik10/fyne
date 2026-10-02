@@ -4,6 +4,7 @@ package glfw
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"runtime"
@@ -133,6 +134,54 @@ func TestMainLoopNativeInvoke(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestMainLoopNativeTree(t *testing.T) {
+	w := createWindow("UIA keyed Tree regression")
+	defer w.Close()
+	var hwnd uintptr
+	var tree *widget.Tree
+	selected := make(chan string, 8)
+	runOnMain(func() {
+		children := make([]string, 120)
+		for i := range children {
+			children[i] = fmt.Sprintf("item-%03d", i)
+		}
+		data := map[string][]string{"": {"folder"}, "folder": children}
+		tree = widget.NewTreeWithStrings(data)
+		tree.SetAccessibilityInfo(fyne.AccessibilityInfo{Name: "Native tree"})
+		tree.OnSelected = func(id string) { selected <- id }
+		reorder := widget.NewButton("Reverse tree", func() {
+			for i, j := 0, len(children)-1; i < j; i, j = i+1, j-1 {
+				children[i], children[j] = children[j], children[i]
+			}
+			tree.Refresh()
+		})
+		remove := widget.NewButton("Remove target", func() { data["folder"] = children[1:]; tree.Refresh() })
+		restore := widget.NewButton("Restore target", func() { data["folder"] = children; tree.Refresh() })
+		w.window.SetContent(container.NewBorder(nil, container.NewVBox(reorder, remove, restore), nil, nil, tree))
+		w.window.Resize(fyne.NewSize(350, 280))
+		w.window.Show()
+		w.window.RequestFocus()
+		w.window.updateAccessibility()
+		hwnd = uintptr(unsafe.Pointer(w.view().GetWin32Window()))
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 35*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "powershell.exe", "-NoProfile", "-NonInteractive", "-File",
+		"testdata/accessibility/tree_windows.ps1", "-WindowHandle", strconv.FormatUint(uint64(hwnd), 10))
+	output, err := cmd.CombinedOutput()
+	require.NoError(t, err, "%s", output)
+	select {
+	case id := <-selected:
+		require.Equal(t, "item-119", id)
+	default:
+		t.Fatal("UIA selection did not reach the Tree model")
+	}
+	runOnMain(func() {
+		require.Equal(t, "item-119", tree.AccessibilityActiveElement())
+		require.Same(t, tree, w.canvas.Focused())
+	})
 }
 
 // TestMain runs the actual GLFW loop on its locked native thread. Exercise work

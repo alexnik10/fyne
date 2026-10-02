@@ -242,6 +242,7 @@ int main(void) {
     testTextProvider();
     testWordNavigation();
     testSelectionProviders();
+    testTreeProviders();
     testFinalEmptyLine();
     testFocusedFeedbackOrder();
     testDiagnosticTimings();

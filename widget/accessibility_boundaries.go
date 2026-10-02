@@ -13,11 +13,6 @@ func (*List) AccessibilityChildren() []fyne.CanvasObject { return nil }
 // Since: 2.9
 func (*Table) AccessibilityChildren() []fyne.CanvasObject { return nil }
 
-// AccessibilityChildren reserves Tree's logical collection boundary.
-//
-// Since: 2.9
-func (*Tree) AccessibilityChildren() []fyne.CanvasObject { return nil }
-
 // AccessibilityChildren exposes only independent accessory controls. Text,
 // placeholder, selection and caret renderers are represented by Entry itself.
 //

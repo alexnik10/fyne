@@ -412,3 +412,27 @@ output buffer and during Close, and a real Windows wait in an isolated process
 with no frame ticker. A cross-process UIA client invokes a button that opens a
 modal popup, its Close button, and a hyperlink, including a further enqueue from
 the opening callback. These checks complement manual NVDA/Narrator acceptance.
+
+
+## Keyed Tree acceptance
+
+Open **Open tree demo** in the current Windows demo. The Project files tree
+contains Documents with 200 reports and Archive with Read me.
+
+1. Tab into the tree. Check its name, item name, level, sibling position/count,
+   branch expanded/collapsed state and leaf state. Arrow keys move actual focus;
+   Space selects. Selection and focus should remain distinguishable.
+2. Expand Documents. Navigate to Report 200 or use Go to Report 200. It should
+   scroll into view without losing its identity. UIA ScrollItem alone must not
+   select it or move keyboard focus.
+3. Collapse Documents while a report is highlighted. Focus should move to the
+   branch; hidden reports must not remain actionable. Re-expand and navigate again.
+4. Reverse reports. Check updated positions and retained identity. Remove Report
+   200, then restore it: a retained old UIA element must not control the restored
+   item. Repeat removal while Documents is collapsed.
+5. Repeat with NVDA and Narrator, recording actual speech and keyboard behavior.
+   Automated native/provider tests do not replace this acceptance.
+
+Model keys and names are supplied independently of renderer cells. The current
+snapshot enumerates all model nodes; it does not claim lazy paging of large data.
+List/Table support and migration of other native adapters remain separate work.

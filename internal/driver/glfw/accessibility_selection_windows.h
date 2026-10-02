@@ -72,3 +72,5 @@ static HRESULT STDMETHODCALLTYPE expansionState(IExpandCollapseProvider *p, enum
 static ISelectionProviderVtbl selectionVtbl = {SL_QI, SL_Add, SL_Release, getSelection, canSelectMultiple, selectionRequired};
 static ISelectionItemProviderVtbl selectionItemVtbl = {SI_QI, SI_Add, SI_Release, selectItem, addSelection, removeSelection, itemSelected, selectionContainer};
 static IExpandCollapseProviderVtbl expandVtbl = {EC_QI, EC_Add, EC_Release, expandControl, collapseControl, expansionState};
+static HRESULT STDMETHODCALLTYPE scrollIntoView(IScrollItemProvider *p) { return action(OWNER(p, scrollItem), 11, NULL, 0); }
+static IScrollItemProviderVtbl scrollItemVtbl = {SC_QI, SC_Add, SC_Release, scrollIntoView};

@@ -28,6 +28,8 @@ type AccessibilityNode struct {
 	Selectable, Selected, Expandable, Expanded      bool
 	SelectionOwner                                  uint32
 	SetPosition, SetSize                            int
+	Level                                           int
+	ScrollItem                                      bool
 }
 
 // AccessibilityAction is a command supported by a semantic node.
@@ -48,6 +50,7 @@ const (
 	AccessibilityRemoveFromSelection
 	AccessibilityExpand
 	AccessibilityCollapse
+	AccessibilityScrollIntoView
 )
 
 // AccessibilityTree inspects the same semantic tree used by native adapters.
@@ -106,6 +109,14 @@ func (t *AccessibilityTree) Snapshot() []AccessibilityNode {
 func (t *AccessibilityTree) Node(object fyne.CanvasObject) (AccessibilityNode, bool) {
 	t.Snapshot()
 	n, ok := t.tree.NodeForObject(object)
+	return AccessibilityNode(n), ok
+}
+
+// Element returns current semantics by stable owner and key, without needing the
+// transient semantic object or a renderer cell. Hidden elements are not returned.
+func (t *AccessibilityTree) Element(owner fyne.CanvasObject, key string) (AccessibilityNode, bool) {
+	t.Snapshot()
+	n, ok := t.tree.NodeForElement(owner, key)
 	return AccessibilityNode(n), ok
 }
 

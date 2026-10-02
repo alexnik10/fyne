@@ -85,3 +85,51 @@ static void testSelectionProviders(void) {
     release(combo); release(english); release(russian); release(group); release(daily); release(weekly);
     DestroyWindow(hwnd);
 }
+
+static void testTreeProviders(void) {
+    HWND hwnd = newWindow(); assert(hwnd);
+    WinAccessibility *c = WinAccessibilityCreate(hwnd, 77); assert(c);
+    WinAccessibilityNode nodes[] = {
+        {.id=1, .role=11, .name="Files", .flags=WinAccSelection|WinAccFocusable},
+        {.id=2, .parent=1, .selection_owner=1, .role=12, .name="Folder", .flags=WinAccSelectable|WinAccExpandable|WinAccExpanded|WinAccScrollItem, .level=1, .set_position=1, .set_size=1},
+        {.id=3, .parent=2, .selection_owner=1, .role=12, .name="File", .flags=WinAccSelectable|WinAccLeaf|WinAccScrollItem, .level=2, .set_position=1, .set_size=1}
+    };
+    assert(WinAccessibilityUpdate(c, nodes, 3));
+    Element *tree = retain(c, 1), *branch = retain(c, 2), *leaf = retain(c, 3);
+    VARIANT v;
+    assert(property(&tree->simple, UIA_ControlTypePropertyId, &v) == S_OK && v.lVal == UIA_TreeControlTypeId);
+    VariantClear(&v);
+    assert(property(&leaf->simple, UIA_ControlTypePropertyId, &v) == S_OK && v.lVal == UIA_TreeItemControlTypeId);
+    VariantClear(&v);
+    assert(property(&leaf->simple, UIA_LevelPropertyId, &v) == S_OK && v.vt == VT_I4 && v.lVal == 2);
+    VariantClear(&v);
+    assert(property(&leaf->simple, UIA_IsOffscreenPropertyId, &v) == S_OK && v.boolVal == VARIANT_TRUE);
+    VariantClear(&v);
+    IUnknown *provider = NULL;
+    assert(pattern(&leaf->simple, UIA_ScrollItemPatternId, &provider) == S_OK && provider == (IUnknown *)&leaf->scrollItem);
+    IUnknown_Release(provider);
+    assert(query(leaf, &IID_IScrollItemProvider, (void **)&provider) == S_OK);
+    IUnknown_Release(provider);
+    assert(pattern(&leaf->simple, UIA_ExpandCollapsePatternId, &provider) == S_OK && provider == (IUnknown *)&leaf->expand);
+    IUnknown_Release(provider);
+    enum ExpandCollapseState state;
+    assert(IExpandCollapseProvider_get_ExpandCollapseState(&leaf->expand, &state) == S_OK && state == ExpandCollapseState_LeafNode);
+    assert(IExpandCollapseProvider_Expand(&leaf->expand) == (HRESULT)UIA_E_INVALIDOPERATION);
+    assert(IExpandCollapseProvider_Collapse(&leaf->expand) == (HRESULT)UIA_E_INVALIDOPERATION);
+    assert(IScrollItemProvider_ScrollIntoView(&leaf->scrollItem) == S_OK && lastAction == 11 && actionID == 3);
+    IRawElementProviderFragment *parent = NULL;
+    assert(IRawElementProviderFragment_Navigate(&leaf->fragment, NavigateDirection_Parent, &parent) == S_OK && parent == &branch->fragment);
+    IRawElementProviderFragment_Release(parent);
+    // A leaf becoming a branch must announce its state and keep its provider.
+    int before = expansionEvents;
+    nodes[2].flags = WinAccSelectable|WinAccExpandable|WinAccScrollItem;
+    assert(WinAccessibilityUpdate(c, nodes, 3));
+    assert(expansionEvents == before + 1 && elementFor(c, 3) == leaf);
+    assert(IExpandCollapseProvider_get_ExpandCollapseState(&leaf->expand, &state) == S_OK && state == ExpandCollapseState_Collapsed);
+    assert(IExpandCollapseProvider_Expand(&leaf->expand) == S_OK);
+    assert(WinAccessibilityUpdate(c, nodes, 2));
+    assert(IScrollItemProvider_ScrollIntoView(&leaf->scrollItem) == UNAVAILABLE);
+    WinAccessibilityCleanup(c);
+    release(tree); release(branch); release(leaf);
+    DestroyWindow(hwnd);
+}

@@ -95,6 +95,10 @@ func (t *Tree) snapshotNode(obj fyne.CanvasObject, pos fyne.Position, parent uin
 		id = t.next
 		t.ids[obj] = id
 	}
+	return t.snapshotObject(obj, id, pos, parent, describers, clip)
+}
+
+func (t *Tree) snapshotObject(obj fyne.CanvasObject, id uint32, pos fyne.Position, parent uint32, describers []fyne.AccessibleChildDescriber, clip *bounds) Node {
 	n := Node{ID: id, Parent: parent, Role: fyne.AccessibleRoleContainer, Position: pos, Size: obj.Size()}
 	if a, ok := obj.(fyne.Accessible); ok {
 		n.Name, n.Role = a.AccessibilityLabel(), a.AccessibilityRole()

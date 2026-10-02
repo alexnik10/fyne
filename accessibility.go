@@ -18,6 +18,8 @@ const (
 	AccessibleRoleComboBox  AccessibleRole = "combobox"
 	AccessibleRoleRadio     AccessibleRole = "radio"
 	AccessibleRoleListItem  AccessibleRole = "listitem"
+	AccessibleRoleTree      AccessibleRole = "tree"
+	AccessibleRoleTreeItem  AccessibleRole = "treeitem"
 )
 
 // Accessible interface should be implemented for a widget that should be accessible
@@ -29,12 +31,15 @@ type Accessible interface {
 }
 
 // AccessibilityInfo supplies optional metadata, independently of rendering.
-// Empty Name uses AccessibilityLabel. Password values must never be exported.
+// Nonzero fields override inherited metadata. Set the corresponding Set flag to
+// override with an empty string or false. A zero struct inherits all fields.
+// Password values must never be exported.
 //
 // Since: 2.9
 type AccessibilityInfo struct {
-	Name, Description string
-	Required, Invalid bool
+	Name, Description                                string
+	Required, Invalid                                bool
+	NameSet, DescriptionSet, RequiredSet, InvalidSet bool
 }
 
 // AccessibleDescribed provides an explicit name and description.
@@ -69,9 +74,10 @@ const (
 )
 
 // AccessibleComposition optionally overrides automatic semantic composition.
-// Single and Exclude stop child traversal, even when AccessibleChildren exists.
+// Single and Exclude stop child traversal, even when explicit children exist.
 // Transparent and Group use explicit children when supplied, otherwise renderer
-// children. Auto treats an Accessible without explicit children as a leaf.
+// children. AccessibleElements takes precedence over AccessibleChildren. Auto
+// treats an Accessible without explicit children as a leaf.
 //
 // Since: 2.9
 type AccessibleComposition interface {
@@ -80,13 +86,70 @@ type AccessibleComposition interface {
 
 // AccessibleChildren defines logical children in reading order. Positions are
 // relative to this object, as with Container.Objects. Implementations must keep
-// child objects stable across refreshes. Decorative renderer objects are omitted.
+// child objects stable across refreshes, or use AccessibleElements for model keys.
+// Decorative renderer objects are omitted.
 // This list replaces automatic children; even a nil or empty list is definitive.
 // An accessible object without this interface is a semantic leaf in Auto mode.
 //
 // Since: 2.9
 type AccessibleChildren interface {
 	AccessibilityChildren() []CanvasObject
+}
+
+// AccessibilityElement describes a logical element independently of recycled
+// renderer cells. Key is nonempty and unique within its owner. Parent is the key
+// of an earlier element, or empty for a direct child of the owner. Object supplies
+// Accessible semantics and capabilities; its position is relative to the owner,
+// even for nested elements. It need not be rendered or stable across snapshots.
+// Its children and composition mode are ignored: Parent defines this hierarchy.
+// Hidden retains identity but excludes the element and its descendants from
+// navigation and commands. Object may be nil while Hidden. Offscreen elements
+// remain exposed with empty bounds, so they can be scrolled into view.
+//
+// Since: 2.9
+type AccessibilityElement struct {
+	Key, Parent string
+	Object      CanvasObject
+	Hidden      bool
+}
+
+// AccessibleElements supplies a complete preorder snapshot of keyed logical
+// elements, including hidden elements whose IDs should be retained. Keys belong
+// to this owner, not the current Object or its renderer. Omitted keys are removed;
+// if returned after an observed removal they get new IDs. To replace an item
+// without an intervening snapshot, use a new key (for example with a generation).
+// This interface takes precedence over AccessibleChildren and renderer traversal.
+// Single and Exclude still stop traversal. Methods run on the Fyne event thread.
+// No renderers are created for the supplied objects. Bounds are clipped to owner.
+//
+// Since: 2.9
+type AccessibleElements interface {
+	AccessibilityElements() []AccessibilityElement
+}
+
+// AccessibleActiveElement maps an owner's actual keyboard focus to an exposed
+// key from AccessibleElements. Empty means the owner itself. It takes precedence
+// over AccessibleActiveDescendant and must not represent a separate reading cursor.
+//
+// Since: 2.9
+type AccessibleActiveElement interface {
+	AccessibilityActiveElement() string
+}
+
+// AccessibleHierarchy describes an item's one-based level, position and count
+// among siblings. Zero means unknown. This is independent of selection support.
+//
+// Since: 2.9
+type AccessibleHierarchy interface {
+	AccessibilityHierarchy() (level, position, count int)
+}
+
+// AccessibleScrollItem reveals an item without changing selection or focus.
+// Return false if it is detached or cannot be revealed.
+//
+// Since: 2.9
+type AccessibleScrollItem interface {
+	AccessibilityScrollIntoView() bool
 }
 
 // AccessibleChildDescriber supplies contextual metadata for descendants (for

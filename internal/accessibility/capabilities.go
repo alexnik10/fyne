@@ -45,6 +45,10 @@ func populateCapabilities(n *Node, obj fyne.CanvasObject) {
 	if e, ok := obj.(fyne.AccessibleExpandable); ok {
 		n.Expandable, n.Expanded = true, e.AccessibilityExpanded()
 	}
+	if h, ok := obj.(fyne.AccessibleHierarchy); ok {
+		n.Level, n.SetPosition, n.SetSize = h.AccessibilityHierarchy()
+	}
+	_, n.ScrollItem = obj.(fyne.AccessibleScrollItem)
 	n.ReadOnly = n.ReadOnly || n.Disabled
 }
 
@@ -98,7 +102,16 @@ func (t *Tree) performSelection(n Node, obj fyne.CanvasObject, action Action) bo
 	return item.AccessibilitySelect(mode)
 }
 
+func performExpansion(obj fyne.CanvasObject, expanded bool) bool {
+	if e, ok := obj.(fyne.AccessibleExpandable); ok {
+		e.AccessibilitySetExpanded(expanded)
+		return e.AccessibilityExpanded() == expanded
+	}
+	return false
+}
+
 func (t *Tree) resolveRelations(out []Node, focused fyne.Focusable) {
+	focusedID := t.FocusedID(focused)
 	for i := range out {
 		n := &out[i]
 		if item, ok := t.objects[n.ID].(fyne.AccessibleSelectable); ok {
@@ -109,7 +122,7 @@ func (t *Tree) resolveRelations(out []Node, focused fyne.Focusable) {
 				n.SelectionOwner = 0
 			}
 		}
-		n.Focused = n.ID == t.FocusedID(focused)
+		n.Focused = n.ID == focusedID
 		t.nodes[n.ID] = *n
 	}
 }

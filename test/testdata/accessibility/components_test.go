@@ -67,3 +67,42 @@ func TestExternalIndependentActionsAndReorder(t *testing.T) {
 		t.Fatal("group merged independent commands")
 	}
 }
+
+func TestExternalKeyedTreeAndMetadata(t *testing.T) {
+	test.NewTempApp(t)
+	tree := widget.NewTreeWithStrings(map[string][]string{"": {"folder"}, "folder": {"document"}})
+	tree.DescribeNode = func(id string) fyne.AccessibilityInfo {
+		if id == "document" {
+			return fyne.AccessibilityInfo{Name: "Report", DescriptionSet: true, RequiredSet: true}
+		}
+		return fyne.AccessibilityInfo{Name: "Documents"}
+	}
+	w := test.NewWindow(tree)
+	defer w.Close()
+	s := test.NewAccessibilityTree(w.Canvas())
+	folder, ok := s.Element(tree, "folder")
+	if !ok || !s.Perform(folder.ID, test.AccessibilityExpand, "", 0) {
+		t.Fatal("cannot expand Tree by model key")
+	}
+	file, ok := s.Element(tree, "document")
+	if !ok || file.Name != "Report" || file.Level != 2 || file.Parent != folder.ID {
+		t.Fatal("missing model semantics")
+	}
+	if !s.Perform(file.ID, test.AccessibilityScrollIntoView, "", 0) || !s.Perform(file.ID, test.AccessibilityFocus, "", 0) {
+		t.Fatal("cannot reveal and focus logical item")
+	}
+	tree.CloseBranch("folder")
+	if s.Perform(file.ID, test.AccessibilitySelect, "", 0) {
+		t.Fatal("hidden item accepted command")
+	}
+	tree.OpenBranch("folder")
+	file2, _ := s.Element(tree, "document")
+	if file.ID != file2.ID {
+		t.Fatal("key changed after collapse")
+	}
+	tree.SetAccessibilityInfo(fyne.AccessibilityInfo{NameSet: true})
+	n, _ := s.Node(tree)
+	if n.Name != "" {
+		t.Fatal("explicit empty metadata was ignored")
+	}
+}

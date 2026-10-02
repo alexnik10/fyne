@@ -47,7 +47,9 @@ func (w *BaseWidget) AccessibilityInfo() fyne.AccessibilityInfo {
 	return w.accessibilityInfo
 }
 
-// SetAccessibilityInfo sets an explicit name, description and validation state.
+// SetAccessibilityInfo sets optional names, descriptions and validation metadata.
+// Use the Set flags to override inherited metadata with empty strings or false.
+// A zero struct restores inherited/default metadata. Validation itself is unchanged.
 // Call on the Fyne event thread, like other widget setters.
 //
 // Since: 2.9
