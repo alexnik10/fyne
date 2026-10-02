@@ -136,7 +136,16 @@ func TestMainLoopNativeInvoke(t *testing.T) {
 	}
 }
 
+type nativeDriverApp struct{ fyne.App }
+
+func (*nativeDriverApp) Driver() fyne.Driver { return d }
+
 func TestMainLoopNativeTree(t *testing.T) {
+	// Importing fyne/test installs a dummy app. Logical focus handlers must find
+	// the real canvas through the production driver, just as an application does.
+	previousApp := fyne.CurrentApp()
+	runOnMain(func() { fyne.SetCurrentApp(&nativeDriverApp{App: previousApp}) })
+	defer runOnMain(func() { fyne.SetCurrentApp(previousApp) })
 	w := createWindow("UIA keyed Tree regression")
 	defer w.Close()
 	var hwnd uintptr

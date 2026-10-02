@@ -14,18 +14,20 @@ const (
 	treeDemoWidth     = 600
 	treeDemoHeight    = 500
 	treeDemoDocuments = "documents"
+	treeDemoArchive   = "archive"
+	treeDemoReadme    = "readme"
 	treeDemoTarget    = "document-199"
 )
 
 func showTreeDemo(application fyne.App) {
 	w := application.NewWindow("Keyed tree accessibility")
 	children := make([]string, treeDemoCount)
-	names := map[string]string{treeDemoDocuments: "Documents", "archive": "Archive", "readme": "Read me"}
+	names := map[string]string{treeDemoDocuments: "Documents", treeDemoArchive: "Archive", treeDemoReadme: "Read me"}
 	for i := range children {
 		children[i] = fmt.Sprintf("document-%03d", i)
 		names[children[i]] = fmt.Sprintf("Report %d", i+1)
 	}
-	data := map[string][]string{"": {treeDemoDocuments, "archive"}, treeDemoDocuments: children, "archive": {"readme"}}
+	data := map[string][]string{"": {treeDemoDocuments, treeDemoArchive}, treeDemoDocuments: children, treeDemoArchive: {treeDemoReadme}}
 	tree := widget.NewTree(func(id string) []string { return data[id] },
 		func(id string) bool { _, branch := data[id]; return branch },
 		func(bool) fyne.CanvasObject { return widget.NewLabel("Template") },
