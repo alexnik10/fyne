@@ -29,12 +29,13 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version: stable
+          cache-dependency-path: |
+            go.sum
+            .github/workflows/accessibility.yml
       - name: Build actual GLFW accessibility driver
         run: go build -tags accessibility -ldflags="-s -w -H=windowsgui" ./cmd/accessibility_demo
       - name: Build diagnostic demo
         run: go build -tags accessibility,accessibilitydiagnostics -ldflags="-s -w -H=windowsgui" -o accessibility_diagnostic.exe ./cmd/accessibility_demo
-      - name: Native main-loop wake and work-order tests
-        run: go test -race -tags accessibility ./internal/driver/glfw -run 'TestMainLoopNative|TestWindow_SetTitle' -timeout 2m
       - name: Semantic and widget tests with accessibility enabled
         run: go test -race -tags accessibility,ci ./internal/accessibility ./widget ./internal/widget
       - name: Diagnostic tests
@@ -46,6 +47,25 @@ jobs:
           path: |
             accessibility_demo.exe
             accessibility_diagnostic.exe
+  native_loop:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Software OpenGL for real GLFW windows on the hosted runner
+        uses: ssciwr/setup-mesa-dist-win@2dfeaebfa514f74c2b8cd8d27108c31486d33e72 # v3
+        with:
+          version: '26.0.3'
+      - uses: actions/setup-go@v6
+        with:
+          go-version: stable
+          cache-dependency-path: |
+            go.sum
+            .github/workflows/accessibility.yml
+            internal/driver/glfw/loop_wait_windows_test.go
+      - name: Native main-loop wake and work-order tests
+        run: go test -race -tags accessibility ./internal/driver/glfw -run 'TestMainLoopNative|TestWindow_SetTitle' -timeout 2m
   uia_queries:
     runs-on: windows-latest
     steps:
