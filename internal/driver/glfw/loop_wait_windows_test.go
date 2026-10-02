@@ -11,6 +11,7 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"unsafe"
 
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/widget"
@@ -90,7 +91,7 @@ func TestMainLoopNativeInvoke(t *testing.T) {
 		w.window.SetContent(container.NewVBox(button, link))
 		w.window.Show()
 		w.window.updateAccessibility()
-		hwnd = uintptr(w.view().GetWin32Window())
+		hwnd = uintptr(unsafe.Pointer(w.view().GetWin32Window()))
 	})
 	for _, step := range []struct {
 		name string
