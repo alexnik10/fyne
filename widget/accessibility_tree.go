@@ -202,7 +202,10 @@ type treeAccessibilityItem struct {
 }
 
 func (i *treeAccessibilityItem) attached() bool {
-	source := i.owner.AccessibilityCollection().(*treeAccessibilitySource)
+	source, ok := i.owner.AccessibilityCollection().(*treeAccessibilitySource)
+	if !ok {
+		return false
+	}
 	if i.owner.lifetimes.generations[i.id] != i.generation {
 		return false
 	}

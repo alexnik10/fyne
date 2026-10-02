@@ -137,11 +137,7 @@ func (t *Tree) RequestElement(owner fyne.CanvasObject, key string) bool {
 	if c == nil || !c.active {
 		return false
 	}
-	e, ok := c.source.Element(key)
-	if !ok || e.Hidden || e.Key != key {
-		return false
-	}
-	if _, _, ok := c.source.Index(key); !ok {
+	if !c.validRequest(key) {
 		return false
 	}
 	if index := slices.Index(c.requested, key); index >= 0 {
@@ -150,6 +146,32 @@ func (t *Tree) RequestElement(owner fyne.CanvasObject, key string) bool {
 	c.requested = append(c.requested, key)
 	if len(c.requested) > collectionRequestLimit {
 		c.requested = slices.Delete(c.requested, 0, len(c.requested)-collectionRequestLimit)
+	}
+	return true
+}
+
+func (c *collectionState) validRequest(key string) bool {
+	seen := make(map[string]bool)
+	if key == "" {
+		return false
+	}
+	for key != "" {
+		if seen[key] {
+			return false
+		}
+		seen[key] = true
+		e, ok := c.source.Element(key)
+		if !ok || e.Key != key || e.Hidden || !validObject(e.Object) || !e.Object.Visible() {
+			return false
+		}
+		if _, accessible := e.Object.(fyne.Accessible); !accessible {
+			return false
+		}
+		parent, index, indexed := c.source.Index(key)
+		if !indexed || index < 0 || e.Parent != parent || c.source.ChildKey(parent, index) != key {
+			return false
+		}
+		key = parent
 	}
 	return true
 }
@@ -277,12 +299,15 @@ func elementName(obj fyne.CanvasObject, describers []fyne.AccessibleChildDescrib
 	if !ok || !validObject(obj) {
 		return ""
 	}
-	n := Node{Name: a.AccessibilityLabel()}
-	for _, d := range describers {
-		applyInfo(&n, d.AccessibilityChildInfo(obj))
-	}
 	if d, ok := obj.(fyne.AccessibleDescribed); ok {
-		applyInfo(&n, d.AccessibilityInfo())
+		if info := d.AccessibilityInfo(); info.NameSet || info.Name != "" {
+			return info.Name
+		}
 	}
-	return n.Name
+	for i := len(describers) - 1; i >= 0; i-- {
+		if info := describers[i].AccessibilityChildInfo(obj); info.NameSet || info.Name != "" {
+			return info.Name
+		}
+	}
+	return a.AccessibilityLabel()
 }

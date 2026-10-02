@@ -162,7 +162,10 @@ func (i *listAccessibilityItem) AccessibilitySelectionItem() (owner fyne.CanvasO
 }
 
 func (i *listAccessibilityItem) resolve() int {
-	source := i.owner.AccessibilityCollection().(*listAccessibilitySource)
+	source, ok := i.owner.AccessibilityCollection().(*listAccessibilitySource)
+	if !ok {
+		return -1
+	}
 	if i.owner.lifetimes.generations[i.key] != i.generation {
 		return -1
 	}

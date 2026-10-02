@@ -96,12 +96,12 @@ func TestDemandCollectionFindAndTreeCollapse(t *testing.T) {
 	roots := accessibility.Roots(w.Canvas())
 	tree.Build(roots, nil)
 	folder, _ := tree.NodeForElement(widgetTree, "folder")
-	owner, key, valid := tree.FindItem(folder.ID, 0, accessibility.FindName, "999")
+	_, key, valid := tree.FindItem(folder.ID, 0, accessibility.FindName, "999")
 	assert.True(t, valid)
 	assert.Empty(t, key, "collapsed descendants cannot be discovered")
 	widgetTree.OpenBranch("folder")
 	tree.Build(roots, nil)
-	owner, key, valid = tree.FindItem(folder.ID, 0, accessibility.FindName, "999")
+	owner, key, valid := tree.FindItem(folder.ID, 0, accessibility.FindName, "999")
 	require.True(t, valid)
 	require.Equal(t, "999", key)
 	require.True(t, tree.RequestElement(owner, key))
@@ -130,4 +130,43 @@ func TestDemandCollectionFindAndTreeCollapse(t *testing.T) {
 	tree.Build(roots, nil)
 	require.True(t, tree.Realize(last.ID), "collapse preserves model identity")
 	assert.Empty(t, tree.Issues)
+}
+
+type demandSource struct{ indexedSource }
+
+func (*demandSource) Revision() uint64       { return 1 }
+func (*demandSource) ViewportKeys() []string { return nil }
+func (*demandSource) SelectedKeys() []string { return nil }
+func (s *demandSource) Index(key string) (string, int, bool) {
+	e, ok := s.elements[key]
+	if !ok {
+		return "", 0, false
+	}
+	for i, child := range s.children[e.Parent] {
+		if child == key {
+			return e.Parent, i, true
+		}
+	}
+	return "", 0, false
+}
+
+func TestDemandRequestValidatesAncestors(t *testing.T) {
+	test.NewTempApp(t)
+	label, invisible := widget.NewLabel("Child"), widget.NewLabel("Hidden")
+	invisible.Hide()
+	source := &demandSource{indexedSource{
+		children: map[string][]string{"": {"hidden", "invisible"}, "hidden": {"child"}, "cycle": {"cycle"}},
+		elements: map[string]fyne.AccessibilityElement{
+			"hidden":    {Key: "hidden", Hidden: true},
+			"child":     {Key: "child", Parent: "hidden", Object: label},
+			"invisible": {Key: "invisible", Object: invisible},
+			"cycle":     {Key: "cycle", Parent: "cycle", Object: label},
+		},
+	}}
+	owner := &indexedOwner{source: source}
+	var tree accessibility.Tree
+	tree.Build([]accessibility.Root{{Object: owner}}, nil)
+	for _, key := range []string{"", "missing", "hidden", "child", "invisible", "cycle"} {
+		assert.False(t, tree.RequestElement(owner, key), key)
+	}
 }
