@@ -12,7 +12,7 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version: stable
-      - run: go test -race -tags ci ./internal/async ./internal/accessibility ./widget ./internal/widget ./container ./test
+      - run: go test -race -tags ci ./internal/app ./internal/async ./internal/accessibility ./widget ./internal/widget ./container ./test
       - name: Public API from an external Go module
         working-directory: test/testdata/accessibility
         run: go test -mod=readonly -race -tags ci ./...
@@ -40,7 +40,7 @@ jobs:
       - name: Build diagnostic demo
         run: go build -tags accessibility,accessibilitydiagnostics -ldflags="-s -w -H=windowsgui" -o accessibility_diagnostic.exe ./cmd/accessibility_demo
       - name: Semantic and widget tests with accessibility enabled
-        run: go test -race -tags accessibility,ci ./internal/accessibility ./widget ./internal/widget ./container ./test
+        run: go test -race -tags accessibility,ci ./internal/app ./internal/accessibility ./widget ./internal/widget ./container ./test
       - name: External custom components on Windows
         working-directory: test/testdata/accessibility
         run: go test -mod=readonly -race -tags accessibility,ci ./...
@@ -71,7 +71,7 @@ jobs:
             .github/workflows/accessibility.yml
             internal/driver/glfw/loop_wait_windows_test.go
       - name: Native main-loop wake and work-order tests
-        run: go test -race -tags accessibility ./internal/driver/glfw -run 'TestMainLoopNative|TestWindow_SetTitle' -timeout 2m
+        run: go test -race -tags accessibility ./internal/driver/glfw -run 'TestMainLoopNative|TestWindow_SetTitle|TestWindow_PasswordEntryTabOrder' -timeout 2m
   uia_queries:
     runs-on: windows-latest
     steps:

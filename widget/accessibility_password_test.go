@@ -49,3 +49,41 @@ func TestPasswordAccessorySemanticsAndKeyboard(t *testing.T) {
 	w.Canvas().FocusNext()
 	assert.Same(t, next, w.Canvas().Focused())
 }
+
+func TestPasswordAccessoryFocusOrder(t *testing.T) {
+	test.NewTempApp(t)
+	before := widget.NewButton("Before", nil)
+	entry := widget.NewPasswordEntry()
+	after := widget.NewButton("After", nil)
+	w := test.NewWindow(container.NewVBox(before, entry, after))
+	defer w.Close()
+	c := w.Canvas()
+	revealer := entry.ActionItem.(fyne.Focusable)
+	order := []fyne.Focusable{before, entry, revealer, after}
+
+	for _, expected := range order {
+		c.FocusNext()
+		require.Same(t, expected, c.Focused())
+	}
+	for i := len(order) - 2; i >= 0; i-- {
+		c.FocusPrevious()
+		require.Same(t, order[i], c.Focused())
+	}
+	c.FocusPrevious()
+	require.Same(t, after, c.Focused(), "reverse traversal wraps")
+
+	c.FocusPrevious()
+	require.Same(t, revealer, c.Focused())
+	c.FocusNext()
+	require.Same(t, after, c.Focused(), "changing direction returns to the next control")
+
+	entry.Disable()
+	c.FocusPrevious()
+	require.Same(t, before, c.Focused(), "disabled field and revealer are both skipped")
+	entry.Enable()
+	entry.Hide()
+	c.FocusNext()
+	require.Same(t, after, c.Focused())
+	c.FocusPrevious()
+	require.Same(t, before, c.Focused(), "hidden field and revealer are both skipped")
+}
