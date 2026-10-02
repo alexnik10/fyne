@@ -24,6 +24,7 @@ type keyedControl struct {
 func (*keyedControl) CreateRenderer() fyne.WidgetRenderer {
 	return widget.NewSimpleRenderer(widget.NewLabel("Decoration"))
 }
+
 func (c *keyedControl) AccessibilityElements() []fyne.AccessibilityElement {
 	var out []fyne.AccessibilityElement
 	for _, key := range c.keys {
@@ -34,6 +35,7 @@ func (c *keyedControl) AccessibilityElements() []fyne.AccessibilityElement {
 	}
 	return out
 }
+
 func newKeyedControl() *keyedControl {
 	c := &keyedControl{keys: []string{"a", "b"}, hidden: make(map[string]bool)}
 	c.ExtendBaseWidget(c)

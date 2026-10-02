@@ -53,8 +53,10 @@ func (t *Tree) AccessibilityElements() []fyne.AccessibilityElement {
 			if branch {
 				height = t.branchMinSize.Height
 			}
-			item := &treeAccessibilityItem{owner: t, id: id, level: level, index: position, count: count,
-				position: fyne.NewPos(0, y-t.offset.Y), size: fyne.NewSize(t.Size().Width, height)}
+			item := &treeAccessibilityItem{
+				owner: t, id: id, level: level, index: position, count: count,
+				position: fyne.NewPos(0, y-t.offset.Y), size: fyne.NewSize(t.Size().Width, height),
+			}
 			element.Object = item
 			if branch {
 				element.Object = &treeAccessibilityBranch{item}
@@ -95,18 +97,22 @@ func (i *treeAccessibilityItem) AccessibilityLabel() string { return i.id }
 func (*treeAccessibilityItem) AccessibilityRole() fyne.AccessibleRole {
 	return fyne.AccessibleRoleTreeItem
 }
+
 func (i *treeAccessibilityItem) AccessibilityInfo() fyne.AccessibilityInfo {
 	if f := i.owner.DescribeNode; f != nil {
 		return f(i.id)
 	}
 	return fyne.AccessibilityInfo{}
 }
+
 func (i *treeAccessibilityItem) AccessibilityHierarchy() (level, position, count int) {
 	return i.level, i.index, i.count
 }
+
 func (i *treeAccessibilityItem) AccessibilitySelectionItem() (owner fyne.CanvasObject, selected bool, position, count int) {
 	return i.owner.super(), contains(i.owner.selected, i.id), i.index, i.count
 }
+
 func (i *treeAccessibilityItem) AccessibilitySelect(mode fyne.AccessibilitySelectionMode) bool {
 	t := i.owner
 	if _, found := t.accessibilityPath(i.id); !found {
@@ -149,6 +155,7 @@ func (i *treeAccessibilityItem) AccessibilityFocus() bool {
 	}
 	return c.Focused() == f
 }
+
 func (i *treeAccessibilityItem) AccessibilityScrollIntoView() bool {
 	if _, found := i.owner.accessibilityPath(i.id); !found || i.owner.scroller == nil {
 		return false

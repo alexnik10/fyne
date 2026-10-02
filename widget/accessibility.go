@@ -268,8 +268,10 @@ func (f *Form) AccessibilityChildInfo(child fyne.CanvasObject) fyne.Accessibilit
 		if item.Widget != child {
 			continue
 		}
-		info := fyne.AccessibilityInfo{Name: item.Text, Description: item.HintText, Required: item.Required, Invalid: item.invalid,
-			RequiredSet: true, InvalidSet: true}
+		info := fyne.AccessibilityInfo{
+			Name: item.Text, Description: item.HintText, Required: item.Required, Invalid: item.invalid,
+			RequiredSet: true, InvalidSet: true,
+		}
 		if item.validationError != nil {
 			info.Description = item.validationError.Error()
 		}
