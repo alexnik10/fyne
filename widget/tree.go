@@ -65,6 +65,7 @@ type Tree struct {
 	// Since: 2.9
 	DescribeNode func(id TreeNodeID) fyne.AccessibilityInfo `json:"-"`
 
+	lifetimes        collectionLifetimes
 	branchMinSize    fyne.Size
 	currentHighlight TreeNodeID
 	focused          bool
@@ -203,6 +204,9 @@ func (t *Tree) FocusGained() {
 // Refresh updates the tree and reconciles keyboard highlight and selection with
 // the current model, including removal and collapsed ancestors.
 func (t *Tree) Refresh() {
+	if t.lifetimes.generations != nil {
+		t.AccessibilityCollection() // Retire published identities between adapter snapshots.
+	}
 	t.reconcileAccessibilityState()
 	t.BaseWidget.Refresh()
 }

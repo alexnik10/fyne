@@ -177,6 +177,8 @@ func roleToCWin(role fyne.AccessibleRole) C.int {
 		return 11
 	case fyne.AccessibleRoleTreeItem:
 		return 12
+	case fyne.AccessibleRoleList:
+		return 13
 	default:
 		return 0
 	}

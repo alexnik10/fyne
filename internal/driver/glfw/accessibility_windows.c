@@ -288,6 +288,7 @@ static int controlType(int role) {
     case 10: return UIA_ListItemControlTypeId;
     case 11: return UIA_TreeControlTypeId;
     case 12: return UIA_TreeItemControlTypeId;
+    case 13: return UIA_ListControlTypeId;
     default: return UIA_GroupControlTypeId;
     }
 }

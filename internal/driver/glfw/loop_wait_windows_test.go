@@ -231,3 +231,62 @@ func TestMainLoopNativeWorkOrder(t *testing.T) {
 		require.Equal(t, i, value)
 	}
 }
+
+func TestMainLoopNativeList(t *testing.T) {
+	previousApp := fyne.CurrentApp()
+	runOnMain(func() { fyne.SetCurrentApp(&nativeDriverApp{App: previousApp}) })
+	defer runOnMain(func() { fyne.SetCurrentApp(previousApp) })
+	w := createWindow("UIA keyed List regression")
+	defer w.Close()
+	var hwnd uintptr
+	var list *widget.List
+	selected := make(chan string, 8)
+	runOnMain(func() {
+		items := make([]string, 120)
+		for i := range items {
+			items[i] = fmt.Sprintf("item-%03d", i)
+		}
+		list = widget.NewList(func() int { return len(items) },
+			func() fyne.CanvasObject { return widget.NewLabel("Template") },
+			func(id int, obj fyne.CanvasObject) { obj.(*widget.Label).SetText(items[id]) })
+		list.ItemKey = func(id int) string { return items[id] }
+		list.DescribeItem = func(id int) fyne.AccessibilityInfo { return fyne.AccessibilityInfo{Name: items[id]} }
+		list.SetAccessibilityInfo(fyne.AccessibilityInfo{Name: "Native list"})
+		list.OnSelected = func(id int) { selected <- items[id] }
+		reorder := widget.NewButton("Reverse list", func() {
+			for i, j := 0, len(items)-1; i < j; i, j = i+1, j-1 {
+				items[i], items[j] = items[j], items[i]
+			}
+			list.Refresh()
+		})
+		replace := widget.NewButton("Replace target", func() {
+			items = items[1:]
+			list.Refresh()
+			items = append(items, "item-119")
+			list.Refresh()
+		})
+		w.window.SetContent(container.NewBorder(nil, container.NewVBox(reorder, replace), nil, nil, list))
+		w.window.Resize(fyne.NewSize(350, 280))
+		w.window.Show()
+		w.window.RequestFocus()
+		w.window.updateAccessibility()
+		hwnd = uintptr(unsafe.Pointer(w.view().GetWin32Window()))
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 35*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "powershell.exe", "-NoProfile", "-NonInteractive", "-File",
+		"testdata/accessibility/list_windows.ps1", "-WindowHandle", strconv.FormatUint(uint64(hwnd), 10))
+	output, err := cmd.CombinedOutput()
+	require.NoError(t, err, "%s", output)
+	select {
+	case id := <-selected:
+		require.Equal(t, "item-119", id)
+	default:
+		t.Fatal("UIA selection did not reach the List model")
+	}
+	var active string
+	var focused fyne.Focusable
+	runOnMain(func() { active, focused = list.AccessibilityActiveElement(), w.canvas.Focused() })
+	require.Equal(t, "item-119", active)
+	require.Same(t, list, focused)
+}

@@ -38,8 +38,8 @@ implement `AccessibleComposition` directly.
 | Single | Only if Accessible | None, including when AccessibleChildren exists |
 | Exclude | Omitted | Entire subtree excluded |
 
-AccessibleElements takes precedence over AccessibleChildren; both take precedence
-over renderer discovery. Single and Exclude take precedence over either child list. Group and Transparent do
+AccessibleCollection takes precedence over AccessibleElements, then
+AccessibleChildren and renderer discovery. Single and Exclude take precedence over either child list. Group and Transparent do
 not override an explicit empty child list. No mode infers actions, combines text
 values or merges the state of several controls. Existing Accessible objects keep
 their Auto boundary, including when a custom type embeds a standard widget.
@@ -117,12 +117,26 @@ but cannot be invoked. All commands revalidate the current tree.
 
 ## Keyed logical elements
 
-`AccessibleElements` returns a complete preorder slice of `AccessibilityElement`.
-Each nonempty Key is unique within its owner. Parent names an earlier key, or is
-empty for a direct child of the owner. Object supplies Accessible semantics and
-capabilities, with geometry relative to the owner. It need not be rendered, and
-can be replaced on every snapshot: identity is **owner + key**. Commands dispatch
-to the current Object after rebuilding. Its renderer, child interfaces and
+`AccessibleCollection` returns an indexed `AccessibilityCollection` source:
+
+```go
+ChildCount(parent string) int
+ChildKey(parent string, index int) string
+Element(key string) (fyne.AccessibilityElement, bool)
+```
+
+The empty parent denotes the owner. ChildKey uses zero-based positions and returns
+empty for an invalid request. Element resolves one model key; false means missing.
+Topology can be inspected without creating item objects or describing every item.
+The source is used on the event thread until the next model mutation; it must not
+change selection or focus. Returning nil is an explicit empty boundary.
+
+The original `AccessibleElements` preorder slice remains supported as a fallback.
+Each nonempty Key is unique within its owner. Parent matches the source topology
+(or names an earlier slice element), and is empty for a direct child of the owner.
+Object supplies Accessible semantics and capabilities, with geometry relative to the owner. It need not be rendered, and
+can be replaced on every snapshot: identity is **owner + key + generation**.
+Commands dispatch to the current Object after rebuilding. Its renderer, child interfaces and
 composition mode are not traversed. Bounds are clipped to the owner and ancestors.
 The owner should expose its own Accessible semantics or use Group mode.
 
@@ -131,8 +145,10 @@ The owner should expose its own Accessible semantics or use Group mode.
   suppressing navigation and commands. Hidden descriptors may omit Object. An
   exposed child of a hidden parent is also suppressed.
 * Omit a deleted key. Returning it after an observed removal creates a new ID.
-  A remove-and-replace between snapshots is indistinguishable without a new key;
-  include a generation in the key when these are different model items.
+  If removal and replacement happen between snapshots, change Generation (or
+  use a new key). List and Tree track lifetimes at Refresh, so stale providers
+  cannot operate a replacement with a reused model key. An unreported model
+  mutation cannot be detected: call Refresh after each model change.
 * Offscreen is different from hidden: return its semantic object with empty or
   clipped bounds and AccessibleScrollItem to reveal it without selecting/focusing.
 * AccessibleActiveElement maps the owner's **actual canvas focus** to a key.
@@ -140,9 +156,10 @@ The owner should expose its own Accessible semantics or use Group mode.
 
 Invalid keys, duplicates, forward/missing parents and missing Accessible objects
 are skipped and reported as `invalid-element`. A hidden or excluded owner retains
-its last known keys without calling its provider. Deletions while the owner itself
-is hidden are therefore observed when it is exposed again. Single removes the
-child contract instead of retaining hidden children.
+its last known keys without calling its provider. Custom sources must track
+Generation themselves to record replacement while the owner is hidden. List and
+Tree observe such removals at Refresh and publish the new generation when shown.
+Single removes the child contract instead of retaining hidden children.
 
 ### Tree
 
@@ -166,10 +183,18 @@ tree.SetAccessibilityInfo(fyne.AccessibilityInfo{Name: "Project files"})
 Without DescribeNode the name is TreeNodeID, matching NewTreeWithStrings. The
 snapshot enumerates model IDs, including collapsed branches, but never calls
 CreateNode/UpdateNode or allocates visual cells. ChildUIDs must therefore support
-model enumeration without loading UI objects. Cost is linear in model size in
-the shared builder; this is not a lazy/paged semantic collection API. UIA snapshot
-publication has additional native costs. Very large or remotely loaded models
-need a separate paging/realization design and performance measurements.
+model enumeration without loading UI objects. Tree uses the indexed source, and
+closed descendants have no semantic objects or description calls. Reparenting a
+key preserves identity; collapsing preserves descendant lifetimes; removing a key
+at Refresh retires it even when its branch is closed and no adapter snapshot runs
+before reinsertion. Existing snapshot-slice callers remain supported.
+
+The source contract permits individual lookup, but the current shared builder
+still enumerates all keys and describes all exposed items, including offscreen
+items. Building List/Tree topology and geometry costs O(N). UIA snapshot
+publication has additional native costs. Native demand paging, ItemContainer and
+VirtualizedItem/realization for remotely loaded models remain separate work;
+this change does not claim bounded memory or constant-time snapshot updates.
 
 Windows maps leaves to ExpandCollapse LeafNode, branches to Expanded/Collapsed,
 and exposes Selection/SelectionItem, Level, PositionInSet, SizeOfSet and ScrollItem.
@@ -177,6 +202,45 @@ Collapsed descendants are omitted; scrolled-off descendants remain discoverable.
 This follows the [Microsoft TreeItem contract](https://learn.microsoft.com/en-us/windows/win32/winauto/uiauto-supporttreeitemcontroltype).
 All model nodes have semantics, so UIA VirtualizedItem is not advertised merely
 because renderer cells are recycled.
+
+### List
+
+List uses optional `ItemKey` for permanent model identity and `DescribeItem` for
+row metadata. Both callbacks receive the current positional ListItemID:
+
+```go
+list.ItemKey = func(index widget.ListItemID) string { return records[index].ID }
+list.DescribeItem = func(index widget.ListItemID) fyne.AccessibilityInfo {
+    return fyne.AccessibilityInfo{Name: records[index].Title}
+}
+list.SetAccessibilityInfo(fyne.AccessibilityInfo{Name: "Reports"})
+```
+
+Set ItemKey before using the list. Keys must be nonempty and unique; duplicates
+are diagnosed and excluded from accessible commands. Call Refresh after edits,
+insertion, deletion and reordering. Selection, keyboard highlight and custom row
+heights follow keys. Reordering does not fire OnSelected again. Removing a selected
+item fires OnUnselected with its **old position**; do not resolve that position
+against the new model. A removed highlight falls back to the first remaining row.
+ListItemID and selection callbacks retain their existing positional API.
+
+Without ItemKey, decimal positions (`"0"`, `"1"`, …) are the accessible keys.
+Selection and identity then belong to positions; the widget cannot infer which
+record moved or was replaced at a position. Without DescribeItem, names fall back
+to localized `Item N`, not the contents of a recycled renderer. Supply meaningful
+model-based metadata for application lists. Changing bound data sources also
+requires callbacks compatible with the new model.
+
+List exposes List/ListItem roles, Selection/SelectionItem, position/count, real
+keyboard focus and ScrollItem. Focus does not select, and ScrollIntoView changes
+neither focus nor selection. All rows, including offscreen rows, are discoverable
+without creating their visual cells. Row semantics do not expose independent
+interactive controls embedded inside a recycled row template.
+
+The separation of data identity, row metadata and visual containers is informed
+by [Qt's model/view roles and persistent indexes](https://doc.qt.io/qt-6/model-view-programming.html)
+and [WPF ItemAutomationPeer](https://learn.microsoft.com/en-us/dotnet/api/system.windows.automation.peers.itemautomationpeer).
+Their platform-specific paging strategies are not implicitly provided by this API.
 
 ## Public tests
 
@@ -227,9 +291,9 @@ placeholder and caret as internal rendering. The password revealer supplies its
 own accessible command, keyboard focus and activation; it follows Entry's disabled
 state and restores editing focus when activated.
 
-List and Table still explicitly stop automatic renderer discovery. Their recycled
-visual cells must not be confused with stable logical data items. Their positional
-IDs are not stable model keys; their full collection semantics and paging remain
-separate work. Tree is the first consumer of keyed logical elements.
+Table still explicitly stops automatic renderer discovery. Its recycled visual
+cells must not be confused with stable logical data items; its model identity,
+collection semantics and paging remain separate work. List and Tree share the
+indexed keyed collection contract.
 
 This change does not implement arbitrary semantic merging or rich-text semantics.

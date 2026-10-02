@@ -435,4 +435,30 @@ contains Documents with 200 reports and Archive with Read me.
 
 Model keys and names are supplied independently of renderer cells. The current
 snapshot enumerates all model nodes; it does not claim lazy paging of large data.
-List/Table support and migration of other native adapters remain separate work.
+Table support and migration of other native adapters remain separate work.
+
+## Keyed List and indexed Tree acceptance
+
+Open **Open list demo** in the Windows demo. The Reports list contains 200 model
+items with names supplied independently of recycled visual labels.
+
+1. Check List/ListItem roles, name, position/count and optional single selection.
+2. Arrows move real keyboard focus; Space selects. UIA ScrollIntoView on Report 200
+   reveals it without selecting or focusing it. UIA SetFocus must not select it.
+3. Select and focus Report 200, then reverse the rows. Its runtime ID and selection
+   must stay with the report. Keyboard commands must use its new position.
+4. Remove the report and restore it. A retained old UIA interface must reject
+   commands; the restored record gets a new runtime ID and no inherited selection.
+5. Repeat with NVDA and Narrator. Automated provider checks do not establish spoken
+   output quality; manual acceptance for this increment remains pending.
+
+List and Tree now expose indexed sources with per-key lookup. Tree also records
+closed-branch removals at Refresh, including removal and restoration between
+adapter snapshots. Tests cover reparenting, offscreen rows, custom heights,
+ambiguous keys, empty collections and external use of the public source contract.
+A separate-process UIA List test uses the real GLFW driver and retains providers
+through reorder and replacement. The existing native Tree scenario remains active.
+
+This changes the public collection contract, not the native snapshot strategy:
+the current backend still enumerates the full model. Native demand paging and
+remotely loaded data need a further measured implementation.

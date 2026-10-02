@@ -59,5 +59,12 @@ func TestVirtualizedWidgetsDoNotExposeRecycledRendererItems(t *testing.T) {
 	w := test.NewWindow(list)
 	defer w.Close()
 	var tree accessibility.Tree
-	assert.Empty(t, tree.Build([]accessibility.Root{{Object: list}}, nil))
+	nodes := tree.Build([]accessibility.Root{{Object: list}}, nil)
+	require.Len(t, nodes, 101)
+	assert.Equal(t, fyne.AccessibleRoleList, nodes[0].Role)
+	for _, item := range nodes[1:] {
+		assert.Equal(t, fyne.AccessibleRoleListItem, item.Role)
+		assert.NotEqual(t, "Recycled visual button", item.Name)
+		assert.False(t, item.Invoke, "a recycled visual button is not the model item")
+	}
 }

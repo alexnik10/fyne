@@ -67,7 +67,7 @@ type Tree struct {
 	objects  map[uint32]fyne.CanvasObject
 	nodes    map[uint32]Node
 	children map[fyne.CanvasObject][]fyne.CanvasObject
-	elements map[fyne.CanvasObject]map[string]uint32
+	elements map[fyne.CanvasObject]map[string]elementIdentity
 	Issues   []Issue
 }
 
@@ -84,7 +84,7 @@ func (t *Tree) Build(roots []Root, focused fyne.Focusable) []Node {
 	if t.ids == nil {
 		t.ids = make(map[fyne.CanvasObject]uint32)
 		t.children = make(map[fyne.CanvasObject][]fyne.CanvasObject)
-		t.elements = make(map[fyne.CanvasObject]map[string]uint32)
+		t.elements = make(map[fyne.CanvasObject]map[string]elementIdentity)
 	}
 	seen := make(map[fyne.CanvasObject]bool)
 	t.objects = make(map[uint32]fyne.CanvasObject)
@@ -123,10 +123,12 @@ func (t *Tree) Build(roots []Root, focused fyne.Focusable) []Node {
 		if d, ok := obj.(fyne.AccessibleChildDescriber); ok {
 			describers = append(append([]fyne.AccessibleChildDescriber(nil), describers...), d)
 		}
-		if elements, ok := obj.(fyne.AccessibleElements); ok && mode != fyne.AccessibilitySingle {
-			out = append(out, t.snapshotElements(obj, elements, pos, parent, scope, describers, clip)...)
-			delete(t.children, obj)
-			return
+		if mode != fyne.AccessibilitySingle {
+			if elements, ok := t.snapshotElements(obj, pos, parent, scope, describers, clip); ok {
+				out = append(out, elements...)
+				delete(t.children, obj)
+				return
+			}
 		}
 		delete(t.elements, obj)
 		children := semanticChildren(obj, mode)
@@ -209,7 +211,7 @@ func (t *Tree) FocusedID(focused fyne.Focusable) uint32 {
 	if delegate, ok := focused.(fyne.AccessibleActiveElement); ok {
 		owner, _ := focused.(fyne.CanvasObject)
 		if key := delegate.AccessibilityActiveElement(); key != "" {
-			return t.liveID(t.elements[owner][key])
+			return t.liveID(t.elements[owner][key].id)
 		}
 		return t.liveID(t.ids[owner])
 	}

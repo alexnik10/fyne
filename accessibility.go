@@ -17,6 +17,7 @@ const (
 	AccessibleRoleDialog    AccessibleRole = "dialog"
 	AccessibleRoleComboBox  AccessibleRole = "combobox"
 	AccessibleRoleRadio     AccessibleRole = "radio"
+	AccessibleRoleList      AccessibleRole = "list"
 	AccessibleRoleListItem  AccessibleRole = "listitem"
 	AccessibleRoleTree      AccessibleRole = "tree"
 	AccessibleRoleTreeItem  AccessibleRole = "treeitem"
@@ -76,7 +77,8 @@ const (
 // AccessibleComposition optionally overrides automatic semantic composition.
 // Single and Exclude stop child traversal, even when explicit children exist.
 // Transparent and Group use explicit children when supplied, otherwise renderer
-// children. AccessibleElements takes precedence over AccessibleChildren. Auto
+// children. AccessibleCollection takes precedence over AccessibleElements, which
+// takes precedence over AccessibleChildren. Auto
 // treats an Accessible without explicit children as a leaf.
 //
 // Since: 2.9
@@ -86,7 +88,7 @@ type AccessibleComposition interface {
 
 // AccessibleChildren defines logical children in reading order. Positions are
 // relative to this object, as with Container.Objects. Implementations must keep
-// child objects stable across refreshes, or use AccessibleElements for model keys.
+// child objects stable across refreshes, or use AccessibleCollection for model keys.
 // Decorative renderer objects are omitted.
 // This list replaces automatic children; even a nil or empty list is definitive.
 // An accessible object without this interface is a semantic leaf in Auto mode.
@@ -98,7 +100,7 @@ type AccessibleChildren interface {
 
 // AccessibilityElement describes a logical element independently of recycled
 // renderer cells. Key is nonempty and unique within its owner. Parent is the key
-// of an earlier element, or empty for a direct child of the owner. Object supplies
+// of its logical parent, or empty for a direct child of the owner. Object supplies
 // Accessible semantics and capabilities; its position is relative to the owner,
 // even for nested elements. It need not be rendered or stable across snapshots.
 // Its children and composition mode are ignored: Parent defines this hierarchy.
@@ -111,13 +113,46 @@ type AccessibilityElement struct {
 	Key, Parent string
 	Object      CanvasObject
 	Hidden      bool
+	// Generation distinguishes successive lifetimes of the same key. Change it
+	// when an item is removed and replaced between adapter snapshots. Zero is
+	// valid when the owner never reuses keys or every removal is observed.
+	Generation uint64
+}
+
+// AccessibilityCollection separates model topology from per-item semantics.
+// The empty parent denotes the owner; all other keys are nonempty and unique
+// within it. ChildKey returns the child at a zero-based index, or empty for an
+// invalid index. Element returns false for a missing key. Its Key and Parent
+// must match the topology. Include hidden descendants to retain their identities.
+//
+// A source is used synchronously on the Fyne event thread, until the next model
+// mutation. Querying it must not render cells, move focus or change selection.
+// Adapters may request individual items or enumerate the whole source. The
+// current snapshot adapter enumerates it; this interface does not promise paging.
+//
+// Since: 2.9
+type AccessibilityCollection interface {
+	ChildCount(parent string) int
+	ChildKey(parent string, index int) string
+	Element(key string) (AccessibilityElement, bool)
+}
+
+// AccessibleCollection provides indexed logical children and lookup by model key.
+// It takes precedence over AccessibleElements and AccessibleChildren, including
+// when it returns nil. Single and Exclude still stop traversal. Objects returned
+// by the source follow the same rules as AccessibilityElement.
+//
+// Since: 2.9
+type AccessibleCollection interface {
+	AccessibilityCollection() AccessibilityCollection
 }
 
 // AccessibleElements supplies a complete preorder snapshot of keyed logical
 // elements, including hidden elements whose IDs should be retained. Keys belong
 // to this owner, not the current Object or its renderer. Omitted keys are removed;
 // if returned after an observed removal they get new IDs. To replace an item
-// without an intervening snapshot, use a new key (for example with a generation).
+// without an intervening snapshot, use a new key or Generation. Prefer
+// AccessibleCollection for indexed access without constructing a complete slice.
 // This interface takes precedence over AccessibleChildren and renderer traversal.
 // Single and Exclude still stop traversal. Methods run on the Fyne event thread.
 // No renderers are created for the supplied objects. Bounds are clipped to owner.
@@ -128,8 +163,9 @@ type AccessibleElements interface {
 }
 
 // AccessibleActiveElement maps an owner's actual keyboard focus to an exposed
-// key from AccessibleElements. Empty means the owner itself. It takes precedence
-// over AccessibleActiveDescendant and must not represent a separate reading cursor.
+// key from AccessibleCollection or AccessibleElements. Empty means the owner
+// itself. This takes precedence over AccessibleActiveDescendant and must not
+// represent a separate reading cursor.
 //
 // Since: 2.9
 type AccessibleActiveElement interface {

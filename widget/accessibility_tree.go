@@ -25,51 +25,52 @@ func (*Tree) AccessibilitySelection() (multiple, required bool) { return false, 
 // Since: 2.9
 func (t *Tree) AccessibilityActiveElement() string { return t.currentHighlight }
 
-// AccessibilityElements snapshots model keys, not recycled visual cells. Closed
-// descendants retain keys but expose no semantics or commands. Model enumeration
-// is linear in the number of nodes; no CreateNode or UpdateNode calls are made.
+// AccessibilityCollection separates tree topology from per-node semantics.
+// Model keys include closed descendants, whose descriptions are not requested.
+// No CreateNode or UpdateNode calls are made. Topology enumeration is O(N).
 //
 // Since: 2.9
-func (t *Tree) AccessibilityElements() []fyne.AccessibilityElement {
+func (t *Tree) AccessibilityCollection() fyne.AccessibilityCollection {
+	source := &treeAccessibilitySource{children: make(map[string][]string), nodes: make(map[string]treeAccessibilityNode)}
 	if t.IsBranch == nil {
-		return nil
+		t.lifetimes.update(nil)
+		return source
 	}
-	var elements []fyne.AccessibilityElement
-	seen := make(map[TreeNodeID]bool)
 	pad, y := t.Theme().Size(theme.SizeNamePadding), float32(0)
+	var keys []string
 	var visit func(TreeNodeID, TreeNodeID, int, int, int, bool)
 	visit = func(id, parent TreeNodeID, level, position, count int, hidden bool) {
-		if id == "" || seen[id] {
+		if id == "" {
 			return
 		}
-		seen[id] = true
+		source.children[parent] = append(source.children[parent], id)
+		if _, seen := source.nodes[id]; seen {
+			return // The adapter diagnoses duplicate keys and cycles.
+		}
 		branch := t.IsBranch(id)
-		element := fyne.AccessibilityElement{Key: id, Parent: parent, Hidden: hidden}
+		node := treeAccessibilityNode{
+			parent: parent, hidden: hidden, branch: branch,
+			item: treeAccessibilityItem{owner: t, id: id, level: level, index: position, count: count},
+		}
 		if !hidden {
-			if y > 0 {
+			if len(keys) > 0 {
 				y += pad
 			}
 			height := t.leafMinSize.Height
 			if branch {
 				height = t.branchMinSize.Height
 			}
-			item := &treeAccessibilityItem{
-				owner: t, id: id, level: level, index: position, count: count,
-				position: fyne.NewPos(0, y-t.offset.Y), size: fyne.NewSize(t.Size().Width, height),
-			}
-			element.Object = item
-			if branch {
-				element.Object = &treeAccessibilityBranch{item}
-			}
+			node.item.position = fyne.NewPos(0, y-t.offset.Y)
+			node.item.size = fyne.NewSize(t.Size().Width, height)
 			y += height
 		}
-		elements = append(elements, element)
-		if !branch || t.ChildUIDs == nil {
-			return
-		}
-		children := t.ChildUIDs(id)
-		for i, child := range children {
-			visit(child, id, level+1, i+1, len(children), hidden || !t.IsBranchOpen(id))
+		source.nodes[id] = node
+		keys = append(keys, id)
+		if branch && t.ChildUIDs != nil {
+			children := t.ChildUIDs(id)
+			for i, child := range children {
+				visit(child, id, level+1, i+1, len(children), hidden || !t.IsBranchOpen(id))
+			}
 		}
 	}
 	if t.Root != "" {
@@ -80,7 +81,72 @@ func (t *Tree) AccessibilityElements() []fyne.AccessibilityElement {
 			visit(child, "", 1, i+1, len(children), false)
 		}
 	}
+	t.lifetimes.update(keys)
+	source.generations = t.lifetimes.generations
+	return source
+}
+
+// AccessibilityElements returns a complete snapshot for callers of the original
+// keyed API. Adapters use AccessibilityCollection in preference to this method.
+//
+// Since: 2.9
+func (t *Tree) AccessibilityElements() []fyne.AccessibilityElement {
+	source := t.AccessibilityCollection()
+	var elements []fyne.AccessibilityElement
+	seen := make(map[string]bool)
+	var visit func(string)
+	visit = func(parent string) {
+		for index := 0; index < source.ChildCount(parent); index++ {
+			key := source.ChildKey(parent, index)
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+			if element, ok := source.Element(key); ok {
+				elements = append(elements, element)
+				visit(key)
+			}
+		}
+	}
+	visit("")
 	return elements
+}
+
+type treeAccessibilityNode struct {
+	parent         string
+	hidden, branch bool
+	item           treeAccessibilityItem
+}
+
+type treeAccessibilitySource struct {
+	children    map[string][]string
+	nodes       map[string]treeAccessibilityNode
+	generations map[string]uint64
+}
+
+func (s *treeAccessibilitySource) ChildCount(parent string) int { return len(s.children[parent]) }
+func (s *treeAccessibilitySource) ChildKey(parent string, index int) string {
+	children := s.children[parent]
+	if index < 0 || index >= len(children) {
+		return ""
+	}
+	return children[index]
+}
+
+func (s *treeAccessibilitySource) Element(key string) (fyne.AccessibilityElement, bool) {
+	node, ok := s.nodes[key]
+	if !ok {
+		return fyne.AccessibilityElement{}, false
+	}
+	element := fyne.AccessibilityElement{Key: key, Parent: node.parent, Hidden: node.hidden, Generation: s.generations[key]}
+	if !node.hidden {
+		node.item.generation = element.Generation
+		element.Object = &node.item
+		if node.branch {
+			element.Object = &treeAccessibilityBranch{&node.item}
+		}
+	}
+	return element, true
 }
 
 // This is an immutable geometry snapshot with commands routed by model key.
@@ -88,9 +154,18 @@ func (t *Tree) AccessibilityElements() []fyne.AccessibilityElement {
 type treeAccessibilityItem struct {
 	owner               *Tree
 	id                  TreeNodeID
+	generation          uint64
 	level, index, count int
 	position            fyne.Position
 	size                fyne.Size
+}
+
+func (i *treeAccessibilityItem) attached() bool {
+	if i.owner.lifetimes.generations[i.id] != i.generation {
+		return false
+	}
+	_, found := i.owner.accessibilityPath(i.id)
+	return found
 }
 
 func (i *treeAccessibilityItem) AccessibilityLabel() string { return i.id }
@@ -115,7 +190,7 @@ func (i *treeAccessibilityItem) AccessibilitySelectionItem() (owner fyne.CanvasO
 
 func (i *treeAccessibilityItem) AccessibilitySelect(mode fyne.AccessibilitySelectionMode) bool {
 	t := i.owner
-	if _, found := t.accessibilityPath(i.id); !found {
+	if !i.attached() {
 		return false
 	}
 	switch mode {
@@ -136,7 +211,7 @@ func (i *treeAccessibilityItem) AccessibilitySelect(mode fyne.AccessibilitySelec
 func (*treeAccessibilityItem) AccessibilityFocusable() bool { return true }
 func (i *treeAccessibilityItem) AccessibilityFocus() bool {
 	t := i.owner
-	if _, found := t.accessibilityPath(i.id); !found {
+	if !i.attached() {
 		return false
 	}
 	c := fyne.CurrentApp().Driver().CanvasForObject(t.super())
@@ -157,7 +232,7 @@ func (i *treeAccessibilityItem) AccessibilityFocus() bool {
 }
 
 func (i *treeAccessibilityItem) AccessibilityScrollIntoView() bool {
-	if _, found := i.owner.accessibilityPath(i.id); !found || i.owner.scroller == nil {
+	if !i.attached() || i.owner.scroller == nil {
 		return false
 	}
 	i.owner.ScrollTo(i.id)
@@ -178,7 +253,7 @@ type treeAccessibilityBranch struct{ *treeAccessibilityItem }
 func (i *treeAccessibilityBranch) AccessibilityExpanded() bool { return i.owner.IsBranchOpen(i.id) }
 func (i *treeAccessibilityBranch) AccessibilitySetExpanded(expanded bool) {
 	t := i.owner
-	if _, found := t.accessibilityPath(i.id); !found || !t.IsBranch(i.id) || i.id == t.Root || t.IsBranchOpen(i.id) == expanded {
+	if !i.attached() || !t.IsBranch(i.id) || i.id == t.Root || t.IsBranchOpen(i.id) == expanded {
 		return
 	}
 	if expanded {

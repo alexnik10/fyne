@@ -2,8 +2,8 @@ package widget
 
 import "fyne.io/fyne/v2"
 
-// AccessibilityChildren prevents recycled visual cells from being mistaken for
-// stable logical items. List accessibility requires a logical collection model.
+// AccessibilityChildren suppresses recycled cells. AccessibilityCollection
+// supplies the logical items and takes precedence over this fallback boundary.
 //
 // Since: 2.9
 func (*List) AccessibilityChildren() []fyne.CanvasObject { return nil }

@@ -152,3 +152,22 @@ LeafNode/ScrollItem checks, and a real separate-process UIA Tree scenario throug
 GLFW. The demo adds a Tree window with 200 reports and reorder/remove/restore.
 Manual NVDA/Narrator speech acceptance remains required; automated UIA does not
 establish speech quality or acceptance of demo 7 rapid-toggle behavior.
+
+
+## Current increment: indexed collections, stable List keys and Tree lifetimes
+
+Completed the common source contract (indexed children and per-key semantic
+lookup), retaining the existing complete-slice fallback. Model generations retire
+stale identities even when deletion and reinsertion occur between snapshots.
+Tree uses this contract and preserves descendants across collapse and reparenting.
+List adds ItemKey, DescribeItem, model-following selection/highlight/custom heights,
+List/ListItem roles, selection, real focus and ScrollItem. No semantic query creates
+visual cells. Positional lists remain supported with explicitly positional identity.
+
+Validation includes public API and external-module tests, 1000-row/offscreen and
+custom-height checks, source precedence/validation, model replacement without an
+intervening snapshot, and a real Windows UIA List scenario alongside Tree.
+The demo includes a separate keyed List window. NVDA/Narrator acceptance remains
+pending. The shared and native adapters still publish full snapshots; demand
+paging, ItemContainer/VirtualizedItem, Table and other platform adapters remain
+follow-up work. A per-item source is the extension point, not a paging claim.
