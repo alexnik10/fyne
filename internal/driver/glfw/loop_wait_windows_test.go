@@ -242,7 +242,6 @@ func TestMainLoopNativeList(t *testing.T) {
 	var list *widget.List
 	selected := make(chan string, 8)
 	focusAfterReorder := make(chan string, 1)
-	var focusTrace []string
 	runOnMain(func() {
 		items := make([]string, 120)
 		for i := range items {
@@ -255,31 +254,17 @@ func TestMainLoopNativeList(t *testing.T) {
 		list.DescribeItem = func(id int) fyne.AccessibilityInfo { return fyne.AccessibilityInfo{Name: items[id]} }
 		list.SetAccessibilityInfo(fyne.AccessibilityInfo{Name: "Native list"})
 		list.OnSelected = func(id int) { selected <- items[id] }
-		list.OnHighlighted = func(id int) {
-			focusTrace = append(focusTrace, fmt.Sprintf("highlight=%d key=%s", id, list.AccessibilityActiveElement()))
-		}
-		previousFocus, previousUnfocus := w.canvas.OnFocus, w.canvas.OnUnfocus
-		w.canvas.OnFocus = func(f fyne.Focusable) {
-			focusTrace = append(focusTrace, fmt.Sprintf("focus=%T active=%s", f, list.AccessibilityActiveElement()))
-			if previousFocus != nil {
-				previousFocus(f)
-			}
-		}
-		w.canvas.OnUnfocus = func() {
-			focusTrace = append(focusTrace, "unfocus")
-			if previousUnfocus != nil {
-				previousUnfocus()
-			}
-		}
 		reorder := widget.NewButton("Reverse list", func() {
-			focusTrace = append(focusTrace, fmt.Sprintf("before reorder: focus=%T active=%s", w.canvas.Focused(), list.AccessibilityActiveElement()))
+			// UIA may focus the invoking button before dispatch. Refresh must keep
+			// that actual owner and retain the list's existing active model key.
+			previousFocus := w.canvas.Focused()
 			for i, j := 0, len(items)-1; i < j; i, j = i+1, j-1 {
 				items[i], items[j] = items[j], items[i]
 			}
 			list.Refresh()
 			w.window.updateAccessibility()
 			node, live := accessibilityWindows[w.window].tree.NodeForElement(list, "item-119")
-			if w.canvas.Focused() != list || !live || !node.Focused {
+			if w.canvas.Focused() != previousFocus || !live || (previousFocus == list && !node.Focused) {
 				focusAfterReorder <- fmt.Sprintf("owner=%T active=%s live=%t focused=%t node=%d focusedID=%d", w.canvas.Focused(), list.AccessibilityActiveElement(), live, node.Focused, node.ID, accessibilityWindows[w.window].tree.FocusedID(w.canvas.Focused()))
 			} else {
 				focusAfterReorder <- list.AccessibilityActiveElement()
@@ -303,9 +288,6 @@ func TestMainLoopNativeList(t *testing.T) {
 	cmd := exec.CommandContext(ctx, "powershell.exe", "-NoProfile", "-NonInteractive", "-File",
 		"testdata/accessibility/list_windows.ps1", "-WindowHandle", strconv.FormatUint(uint64(hwnd), 10))
 	output, err := cmd.CombinedOutput()
-	var trace []string
-	runOnMain(func() { trace = append(trace, focusTrace...) })
-	t.Logf("List focus trace: %v", trace)
 	var reorderedFocus string
 	select {
 	case reorderedFocus = <-focusAfterReorder:

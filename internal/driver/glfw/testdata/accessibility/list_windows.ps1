@@ -49,13 +49,11 @@ Invoke-Name 'Reverse list'
 Wait-Until { [System.Windows.Automation.TreeWalker]::RawViewWalker.GetFirstChild($list).Current.Name -eq 'item-119' }
 $item = Find-Name 'item-119'
 if ((Runtime-ID $item) -ne $id) { throw 'Reorder changed identity' }
-# UIA must suppress HasKeyboardFocus while the hosted desktop keeps another
-# window foreground. The Go harness always checks canvas focus, the active key
-# and the semantic focus flag on the Fyne thread immediately after reordering.
+# UIA can focus the invoking button before its callback. Return to the list
+# owner, not to the row: this must restore the previous model-key highlight.
+$list.SetFocus()
 if ([NativeListWindow]::GetForegroundWindow().ToInt64() -eq $WindowHandle) {
     Wait-Until { $item.Current.HasKeyboardFocus -or [NativeListWindow]::GetForegroundWindow().ToInt64() -ne $WindowHandle }
-} else {
-    Write-Output 'The test window is background; logical focus is checked by the Go harness.'
 }
 if (!$select.Current.IsSelected) { throw 'Reorder lost selection' }
 if ((Runtime-ID $selection.Current.GetSelection()[0]) -ne $id) { throw 'Selection container lost the selected model item' }
