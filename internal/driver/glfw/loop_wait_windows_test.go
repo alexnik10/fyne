@@ -241,6 +241,7 @@ func TestMainLoopNativeList(t *testing.T) {
 	var hwnd uintptr
 	var list *widget.List
 	selected := make(chan string, 8)
+	focusAfterReorder := make(chan string, 1)
 	runOnMain(func() {
 		items := make([]string, 120)
 		for i := range items {
@@ -258,6 +259,13 @@ func TestMainLoopNativeList(t *testing.T) {
 				items[i], items[j] = items[j], items[i]
 			}
 			list.Refresh()
+			w.window.updateAccessibility()
+			node, live := accessibilityWindows[w.window].tree.NodeForElement(list, "item-119")
+			if w.canvas.Focused() != list || !live || !node.Focused {
+				focusAfterReorder <- "owner or semantic node lost focus"
+			} else {
+				focusAfterReorder <- list.AccessibilityActiveElement()
+			}
 		})
 		replace := widget.NewButton("Replace target", func() {
 			items = items[1:]
@@ -277,7 +285,13 @@ func TestMainLoopNativeList(t *testing.T) {
 	cmd := exec.CommandContext(ctx, "powershell.exe", "-NoProfile", "-NonInteractive", "-File",
 		"testdata/accessibility/list_windows.ps1", "-WindowHandle", strconv.FormatUint(uint64(hwnd), 10))
 	output, err := cmd.CombinedOutput()
-	require.NoError(t, err, "%s", output)
+	var reorderedFocus string
+	select {
+	case reorderedFocus = <-focusAfterReorder:
+	default:
+	}
+	require.NoError(t, err, "%s (Fyne focus after reorder: %q)", output, reorderedFocus)
+	require.Equal(t, "item-119", reorderedFocus)
 	select {
 	case id := <-selected:
 		require.Equal(t, "item-119", id)
