@@ -26,6 +26,16 @@ jobs:
         run: |
           gcc -std=c11 -Wall -Werror=incompatible-pointer-types internal/driver/glfw/testdata/accessibility/provider_windows.c -o provider-test.exe -loleaut32 -lole32 -luuid
           ./provider-test.exe
+      - name: Real UI Automation query latency
+        shell: pwsh
+        run: |
+          gcc -std=c11 -Wall -Werror=incompatible-pointer-types internal/driver/glfw/testdata/accessibility/query_host_windows.c -o query-host.exe -loleaut32 -lole32 -luuid
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+          & cmd /c "`"$vs\Common7\Tools\VsDevCmd.bat`" -arch=x64 && cl /nologo /EHsc /std:c++17 internal\driver\glfw\testdata\accessibility\query_client_windows.cpp /Fe:query-client.exe /link ole32.lib oleaut32.lib uiautomationcore.lib"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ./query-client.exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - uses: actions/setup-go@v6
         with:
           go-version: stable
