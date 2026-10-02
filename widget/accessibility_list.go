@@ -41,6 +41,11 @@ func (l *List) AccessibilityActiveElement() string {
 // Since: 2.9
 func (l *List) AccessibilityCollection() fyne.AccessibilityCollection {
 	keys, indices := l.modelKeys()
+	if l.itemKeys == nil && l.ItemKey != nil {
+		// The first semantic query can precede rendering. Establish the model
+		// baseline without changing selection, highlight or creating cells.
+		l.itemKeys, l.keyed = keys, true
+	}
 	l.lifetimes.update(keys)
 	source := &listAccessibilitySource{
 		owner: l, keys: keys, indices: indices,

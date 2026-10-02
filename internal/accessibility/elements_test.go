@@ -124,3 +124,26 @@ func TestIndexedCollectionPrecedenceValidationAndGenerations(t *testing.T) {
 	require.Len(t, nodes, 1, "nil source suppresses legacy and renderer children")
 	assert.Empty(t, tree.Issues)
 }
+
+func TestListIdentityBeforeFirstRenderer(t *testing.T) {
+	test.NewTempApp(t)
+	created, described := 0, 0
+	list := widget.NewList(func() int { return 2 },
+		func() fyne.CanvasObject { created++; return widget.NewLabel("Template") },
+		func(int, fyne.CanvasObject) {})
+	list.ItemKey = func(index int) string { return []string{"a", "b"}[index] }
+	list.DescribeItem = func(int) fyne.AccessibilityInfo { described++; return fyne.AccessibilityInfo{Name: "Record"} }
+	var tree accessibility.Tree
+	roots := []accessibility.Root{{Object: list}}
+	tree.Build(roots, nil)
+	first, ok := tree.NodeForElement(list, "a")
+	require.True(t, ok)
+	assert.Zero(t, created, "reading semantics before layout must not construct cells")
+	assert.Equal(t, 2, described)
+	list.Refresh()
+	tree.Build(roots, nil)
+	first2, _ := tree.NodeForElement(list, "a")
+	assert.Equal(t, first.ID, first2.ID, "first render must not reset model identity")
+	assert.False(t, first2.Selected)
+	assert.False(t, first2.Focused)
+}
