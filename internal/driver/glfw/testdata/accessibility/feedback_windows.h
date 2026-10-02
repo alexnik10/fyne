@@ -1,3 +1,36 @@
+static void testWindowMetadata(void) {
+    HWND hwnd = newWindow(); assert(hwnd);
+    WinAccessibility *c = WinAccessibilityCreate(hwnd, 101); assert(c);
+    WinAccessibilityNode node = {.id=1, .role=4, .name="Choice", .flags=WinAccToggle};
+    assert(WinAccessibilityUpdate(c, &node, 1));
+    Element *root = retain(c, 0), *child = retain(c, 1);
+    VARIANT v;
+    assert(property(&root->simple, UIA_NativeWindowHandlePropertyId, &v) == S_OK);
+    assert(v.vt == VT_I4 && v.lVal == (LONG)(LONG_PTR)hwnd); VariantClear(&v);
+    assert(property(&child->simple, UIA_NativeWindowHandlePropertyId, &v) == S_OK);
+    assert(v.vt == VT_I4 && v.lVal == 0); VariantClear(&v); // child does not own the HWND
+    assert(property(&child->simple, UIA_ProcessIdPropertyId, &v) == S_OK);
+    assert(v.vt == VT_I4 && (DWORD)v.lVal == GetCurrentProcessId()); VariantClear(&v);
+    assert(property(&child->simple, UIA_FrameworkIdPropertyId, &v) == S_OK);
+    assert(v.vt == VT_BSTR && !wcscmp(v.bstrVal, L"Fyne")); VariantClear(&v);
+    assert(property(&root->simple, UIA_ClassNamePropertyId, &v) == S_OK);
+    assert(v.vt == VT_BSTR && !wcsicmp(v.bstrVal, L"STATIC")); VariantClear(&v);
+    assert(property(&root->simple, UIA_ControlTypePropertyId, &v) == S_OK);
+    assert(v.vt == VT_I4 && v.lVal == UIA_WindowControlTypeId); VariantClear(&v);
+    const WCHAR *titles[] = {L"Provider test", L"Updated \u041e\u043a\u043d\u043e", L""};
+    for (unsigned int i=0; i<sizeof(titles)/sizeof(titles[0]); ++i) {
+        assert(SetWindowTextW(hwnd, titles[i]));
+        assert(property(&root->simple, UIA_NamePropertyId, &v) == S_OK);
+        assert(v.vt == VT_BSTR && !wcscmp(v.bstrVal, titles[i])); VariantClear(&v);
+        assert(property(&child->simple, UIA_NamePropertyId, &v) == S_OK);
+        assert(v.vt == VT_BSTR && !wcscmp(v.bstrVal, L"Choice")); VariantClear(&v);
+    }
+    WinAccessibilityCleanup(c);
+    assert(property(&root->simple, UIA_NamePropertyId, &v) == UNAVAILABLE);
+    assert(property(&child->simple, UIA_NativeWindowHandlePropertyId, &v) == UNAVAILABLE);
+    release(root); release(child); DestroyWindow(hwnd);
+}
+
 // Replay NVDA's caret-range expansion on a final blank line, including updates
 // from an existing last line and geometry-free custom AccessibleText controls.
 static void testFinalEmptyLine(void) {

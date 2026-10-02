@@ -113,3 +113,15 @@ semantic snapshot construction, marshaling, native snapshot commit and UIA calls
 Ship an opt-in diagnostic executable with local report saving. Keep speech timing
 separate from state/input processing; do not infer lost input from omitted speech.
 User-side Windows/NVDA measurements are required to identify the slow stage.
+
+
+## Query responsiveness follow-up: demo 7
+
+Paired Fyne/NVDA traces confirm actual state changes while HWND normalization
+for background UIA events takes tens of milliseconds per element. Return owned
+window metadata directly from the Windows provider, retain current title and
+correct root/virtual-child HWND identities, and validate through a real external
+UIA client with the same cache/normalization operation as NVDA. Keep all state
+events and the focused-first order; do not introduce an asynchronous event worker
+or alter general Fyne rendering. Ship a diagnostic Windows build for NVDA speech
+acceptance before proceeding to the remaining collection controls.

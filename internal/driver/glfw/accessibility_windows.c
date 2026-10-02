@@ -102,6 +102,8 @@ struct WinAccessibility {
     uintptr_t handle;
     int closed;
     int comInitialized;
+    WCHAR *windowName;
+    WCHAR windowClass[256];
     int count;
     Record *records;
     Element *root;
@@ -142,9 +144,10 @@ static ISelectionProviderVtbl selectionVtbl;
 static ISelectionItemProviderVtbl selectionItemVtbl;
 static IExpandCollapseProviderVtbl expandVtbl;
 static HRESULT selectionArray(Element *, SAFEARRAY **);
+static WCHAR *windowName(HWND);
 
 static void contextRelease(WinAccessibility *c) {
-    if (!InterlockedDecrement(&c->refs)) free(c);
+    if (!InterlockedDecrement(&c->refs)) { free(c->windowName); free(c); }
 }
 static ULONG addRef(Element *e) { return InterlockedIncrement(&e->refs); }
 static ULONG release(Element *e) {
@@ -261,8 +264,16 @@ static void propertyValue(WinAccessibility *c, Record *r, PROPERTYID id, VARIANT
     WinAccessibilityNode *n = r ? &r->data : NULL;
     int f = n ? n->flags : 0;
     switch (id) {
-    case UIA_ControlTypePropertyId: if (n) integer(out, controlType(n->role)); break;
-    case UIA_NamePropertyId: if (r) variantString(out, r->name); break;
+    // HWND normalization is used for every background NVDA state event. Avoid
+    // falling back to the host's legacy window queries: each can wait for the
+    // next native message-pump tick even though our snapshot is already ready.
+    // Only the fragment root owns the HWND; virtual controls must return zero.
+    case UIA_NativeWindowHandlePropertyId: integer(out, n ? 0 : (LONG)(LONG_PTR)c->hwnd); break;
+    case UIA_ProcessIdPropertyId: integer(out, GetCurrentProcessId()); break;
+    case UIA_FrameworkIdPropertyId: variantString(out, L"Fyne"); break;
+    case UIA_ClassNamePropertyId: variantString(out, n ? L"" : c->windowClass); break;
+    case UIA_ControlTypePropertyId: integer(out, n ? controlType(n->role) : UIA_WindowControlTypeId); break;
+    case UIA_NamePropertyId: variantString(out, r ? r->name : c->windowName); break;
     case UIA_BoundingRectanglePropertyId:
         if (n) {
             POINT origin = {0, 0}; ClientToScreen(c->hwnd, &origin);
@@ -566,6 +577,21 @@ static LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         return 0;
     }
     if (msg == WM_GETOBJECT && lp == (LPARAM)UiaRootObjectId) return UiaReturnRawElementProvider(hwnd, wp, lp, &c->root->simple);
+    if (msg == WM_SETTEXT) {
+        // Keep the cached root name current, including title changes made by
+        // native code. Default processing can re-enter and close the window.
+        InterlockedIncrement(&c->refs);
+        LRESULT result = CallWindowProcW(c->original, hwnd, msg, wp, lp);
+        WCHAR *title = result ? windowName(hwnd) : NULL;
+        if (title) {
+            AcquireSRWLockExclusive(&c->lock);
+            if (!c->closed) { WCHAR *old = c->windowName; c->windowName = title; title = old; }
+            ReleaseSRWLockExclusive(&c->lock);
+            free(title);
+        }
+        contextRelease(c);
+        return result;
+    }
     // Leave all keyboard, pointer and focus handling to GLFW/Fyne.
     return CallWindowProcW(c->original, hwnd, msg, wp, lp);
 }
@@ -575,6 +601,13 @@ static WCHAR *wide(const char *text) {
     WCHAR *out = calloc(count, sizeof(WCHAR));
     if (out) MultiByteToWideChar(CP_UTF8, 0, text, -1, out, count);
     return out;
+}
+// Called only on the HWND thread; queries from UIA use the owned copy instead.
+static WCHAR *windowName(HWND hwnd) {
+    int length = GetWindowTextLengthW(hwnd);
+    WCHAR *name = calloc((size_t)length + 1, sizeof(WCHAR));
+    if (name) GetWindowTextW(hwnd, name, length + 1);
+    return name;
 }
 static void freeRecords(Record *records, int count) {
     if (!records) return;
@@ -595,6 +628,9 @@ WinAccessibility *WinAccessibilityCreate(void *hwnd, uintptr_t handle) {
     if (FAILED(com) && com != RPC_E_CHANGED_MODE) { free(c); return NULL; }
     c->comInitialized = SUCCEEDED(com);
     InitializeSRWLock(&c->lock); c->refs = 1; c->hwnd = hwnd; c->handle = handle;
+    c->windowName = windowName(hwnd);
+    GetClassNameW(hwnd, c->windowClass, sizeof(c->windowClass)/sizeof(c->windowClass[0]));
+    if (!c->windowName) { if (c->comInitialized) CoUninitialize(); contextRelease(c); return NULL; }
     c->root = newElement(c, 0);
     if (!c->root) { if (c->comInitialized) CoUninitialize(); contextRelease(c); return NULL; }
     if (!SetPropW(hwnd, WINDOW_PROPERTY, c)) { if (c->comInitialized) CoUninitialize(); release(c->root); contextRelease(c); return NULL; }

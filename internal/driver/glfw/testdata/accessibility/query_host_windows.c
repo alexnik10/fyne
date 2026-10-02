@@ -11,15 +11,17 @@ static int cachedMetadata;
 static LONG messages[0x10000];
 static HRESULT STDMETHODCALLTYPE probeProperty(IRawElementProviderSimple *p, PROPERTYID id, VARIANT *out) {
     Element *e = OWNER(p, simple);
-    if (cachedMetadata) {
+    if (!cachedMetadata) {
+        // Reproduce the pre-fix host fallback without keeping a second copy of
+        // the provider. The cached run below exercises production code as-is.
         VariantInit(out);
         switch (id) {
-        case UIA_NativeWindowHandlePropertyId: integer(out, e->id ? 0 : (LONG)(LONG_PTR)e->context->hwnd); return S_OK;
-        case UIA_ProcessIdPropertyId: integer(out, GetCurrentProcessId()); return S_OK;
-        case UIA_FrameworkIdPropertyId: variantString(out, L"Fyne"); return S_OK;
-        case UIA_ClassNamePropertyId: variantString(out, e->id ? L"" : L"FyneUIAQueryTest"); return S_OK;
-        case UIA_NamePropertyId: if (!e->id) { variantString(out, L"Fyne UIA query test"); return S_OK; } break;
-        case UIA_ControlTypePropertyId: if (!e->id) { integer(out, UIA_WindowControlTypeId); return S_OK; } break;
+        case UIA_NativeWindowHandlePropertyId:
+        case UIA_ProcessIdPropertyId:
+        case UIA_FrameworkIdPropertyId:
+        case UIA_ClassNamePropertyId: return S_OK;
+        case UIA_NamePropertyId:
+        case UIA_ControlTypePropertyId: if (!e->id) return S_OK; break;
         }
     }
     return property(p, id, out);

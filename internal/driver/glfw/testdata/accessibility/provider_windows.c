@@ -238,6 +238,7 @@ static void testWordNavigation(void) {
 
 int main(void) {
     CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
+    testWindowMetadata();
     testTextProvider();
     testWordNavigation();
     testSelectionProviders();

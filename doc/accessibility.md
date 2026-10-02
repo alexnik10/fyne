@@ -329,3 +329,51 @@ Native regression tests inject a slow notification callback and verify that it
 appears in the event timings, that measurements reset on the next update, and
 that the provider's state/event contract is unchanged. Recorder/demo tests cover
 bounded storage, counters, saving, I/O errors and normal Check behavior.
+
+
+### Paired Fyne/NVDA trace findings
+
+The paired demo 6 run on Windows 11 / NVDA 2026.2 records 10 Remember presses
+and 11 Disable choices presses, with exactly the same number of state changes.
+Every Disable choices notification batch returns within 4.8 ms of the received
+key press. There is no evidence of a seconds-long widget or event-raising stall.
+
+NVDA logs all 10 Remember ToggleState callbacks, but only 5 Disable choices
+ToggleState callbacks during the rapid series and its subsequent drain. The
+second callback arrives 1.05 s after the first, although the next application
+state change occurred only 0.217 s after the first. Only the first state is spoken. Between callbacks, HWND normalization for background
+choice elements takes 62–129 ms per call (50 calls, 4.45 s in total). This localizes
+the backlog to UIA client queries/event processing, not the rendering callback.
+NVDA reads the live state after the delayed callback; that state can already have
+changed again. Event callbacks and current state queries must therefore be tested
+together. These observations do not establish where unobserved callbacks were
+coalesced/dropped or attribute the problem to an NVDA defect.
+
+The separate-process Windows query fixture exercises the real UIAutomationCore
+HWND-normalization/cache path with a 60 Hz host message pump. It complements the
+existing direct-provider tests, which cannot expose cross-process message delays.
+Only aggregate findings are kept here; user logs are not repository fixtures.
+
+
+### Window query correction (demo 7)
+
+The Windows provider now answers HWND identity, process/framework/class, root
+control type and root name directly. Root metadata is captured on the HWND
+thread; successful WM_SETTEXT updates its owned name under the context lock.
+Virtual descendants expose NativeWindowHandle=0, keeping their fragment identity
+and the owning window's identity distinct. This removes repeated legacy-host
+fallback while NVDA normalizes background event senders to their containing HWND.
+Threading, state events and their order are unchanged. Other platform adapters
+continue to use the shared semantic model without Windows metadata.
+
+Native tests cover root/child identity, title changes (including Unicode and an
+empty title), detached queries and existing provider lifetime/privacy contracts.
+The real UIA test compares production queries against a test-only reconstruction
+of the old VT_EMPTY metadata fallback, from another process with a 60 Hz host.
+It verifies the ancestor HWND and rejects a large relative performance regression
+when the baseline reproduces the message-pump delay.
+
+Repeat rapid Space activation of Remember and Disable choices with demo 7; after
+Disable choices, wait five seconds on the same control and press Space once more.
+Save the diagnostic JSON. Real NVDA speech acceptance is still a separate gate;
+faster synthetic queries do not guarantee a spoken announcement per key press.

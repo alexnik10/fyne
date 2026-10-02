@@ -73,6 +73,12 @@ int main() {
     check(CoInitializeEx(nullptr, COINIT_MULTITHREADED));
     double baseline = run(L"baseline"), cached = run(L"cached");
     printf("HWND normalization ratio cached/baseline: %.3f\n", cached/baseline);
+    // Gate a large relative regression when the old host fallback reproduces
+    // message-pump stalls. Avoid a tight machine-dependent latency threshold.
+    if (baseline >= 400 && cached >= baseline * 0.5) {
+        fprintf(stderr, "Cached HWND queries still depend on the native polling interval\n");
+        return 8;
+    }
     CoUninitialize();
     return 0;
 }
