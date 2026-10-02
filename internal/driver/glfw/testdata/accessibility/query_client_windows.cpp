@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <wrl/client.h>
+#pragma comment(lib, "user32.lib")
 using Microsoft::WRL::ComPtr;
 
 static void check(HRESULT hr) {
