@@ -389,3 +389,23 @@ Repeat rapid Space activation of Remember and Disable choices with demo 7; after
 Disable choices, wait five seconds on the same control and press Space once more.
 Save the diagnostic JSON. Real NVDA speech acceptance is still a separate gate;
 faster synthetic queries do not guarantee a spoken announcement per key press.
+
+### Queue readiness and native wakeup
+
+Windows accessibility builds now notify the native wait from the unbounded
+queue, after a task is published to its output channel. Waking immediately after
+enqueueing at its input could race the queue's relay: the main loop could consume
+the signal before the task became readable, leaving execution until a frame tick.
+Every publication, including a refill from a backlog and the Close drain, now
+signals readiness. Signals may coalesce; the consumer checks the output before
+waiting again. Other builds keep the ordinary queue without a native callback.
+
+The same queue handles asynchronous UIA Invoke for Button/Hyperlink and ordinary
+main-thread work. Synchronous focus/value/text commands retain their window-message
+dispatch. No separate per-widget wake mechanism is needed.
+
+Regression tests check publication-before-notification, FIFO delivery with a full
+output buffer and during Close, and a real Windows wait in an isolated process
+with no frame ticker. A cross-process UIA client invokes a button that opens a
+modal popup, its Close button, and a hyperlink, including a further enqueue from
+the opening callback. These checks complement manual NVDA/Narrator acceptance.

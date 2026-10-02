@@ -36,6 +36,11 @@ func init() {
 // TestMain makes sure that our driver is running on the main thread.
 // This must be done for some of our tests to function correctly.
 func TestMain(m *testing.M) {
+	// The native wait regression uses a subprocess with no GLFW loop or frame
+	// ticker, so periodic wakes cannot hide a missing work-ready notification.
+	if os.Getenv("FYNE_TEST_NATIVE_WAIT_ONLY") == "1" {
+		os.Exit(m.Run())
+	}
 	d.init()
 
 	waitForStart := make(chan struct{})

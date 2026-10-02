@@ -7,7 +7,17 @@ package glfw
 */
 import "C"
 
-import "time"
+import (
+	"time"
+
+	"fyne.io/fyne/v2/internal/async"
+)
+
+func newMainLoopQueue() *async.UnboundedChan[funcData] {
+	// Wake only after Out can be read. Signalling after a send to In can race
+	// the queue's relay and leave ready work asleep until the next frame.
+	return async.NewUnboundedChanWithNotify[funcData](wakeMainLoop)
+}
 
 // Keep frame pacing on the existing Go ticker, but wake the native wait when a
 // tick or shutdown becomes ready. The relay does not consume application work.
@@ -42,8 +52,8 @@ func nextMainLoopEvent(done <-chan struct{}, work <-chan funcData, ticks <-chan 
 			return mainLoopFrame, funcData{}
 		default:
 			// Process synchronous window queries between frames, without consuming
-			// posted input or advancing animations/rendering. Tick wakes also bound
-			// delivery if funcQueue's internal relay has not forwarded a wake's work.
+			// posted input or advancing animations/rendering. The queue publishes
+			// work before signalling, so delivery does not depend on frame ticks.
 			if C.WinAccessibilityWaitForMessage(^C.uint32_t(0)) == 0 {
 				return waitMainLoopChannels(done, work, ticks)
 			}

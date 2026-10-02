@@ -10,15 +10,26 @@ type UnboundedChan[T any] struct {
 	in, out chan T
 	close   chan struct{}
 	q       []T
+	notify  func()
 }
 
 // NewUnboundedChan returns a unbounded channel with unlimited capacity.
 func NewUnboundedChan[T any]() *UnboundedChan[T] {
+	return NewUnboundedChanWithNotify[T](nil)
+}
+
+// NewUnboundedChanWithNotify calls notify after each value is available on Out,
+// including values drained by Close. A receiver may already have consumed the
+// value when notify runs. Notifications may be coalesced by the receiver, which
+// must check Out before waiting again. notify runs on the queue's goroutine and
+// must not block or call Close. A nil notify preserves ordinary channel behavior.
+func NewUnboundedChanWithNotify[T any](notify func()) *UnboundedChan[T] {
 	ch := &UnboundedChan[T]{
 		// We make the channels fit into CPU cache lines, which may reduce cache misses.
-		in:    make(chan T, maxEntitiesPerCPUCacheLine),
-		out:   make(chan T, maxEntitiesPerCPUCacheLine),
-		close: make(chan struct{}),
+		in:     make(chan T, maxEntitiesPerCPUCacheLine),
+		out:    make(chan T, maxEntitiesPerCPUCacheLine),
+		close:  make(chan struct{}),
+		notify: notify,
 	}
 	go ch.processing()
 	return ch
@@ -61,6 +72,9 @@ func (ch *UnboundedChan[T]) processing() {
 			case ch.out <- ch.q[0]:
 				ch.q[0] = *new(T) // de-reference earlier to help GC (use clear() when Go 1.21 is base)
 				ch.q = ch.q[1:]
+				if ch.notify != nil {
+					ch.notify()
+				}
 			case e, ok := <-ch.in:
 				if !ok {
 					// We don't want the input channel be accidentally closed
@@ -92,6 +106,9 @@ func (ch *UnboundedChan[T]) closed() {
 		case ch.out <- ch.q[0]:
 			ch.q[0] = *new(T) // de-reference earlier to help GC (use clear() when Go 1.21 is base)
 			ch.q = ch.q[1:]
+			if ch.notify != nil {
+				ch.notify()
+			}
 		default:
 		}
 	}

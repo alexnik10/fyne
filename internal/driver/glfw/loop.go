@@ -42,7 +42,7 @@ func waitMainLoopChannels(done <-chan struct{}, work <-chan funcData, ticks <-ch
 
 // channel for queuing functions on the main thread
 var (
-	funcQueue        = async.NewUnboundedChan[funcData]()
+	funcQueue        = newMainLoopQueue()
 	running, drained atomic.Bool
 )
 
@@ -71,11 +71,9 @@ func runOnMainWithWait(f func(), wait bool) {
 		defer common.DonePool.Put(done)
 
 		funcQueue.In() <- funcData{f: f, done: done}
-		wakeMainLoop()
 		<-done
 	} else {
 		funcQueue.In() <- funcData{f: f}
-		wakeMainLoop()
 	}
 }
 
