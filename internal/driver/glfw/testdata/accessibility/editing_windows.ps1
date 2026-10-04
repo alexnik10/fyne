@@ -54,7 +54,7 @@ $doc = $text.DocumentRange
 Assert ($doc.GetAttributeValue([System.Windows.Automation.TextPattern]::FontWeightAttribute) -eq [System.Windows.Automation.TextPattern]::MixedAttributeValue) 'Mixed formatting was lost'
 $bold = $doc.FindAttribute([System.Windows.Automation.TextPattern]::FontWeightAttribute, [int]700, $false)
 Assert ($bold.GetText(-1) -eq 'bold') 'FindAttribute returned wrong bold range'
-$bold.ExpandToEnclosingUnit([System.Windows.Automation.TextUnit]::Format)
+$bold.ExpandToEnclosingUnit([System.Windows.Automation.Text.TextUnit]::Format)
 Assert ($bold.GetText(-1) -eq 'bold') 'Format unit crossed the run boundary'
 $bold.Select()
 Assert ($text.GetSelection()[0].GetText(-1) -eq 'bold') 'Rich selection did not round-trip'
@@ -65,7 +65,7 @@ Assert ($preview.Current.ControlType -eq [System.Windows.Automation.ControlType]
 $previewText = $preview.GetCurrentPattern([System.Windows.Automation.TextPattern]::Pattern)
 Assert ($previewText.DocumentRange.GetText(-1) -eq "Heading`nPlain bold") 'Document paragraph boundary lost'
 $line = $previewText.DocumentRange.Clone()
-$line.ExpandToEnclosingUnit([System.Windows.Automation.TextUnit]::Line)
+$line.ExpandToEnclosingUnit([System.Windows.Automation.Text.TextUnit]::Line)
 Assert ($line.GetText(-1) -eq "Heading`n") 'Paragraph separator belongs to the wrong rendered line'
 Assert ($previewText.SupportedTextSelection -eq [System.Windows.Automation.SupportedTextSelection]::None) 'Nonselectable document advertises selection'
 Assert ($previewText.DocumentRange.GetAttributeValue([System.Windows.Automation.TextPattern]::IsReadOnlyAttribute)) 'Document is not read-only'
