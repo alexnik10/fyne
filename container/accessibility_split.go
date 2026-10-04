@@ -13,8 +13,11 @@ const dividerKeyboardStep = 0.01
 func (*divider) AccessibilityLabel() string {
 	return lang.X("accessibility.split.divider", "Resize panes")
 }
+
 func (*divider) AccessibilityRole() fyne.AccessibleRole { return fyne.AccessibleRoleSeparator }
-func (d *divider) Disabled() bool                       { return !d.split.Leading.Visible() || !d.split.Trailing.Visible() }
+
+func (d *divider) Disabled() bool { return !d.split.Leading.Visible() || !d.split.Trailing.Visible() }
+
 func (d *divider) AccessibilityRange() (value, minimum, maximum, step float64) {
 	length, leading, trailing := d.split.Size().Width, d.split.Leading.MinSize().Width, d.split.Trailing.MinSize().Width
 	if !d.split.Horizontal {
@@ -49,9 +52,13 @@ func (d *divider) AccessibilitySetValue(value string) {
 		d.AccessibilitySetRangeValue(number / 100)
 	}
 }
+
 func (d *divider) FocusGained() { d.focused = true; d.Refresh() }
-func (d *divider) FocusLost()   { d.focused = false; d.Refresh() }
+
+func (d *divider) FocusLost() { d.focused = false; d.Refresh() }
+
 func (*divider) TypedRune(rune) {}
+
 func (d *divider) TypedKey(event *fyne.KeyEvent) {
 	value, minimum, maximum, step := d.AccessibilityRange()
 	switch event.Name {

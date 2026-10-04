@@ -39,12 +39,17 @@ func (w *InnerWindow) AccessibilityMode() fyne.AccessibilityMode {
 func (d *draggableLabel) AccessibilityLabel() string {
 	return lang.X("accessibility.window.move", "Move {{.Title}}", map[string]any{"Title": d.win.Title})
 }
+
 func (*draggableLabel) AccessibilityRole() fyne.AccessibleRole { return fyne.AccessibleRoleButton }
-func (d *draggableLabel) AccessibilityActivate()               { d.Tapped(nil) }
+
+func (d *draggableLabel) AccessibilityActivate() { d.Tapped(nil) }
+
 func (d *draggableLabel) AccessibilityValue() (value string, readOnly, protected bool) {
 	return fmt.Sprintf(innerWindowPairFormat, d.win.Position().X, d.win.Position().Y), d.win.OnDragged == nil, false
 }
+
 func (d *draggableLabel) AccessibilitySetValue(value string) { d.AccessibilitySetValueChecked(value) }
+
 func (d *draggableLabel) AccessibilitySetValueChecked(value string) bool {
 	x, y, ok := windowPair(value)
 	if !ok || d.win.OnDragged == nil {
@@ -56,9 +61,13 @@ func (d *draggableLabel) AccessibilitySetValueChecked(value string) bool {
 	d.win.OnDragged(&fyne.DragEvent{PointEvent: fyne.PointEvent{AbsolutePosition: absolute}, Dragged: fyne.Delta{DX: delta.X, DY: delta.Y}})
 	return d.win.Position() == target
 }
+
 func (d *draggableLabel) FocusGained() { d.focused = true; d.Tapped(nil); d.Refresh() }
-func (d *draggableLabel) FocusLost()   { d.focused = false; d.Refresh() }
+
+func (d *draggableLabel) FocusLost() { d.focused = false; d.Refresh() }
+
 func (*draggableLabel) TypedRune(rune) {}
+
 func (d *draggableLabel) TypedKey(event *fyne.KeyEvent) {
 	if event.Name == fyne.KeyEnter || event.Name == fyne.KeyReturn || event.Name == fyne.KeySpace {
 		d.Tapped(nil)
@@ -72,11 +81,15 @@ func (d *draggableLabel) TypedKey(event *fyne.KeyEvent) {
 func (*draggableCorner) AccessibilityLabel() string {
 	return lang.X("accessibility.window.resize", "Resize window")
 }
+
 func (*draggableCorner) AccessibilityRole() fyne.AccessibleRole { return fyne.AccessibleRoleSeparator }
+
 func (d *draggableCorner) AccessibilityValue() (value string, readOnly, protected bool) {
 	return fmt.Sprintf(innerWindowPairFormat, d.win.Size().Width, d.win.Size().Height), d.win.OnResized == nil, false
 }
+
 func (d *draggableCorner) AccessibilitySetValue(value string) { d.AccessibilitySetValueChecked(value) }
+
 func (d *draggableCorner) AccessibilitySetValueChecked(value string) bool {
 	x, y, ok := windowPair(value)
 	minimum := d.win.MinSize()
@@ -86,9 +99,13 @@ func (d *draggableCorner) AccessibilitySetValueChecked(value string) bool {
 	d.win.OnResized(&fyne.DragEvent{Dragged: fyne.Delta{DX: x - d.win.Size().Width, DY: y - d.win.Size().Height}})
 	return d.win.Size() == fyne.NewSize(x, y)
 }
+
 func (d *draggableCorner) FocusGained() { d.focused = true; d.Refresh() }
-func (d *draggableCorner) FocusLost()   { d.focused = false; d.Refresh() }
+
+func (d *draggableCorner) FocusLost() { d.focused = false; d.Refresh() }
+
 func (*draggableCorner) TypedRune(rune) {}
+
 func (d *draggableCorner) TypedKey(event *fyne.KeyEvent) {
 	x, y := windowKeyDelta(event.Name)
 	s := d.win.Size()
