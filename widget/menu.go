@@ -24,6 +24,8 @@ type Menu struct {
 	customSized   bool
 	containsCheck bool
 	isSubmenu     bool
+	label         string
+	parentItem    *menuItem
 }
 
 // NewMenu creates a new Menu.
@@ -62,7 +64,7 @@ func (m *Menu) ActivateNext() {
 	found := m.activeItem == nil
 	for _, item := range m.Items {
 		if mItem, ok := item.(*menuItem); ok {
-			if found {
+			if found && !mItem.Item.Disabled {
 				m.activateItem(mItem)
 				return
 			}
@@ -87,7 +89,7 @@ func (m *Menu) ActivatePrevious() {
 	for i := len(m.Items) - 1; i >= 0; i-- {
 		item := m.Items[i]
 		if mItem, ok := item.(*menuItem); ok {
-			if found {
+			if found && !mItem.Item.Disabled {
 				m.activateItem(mItem)
 				return
 			}
@@ -156,6 +158,9 @@ func (m *Menu) MinSize() fyne.Size {
 
 // Refresh updates the menu to reflect changes in the data.
 func (m *Menu) Refresh() {
+	if m.activeItem != nil && m.activeItem.Disabled() {
+		m.DeactivateChild()
+	}
 	for _, item := range m.Items {
 		item.Refresh()
 	}
@@ -164,7 +169,7 @@ func (m *Menu) Refresh() {
 
 func (m *Menu) getContainsCheck() bool {
 	for _, item := range m.Items {
-		if mi, ok := item.(*menuItem); ok && mi.Item.Checked {
+		if mi, ok := item.(*menuItem); ok && (mi.Item.Checked || mi.Item.Checkable) {
 			return true
 		}
 	}
@@ -215,6 +220,7 @@ func (m *Menu) activateItem(item *menuItem) {
 }
 
 func (m *Menu) setMenu(menu *fyne.Menu) {
+	m.label = menu.Label
 	m.Items = make([]fyne.CanvasObject, len(menu.Items))
 	for i, item := range menu.Items {
 		if item.IsSeparator {

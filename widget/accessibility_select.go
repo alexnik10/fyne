@@ -160,6 +160,9 @@ func (p *PopUpMenu) AccessibilityFocus() bool {
 		p.activateItem(p.Items[max(p.selectOwner.SelectedIndex(), 0)].(*menuItem))
 		p.revealSelectItem()
 	}
+	if p.selectOwner == nil && p.activeItem == nil {
+		p.ActivateNext()
+	}
 	p.canvas.Focus(p)
 	return p.canvas.Focused() == p
 }
@@ -176,7 +179,7 @@ func (p *PopUpMenu) AccessibilityActiveDescendant() fyne.CanvasObject {
 		}
 		return p.selectOwner
 	}
-	return nil
+	return p.Menu.AccessibilityActiveDescendant()
 }
 
 func (p *PopUpMenu) revealSelectItem() {

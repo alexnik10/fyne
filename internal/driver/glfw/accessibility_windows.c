@@ -12,6 +12,7 @@
 #include <math.h>
 #include <stddef.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <wctype.h>
 #include "accessibility_windows.h"
 
@@ -106,7 +107,7 @@ typedef struct Element Element;
 typedef struct TextRange TextRange;
 typedef struct {
     WinAccessibilityNode data;
-    WCHAR *name, *description, *value;
+    WCHAR *name, *description, *value, *shortcut;
     Element *element;
     WCHAR *text;
     int *offsets, length;
@@ -156,6 +157,10 @@ struct Element {
     IScrollItemProvider scrollItem;
     IItemContainerProvider itemContainer;
     IVirtualizedItemProvider virtualizedItem;
+    IGridProvider grid;
+    IGridItemProvider gridItem;
+    ITableProvider table;
+    ITableItemProvider tableItem;
     int virtualized;
     TextRange *textRanges;
     LONG refs;
@@ -180,7 +185,12 @@ static IExpandCollapseProviderVtbl expandVtbl;
 static IScrollItemProviderVtbl scrollItemVtbl;
 static IItemContainerProviderVtbl itemContainerVtbl;
 static IVirtualizedItemProviderVtbl virtualizedItemVtbl;
+static IGridProviderVtbl gridVtbl;
+static IGridItemProviderVtbl gridItemVtbl;
+static ITableProviderVtbl tableVtbl;
+static ITableItemProviderVtbl tableItemVtbl;
 static HRESULT selectionArray(Element *, SAFEARRAY **);
+static HRESULT tableHeaders(Element *, int, int, SAFEARRAY **);
 static WCHAR *windowName(HWND);
 
 static void contextRelease(WinAccessibility *c) {
@@ -228,6 +238,8 @@ static Element *newElement(WinAccessibility *c, uint32_t id) {
     e->scrollItem.lpVtbl = &scrollItemVtbl;
     e->itemContainer.lpVtbl = &itemContainerVtbl;
     e->virtualizedItem.lpVtbl = &virtualizedItemVtbl;
+    e->grid.lpVtbl = &gridVtbl; e->gridItem.lpVtbl = &gridItemVtbl;
+    e->table.lpVtbl = &tableVtbl; e->tableItem.lpVtbl = &tableItemVtbl;
     InterlockedIncrement(&c->refs);
     return e;
 }
@@ -252,6 +264,10 @@ static HRESULT query(Element *e, REFIID iid, void **out) {
         if ((flags & WinAccScrollItem) && IsEqualIID(iid, &IID_IScrollItemProvider)) *out = &e->scrollItem;
         if ((flags & WinAccItemContainer) && IsEqualIID(iid, &IID_IItemContainerProvider)) *out = &e->itemContainer;
         if (e->virtualized && !e->context->closed && IsEqualIID(iid, &IID_IVirtualizedItemProvider)) *out = &e->virtualizedItem;
+        if ((flags & WinAccGrid) && IsEqualIID(iid, &IID_IGridProvider)) *out = &e->grid;
+        if ((flags & WinAccGridItem) && IsEqualIID(iid, &IID_IGridItemProvider)) *out = &e->gridItem;
+        if ((flags & WinAccTable) && (flags & WinAccGrid) && IsEqualIID(iid, &IID_ITableProvider)) *out = &e->table;
+        if ((flags & WinAccTable) && (flags & WinAccGridItem) && IsEqualIID(iid, &IID_ITableItemProvider)) *out = &e->tableItem;
         ReleaseSRWLockShared(&e->context->lock);
     }
     if (!*out) return E_NOINTERFACE;
@@ -275,6 +291,10 @@ IUNKNOWN(EC, IExpandCollapseProvider, expand)
 IUNKNOWN(SC, IScrollItemProvider, scrollItem)
 IUNKNOWN(IC, IItemContainerProvider, itemContainer)
 IUNKNOWN(VI, IVirtualizedItemProvider, virtualizedItem)
+IUNKNOWN(GR, IGridProvider, grid)
+IUNKNOWN(GI, IGridItemProvider, gridItem)
+IUNKNOWN(TB, ITableProvider, table)
+IUNKNOWN(TI, ITableItemProvider, tableItem)
 
 static HRESULT STDMETHODCALLTYPE options(IRawElementProviderSimple *p, enum ProviderOptions *out) {
     if (!out) return E_POINTER;
@@ -301,6 +321,10 @@ static HRESULT STDMETHODCALLTYPE pattern(IRawElementProviderSimple *p, PATTERNID
     if (id == UIA_ExpandCollapsePatternId && (flags & (WinAccExpandable|WinAccLeaf))) *out = (IUnknown *)&e->expand;
     if (id == UIA_ScrollItemPatternId && (flags & WinAccScrollItem)) *out = (IUnknown *)&e->scrollItem;
     if (id == UIA_ItemContainerPatternId && (flags & WinAccItemContainer)) *out = (IUnknown *)&e->itemContainer;
+    if (id == UIA_GridPatternId && (flags & WinAccGrid)) *out = (IUnknown *)&e->grid;
+    if (id == UIA_GridItemPatternId && (flags & WinAccGridItem)) *out = (IUnknown *)&e->gridItem;
+    if (id == UIA_TablePatternId && (flags & WinAccTable) && (flags & WinAccGrid)) *out = (IUnknown *)&e->table;
+    if (id == UIA_TableItemPatternId && (flags & WinAccTable) && (flags & WinAccGridItem)) *out = (IUnknown *)&e->tableItem;
     if (*out) addRef(e);
     ReleaseSRWLockShared(&c->lock); return S_OK;
 }
@@ -323,6 +347,14 @@ static int controlType(int role) {
     case 11: return UIA_TreeControlTypeId;
     case 12: return UIA_TreeItemControlTypeId;
     case 13: return UIA_ListControlTypeId;
+    case 14: return UIA_TabControlTypeId;
+    case 15: return UIA_TabItemControlTypeId;
+    case 16: return UIA_MenuControlTypeId;
+    case 17: return UIA_MenuBarControlTypeId;
+    case 18: return UIA_MenuItemControlTypeId;
+    case 19: return UIA_TableControlTypeId;
+    case 20: return UIA_DataItemControlTypeId;
+    case 21: return UIA_HeaderItemControlTypeId;
     default: return UIA_GroupControlTypeId;
     }
 }
@@ -353,14 +385,17 @@ static void propertyValue(WinAccessibility *c, Record *r, PROPERTYID id, VARIANT
             }
         }
         break;
+    case UIA_AcceleratorKeyPropertyId: if (r) variantString(out, r->shortcut); break;
     case UIA_HelpTextPropertyId: if (r) variantString(out, r->description); break;
     case UIA_AutomationIdPropertyId:
         if (n) { WCHAR text[32]; wsprintfW(text, L"fyne_%u", n->id); variantString(out, text); } break;
     case UIA_IsKeyboardFocusablePropertyId: variantBool(out, n ? (f & WinAccFocusable) != 0 : 1); break;
     case UIA_HasKeyboardFocusPropertyId: variantBool(out, c->foreground && (n ? (f & WinAccFocused) != 0 : !c->focus)); break;
     case UIA_IsEnabledPropertyId: variantBool(out, !(f & WinAccDisabled)); break;
-    case UIA_IsControlElementPropertyId:
-    case UIA_IsContentElementPropertyId: variantBool(out, !n || n->role != 0 || (r->name && r->name[0])); break;
+    case UIA_IsContentElementPropertyId:
+        if (n && (n->role == 16 || n->role == 17 || n->role == 21)) { variantBool(out, 0); break; }
+        /* fall through */
+    case UIA_IsControlElementPropertyId: variantBool(out, !n || n->role != 0 || (r->name && r->name[0])); break;
     case UIA_IsPasswordPropertyId: variantBool(out, f & WinAccProtected); break;
     case UIA_IsRequiredForFormPropertyId: variantBool(out, f & WinAccRequired); break;
     case UIA_IsDataValidForFormPropertyId: variantBool(out, !(f & WinAccInvalid)); break;
@@ -384,6 +419,19 @@ static void propertyValue(WinAccessibility *c, Record *r, PROPERTYID id, VARIANT
     case UIA_RangeValueSmallChangePropertyId: if (f & WinAccRange) variantNumber(out, n->step); break;
     case UIA_RangeValueLargeChangePropertyId: if (f & WinAccRange) variantNumber(out, n->step); break;
     case UIA_RangeValueIsReadOnlyPropertyId: if (f & WinAccRange) variantBool(out, f & WinAccReadOnly); break;
+    case UIA_IsGridPatternAvailablePropertyId: variantBool(out, f & WinAccGrid); break;
+    case UIA_IsGridItemPatternAvailablePropertyId: variantBool(out, f & WinAccGridItem); break;
+    case UIA_IsTablePatternAvailablePropertyId: variantBool(out, (f & WinAccTable) && (f & WinAccGrid)); break;
+    case UIA_IsTableItemPatternAvailablePropertyId: variantBool(out, (f & WinAccTable) && (f & WinAccGridItem)); break;
+    case UIA_GridRowCountPropertyId: if (f & WinAccGrid) integer(out,n->rows); break;
+    case UIA_GridColumnCountPropertyId: if (f & WinAccGrid) integer(out,n->columns); break;
+    case UIA_GridItemRowPropertyId: if (f & WinAccGridItem) integer(out,n->row); break;
+    case UIA_GridItemColumnPropertyId: if (f & WinAccGridItem) integer(out,n->column); break;
+    case UIA_GridItemRowSpanPropertyId: if (f & WinAccGridItem) integer(out,n->row_span); break;
+    case UIA_GridItemColumnSpanPropertyId: if (f & WinAccGridItem) integer(out,n->column_span); break;
+    case UIA_TableRowOrColumnMajorPropertyId: if (f & WinAccTable) integer(out,RowOrColumnMajor_RowMajor); break;
+    case UIA_GridItemContainingGridPropertyId:
+        if (f & WinAccGridItem) { Element *owner=elementFor(c,n->grid_owner); if (owner) { out->vt=VT_UNKNOWN; out->punkVal=(IUnknown *)&owner->simple; addRef(owner); } } break;
     case UIA_IsScrollItemPatternAvailablePropertyId: variantBool(out, f & WinAccScrollItem); break;
     case UIA_IsItemContainerPatternAvailablePropertyId: variantBool(out, f & WinAccItemContainer); break;
     case UIA_IsVirtualizedItemPatternAvailablePropertyId: variantBool(out, f & WinAccVirtualizedItem); break;
@@ -420,6 +468,15 @@ static HRESULT STDMETHODCALLTYPE property(IRawElementProviderSimple *p, PROPERTY
     if (!out) return E_POINTER;
     VariantInit(out);
     Element *e = OWNER(p, simple); WinAccessibility *c = e->context;
+    if (id == UIA_TableRowHeadersPropertyId || id == UIA_TableColumnHeadersPropertyId ||
+        id == UIA_TableItemRowHeaderItemsPropertyId || id == UIA_TableItemColumnHeaderItemsPropertyId) {
+        int rows = id == UIA_TableRowHeadersPropertyId || id == UIA_TableItemRowHeaderItemsPropertyId;
+        int cell = id == UIA_TableItemRowHeaderItemsPropertyId || id == UIA_TableItemColumnHeaderItemsPropertyId;
+        SAFEARRAY *array = NULL;
+        HRESULT hr = tableHeaders(e, rows, cell, &array);
+        if (SUCCEEDED(hr)) { out->vt = VT_ARRAY | VT_UNKNOWN; out->parray = array; }
+        return hr;
+    }
     AcquireSRWLockShared(&c->lock);
     HRESULT hr = alive(e) ? S_OK : UNAVAILABLE;
     if (SUCCEEDED(hr)) propertyValue(c, find(c, e->id), id, out);
@@ -636,6 +693,7 @@ static IRangeValueProviderVtbl rangeVtbl = {N_QI, N_Add, N_Release, setRange, ra
 #include "accessibility_text_windows.h"
 #include "accessibility_selection_windows.h"
 #include "accessibility_collection_windows.h"
+#include "accessibility_grid_windows.h"
 
 static LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     WinAccessibility *c = (WinAccessibility *)GetPropW(hwnd, WINDOW_PROPERTY);
@@ -691,7 +749,7 @@ static void freeRecords(Record *records, int count) {
     if (InterlockedDecrement(&snapshot->refs)) return;
     free(snapshot->byID);
     for (int i = 0; i < count; ++i) {
-        free(records[i].name); free(records[i].description); free(records[i].value);
+        free(records[i].shortcut); free(records[i].name); free(records[i].description); free(records[i].value);
         free(records[i].text); free(records[i].offsets); free(records[i].positions);
         free(records[i].wordBoundaries);
         if (records[i].element) release(records[i].element);
@@ -761,16 +819,16 @@ int WinAccessibilityUpdateWithStats(WinAccessibility *c, const WinAccessibilityN
     for (int i = 0; i < count; ++i) {
         Record *r = &next[i]; r->data = nodes[i];
         // No borrowed strings or Go memory survives this call.
-        r->data.name = r->data.description = r->data.value = r->data.text = NULL;
+        r->data.shortcut = r->data.name = r->data.description = r->data.value = r->data.text = NULL;
         r->data.positions = NULL;
         r->data.word_boundaries = NULL;
-        r->name = wide(nodes[i].name); r->description = wide(nodes[i].description);
+        r->shortcut = wide(nodes[i].shortcut); r->name = wide(nodes[i].name); r->description = wide(nodes[i].description);
         r->value = wide((nodes[i].flags & WinAccProtected) ? "" : nodes[i].value);
         int textOK = copyText(r, &nodes[i]);
         Record *old = find(c, nodes[i].id);
         if (old) { r->element = old->element; addRef(r->element); }
         else r->element = newElement(c, nodes[i].id);
-        if (!r->name || !r->description || !r->value || !r->element || !textOK) {
+        if (!r->shortcut || !r->name || !r->description || !r->value || !r->element || !textOK) {
             ReleaseSRWLockExclusive(&c->lock); freeRecords(next, count); return 0;
         }
         snapshot->byID[i] = r;
@@ -797,7 +855,7 @@ int WinAccessibilityUpdateWithStats(WinAccessibility *c, const WinAccessibilityN
     if (stats) stats->snapshot_ms = diagnosticNow(stats) - snapshotStart;
     // Queries may re-enter during events and see the complete new tree.
     if (structure) diagnosticStructure(stats, root);
-    PROPERTYID properties[] = {UIA_NamePropertyId, UIA_HelpTextPropertyId, UIA_IsEnabledPropertyId,
+    PROPERTYID properties[] = {UIA_AcceleratorKeyPropertyId, UIA_GridRowCountPropertyId, UIA_GridColumnCountPropertyId, UIA_GridItemRowPropertyId, UIA_GridItemColumnPropertyId, UIA_NamePropertyId, UIA_HelpTextPropertyId, UIA_IsEnabledPropertyId,
         UIA_IsKeyboardFocusablePropertyId, UIA_IsPasswordPropertyId, UIA_IsRequiredForFormPropertyId,
         UIA_IsDataValidForFormPropertyId, UIA_ToggleToggleStatePropertyId, UIA_ValueValuePropertyId,
         UIA_ValueIsReadOnlyPropertyId, UIA_RangeValueValuePropertyId, UIA_RangeValueIsReadOnlyPropertyId,

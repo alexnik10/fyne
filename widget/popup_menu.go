@@ -129,7 +129,9 @@ func (p *PopUpMenu) TypedKey(e *fyne.KeyEvent) {
 	case fyne.KeyEnter, fyne.KeyReturn, fyne.KeySpace:
 		p.TriggerLast()
 	case fyne.KeyEscape:
-		p.Dismiss()
+		if !p.DeactivateLastSubmenu() {
+			p.Dismiss()
+		}
 	case fyne.KeyLeft:
 		p.DeactivateLastSubmenu()
 	case fyne.KeyRight:

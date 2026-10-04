@@ -355,7 +355,7 @@ func TestDocTabs_Tapped(t *testing.T) {
 
 	test.TapCanvas(c, fyne.NewPos(10, 10))
 	require.Equal(t, 0, tabs.SelectedIndex())
-	test.AssertRendersToMarkup(t, "doctabs/desktop/tapped_first_selected.xml", c)
+	test.AssertRendersToMarkup(t, "doctabs/desktop/tapped_first_focused.xml", c)
 
 	test.TapCanvas(c, fyne.NewPos(254, 10))
 	require.Equal(t, 3, tabs.SelectedIndex())

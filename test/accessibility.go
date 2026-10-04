@@ -11,26 +11,30 @@ import (
 //
 // Since: 2.9
 type AccessibilityNode struct {
-	ID, Parent                                      uint32
-	Name, Description                               string
-	Role                                            fyne.AccessibleRole
-	Position                                        fyne.Position
-	Size                                            fyne.Size
-	BoundsPosition                                  fyne.Position
-	BoundsSize                                      fyne.Size
-	Disabled, Focusable, Focused, Required, Invalid bool
-	Invoke, Toggle, Value, Range                    bool
-	Checked, ReadOnly, Protected                    bool
-	Text                                            string
-	Document                                        *fyne.AccessibilityTextInfo
-	Number, Min, Max, Step                          float64
-	Selection, Multiple, SelectionRequired          bool
-	Selectable, Selected, Expandable, Expanded      bool
-	SelectionOwner                                  uint32
-	SetPosition, SetSize                            int
-	Level                                           int
-	ScrollItem                                      bool
-	ItemContainer, VirtualizedItem                  bool
+	ID, Parent                                       uint32
+	Name, Description                                string
+	Shortcut                                         string
+	Role                                             fyne.AccessibleRole
+	Position                                         fyne.Position
+	Size                                             fyne.Size
+	BoundsPosition                                   fyne.Position
+	BoundsSize                                       fyne.Size
+	Disabled, Focusable, Focused, Required, Invalid  bool
+	Invoke, Toggle, Value, Range                     bool
+	Checked, ReadOnly, Protected                     bool
+	Text                                             string
+	Document                                         *fyne.AccessibilityTextInfo
+	Number, Min, Max, Step                           float64
+	Selection, Multiple, SelectionRequired           bool
+	Selectable, Selected, Expandable, Expanded       bool
+	SelectionOwner                                   uint32
+	SetPosition, SetSize                             int
+	Level                                            int
+	ScrollItem                                       bool
+	ItemContainer, VirtualizedItem                   bool
+	Grid, GridItem, Table, RowHeaders, ColumnHeaders bool
+	GridOwner                                        uint32
+	Rows, Columns, Row, Column, RowSpan, ColumnSpan  int
 }
 
 // AccessibilityAction is a command supported by a semantic node.

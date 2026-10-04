@@ -296,9 +296,51 @@ static void testLargeSnapshotIndex(void) {
     free(nodes); WinAccessibilityCleanup(c); DestroyWindow(hwnd);
 }
 
+static void testNavigationProviders(void) {
+    HWND hwnd=newWindow(); assert(hwnd);
+    WinAccessibility *c=WinAccessibilityCreate(hwnd,44); assert(c);
+    WinAccessibilityNode nodes[] = {
+        {.id=1,.role=14,.flags=WinAccSelection|WinAccSelectionRequired,.name="Tabs"},
+        {.id=2,.parent=1,.role=15,.selection_owner=1,.flags=WinAccSelectable|WinAccSelected|WinAccFocusable,.name="Reports"},
+        {.id=3,.role=19,.flags=WinAccGrid|WinAccTable|WinAccItemContainer|WinAccColumnHeaders,.rows=120,.columns=2,.name="Table"},
+        {.id=4,.parent=3,.role=20,.grid_owner=3,.row=119,.column=1,.row_span=1,.column_span=1,.flags=WinAccGridItem|WinAccTable|WinAccVirtualizedItem,.name="Cell"},
+        {.id=5,.parent=3,.role=21,.flags=WinAccVirtualizedItem,.name="State"},
+        {.id=6,.role=18,.flags=WinAccToggle|WinAccInvoke,.name="Checkable",.shortcut="Ctrl+K"}
+    };
+    assert(WinAccessibilityUpdate(c,nodes,6));
+    Element *tabs=retain(c,1), *tab=retain(c,2), *grid=retain(c,3), *cell=retain(c,4), *menu=retain(c,6);
+    VARIANT v;
+    assert(property(&tabs->simple,UIA_ControlTypePropertyId,&v)==S_OK && v.lVal==UIA_TabControlTypeId);
+    assert(property(&tab->simple,UIA_ControlTypePropertyId,&v)==S_OK && v.lVal==UIA_TabItemControlTypeId);
+    assert(property(&menu->simple,UIA_AcceleratorKeyPropertyId,&v)==S_OK && !wcscmp(v.bstrVal,L"Ctrl+K")); VariantClear(&v);
+    IUnknown *patternObject=NULL;
+    assert(pattern(&grid->simple,UIA_GridPatternId,&patternObject)==S_OK && patternObject); IUnknown_Release(patternObject);
+    assert(pattern(&cell->simple,UIA_TableItemPatternId,&patternObject)==S_OK && patternObject); IUnknown_Release(patternObject);
+    int value=0;
+    assert(gridRows(&grid->grid,&value)==S_OK && value==120);
+    assert(cellColumn(&cell->gridItem,&value)==S_OK && value==1);
+    assert(cellRowSpan(&cell->gridItem,&value)==S_OK && value==1);
+    IRawElementProviderSimple *result=NULL;
+    assert(cellGrid(&cell->gridItem,&result)==S_OK && result==&grid->simple); IRawElementProviderSimple_Release(result);
+    findResult=4;
+    assert(gridGetItem(&grid->grid,119,1,&result)==S_OK && result==&cell->simple);
+    assert(findProperty==4 && !strcmp(actionValue,"119,1")); IRawElementProviderSimple_Release(result);
+    assert(gridGetItem(&grid->grid,120,0,&result)==E_INVALIDARG && !result);
+    findResult=5;
+    SAFEARRAY *headers=NULL;
+    assert(cellColumnHeaders(&cell->tableItem,&headers)==S_OK);
+    LONG upper; SafeArrayGetUBound(headers,1,&upper); assert(upper==0); SafeArrayDestroy(headers);
+    assert(tableColumnHeaders(&grid->table,&headers)==S_OK); SafeArrayGetUBound(headers,1,&upper); assert(upper==1); SafeArrayDestroy(headers);
+    assert(WinAccessibilityUpdate(c,NULL,0));
+    assert(cellRow(&cell->gridItem,&value)==UNAVAILABLE);
+    release(tabs); release(tab); release(grid); release(cell); release(menu);
+    WinAccessibilityCleanup(c); DestroyWindow(hwnd);
+}
+
 int main(void) {
     CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
     testCollectionProviders();
+    testNavigationProviders();
     testLargeSnapshotIndex();
     testWindowMetadata();
     testTextProvider();

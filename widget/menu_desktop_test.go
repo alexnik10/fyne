@@ -390,7 +390,10 @@ func TestMenu_TriggerTraversedMenu(t *testing.T) {
 		m.ActivateNext()
 		m.ActivateNext()
 		m.TriggerLast()
-		assert.Equal(t, "2nd", triggered)
+		assert.Empty(t, triggered)
+		assert.False(t, dismissed)
+		m.TriggerLast()
+		assert.Equal(t, "1st sub", triggered)
 		assert.True(t, dismissed)
 	})
 	t.Run("item without action", func(t *testing.T) {

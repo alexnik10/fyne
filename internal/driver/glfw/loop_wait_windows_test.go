@@ -307,3 +307,61 @@ func TestMainLoopNativeList(t *testing.T) {
 	require.Equal(t, "item-119", active)
 	require.Same(t, list, focused)
 }
+
+func TestMainLoopNativeNavigation(t *testing.T) {
+	previousApp := fyne.CurrentApp()
+	runOnMain(func() { fyne.SetCurrentApp(&nativeDriverApp{App: previousApp}) })
+	defer runOnMain(func() { fyne.SetCurrentApp(previousApp) })
+	w := createWindow("UIA navigation regression")
+	defer w.Close()
+	var hwnd uintptr
+	invoked := make(chan struct{}, 1)
+	runOnMain(func() {
+		rows := make([]string, 120)
+		for i := range rows {
+			rows[i] = fmt.Sprintf("record-%03d", i)
+		}
+		columns := []string{"Name", "State"}
+		table := widget.NewTableWithHeaders(func() (int, int) { return len(rows), 2 }, func() fyne.CanvasObject { return widget.NewLabel("Template") }, func(widget.TableCellID, fyne.CanvasObject) {})
+		table.ShowHeaderColumn = false
+		table.RowKey = func(row int) string { return rows[row] }
+		table.ColumnKey = func(col int) string { return columns[col] }
+		table.DescribeCell = func(id widget.TableCellID) fyne.AccessibilityInfo {
+			if id.Row < 0 {
+				return fyne.AccessibilityInfo{Name: columns[id.Col]}
+			}
+			return fyne.AccessibilityInfo{Name: rows[id.Row] + " " + columns[id.Col]}
+		}
+		table.SetAccessibilityInfo(fyne.AccessibilityInfo{Name: "Native table"})
+		tabs := container.NewAppTabs(container.NewTabItem("Home", widget.NewLabel("Home page")), container.NewTabItem("Reports", table))
+		tabs.SetAccessibilityInfo(fyne.AccessibilityInfo{Name: "Sections"})
+		reverse := widget.NewButton("Reverse table", func() {
+			for i, j := 0, len(rows)-1; i < j; i, j = i+1, j-1 {
+				rows[i], rows[j] = rows[j], rows[i]
+			}
+			table.Refresh()
+		})
+		replace := widget.NewButton("Replace table target", func() { rows = rows[1:]; table.Refresh(); rows = append(rows, "record-119"); table.Refresh() })
+		more := fyne.NewMenuItem("More", nil)
+		more.ChildMenu = fyne.NewMenu("More commands", fyne.NewMenuItem("Nested command", func() { invoked <- struct{}{} }))
+		open := widget.NewButton("Open menu", func() {
+			widget.NewPopUpMenu(fyne.NewMenu("Actions", more), w.canvas).ShowAtPosition(fyne.NewPos(30, 30))
+		})
+		w.window.SetContent(container.NewBorder(nil, container.NewHBox(reverse, replace, open), nil, nil, tabs))
+		w.window.Resize(fyne.NewSize(500, 300))
+		w.window.Show()
+		w.window.RequestFocus()
+		w.window.updateAccessibility()
+		hwnd = uintptr(unsafe.Pointer(w.view().GetWin32Window()))
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 35*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "powershell.exe", "-NoProfile", "-NonInteractive", "-File", "testdata/accessibility/navigation_windows.ps1", "-WindowHandle", strconv.FormatUint(uint64(hwnd), 10))
+	output, err := cmd.CombinedOutput()
+	require.NoError(t, err, "%s", output)
+	select {
+	case <-invoked:
+	default:
+		t.Fatal("native submenu command did not reach Fyne")
+	}
+}

@@ -15,7 +15,9 @@ enum {
     WinAccSelectionRequired = 32768, WinAccSelectable = 65536,
     WinAccSelected = 131072, WinAccExpandable = 262144, WinAccExpanded = 524288,
     WinAccLeaf = 1048576, WinAccScrollItem = 2097152,
-    WinAccItemContainer = 4194304, WinAccVirtualizedItem = 8388608
+    WinAccItemContainer = 4194304, WinAccVirtualizedItem = 8388608,
+    WinAccGrid = 16777216, WinAccGridItem = 33554432, WinAccTable = 67108864,
+    WinAccRowHeaders = 134217728, WinAccColumnHeaders = 268435456
 };
 typedef struct {
     double x, y, height;
@@ -24,8 +26,10 @@ typedef struct {
 typedef struct {
     uint32_t id, parent, selection_owner;
     int set_position, set_size, level;
+    uint32_t grid_owner;
+    int rows, columns, row, column, row_span, column_span;
     int role, flags;
-    const char *name, *description, *value;
+    const char *name, *description, *value, *shortcut;
     double x, y, width, height;
     double number, minimum, maximum, step;
     const char *text;

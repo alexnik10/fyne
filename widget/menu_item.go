@@ -26,6 +26,7 @@ type menuItem struct {
 
 	alignment     fyne.TextAlign
 	child, parent *Menu
+	semanticChild *menuAccessibilitySubmenu
 }
 
 // newMenuItem creates a new menuItem.
@@ -42,6 +43,7 @@ func (i *menuItem) Child() *Menu {
 		child.Hide()
 		child.OnDismiss = i.parent.Dismiss
 		child.isSubmenu = true
+		child.parentItem = i
 		i.child = child
 	}
 	return i.child
@@ -141,7 +143,7 @@ func (i *menuItem) activate() {
 }
 
 func (i *menuItem) activateLastSubmenu() bool {
-	if i.Child() == nil {
+	if i.Item.Disabled || i.Child() == nil {
 		return false
 	}
 	if i.isSubmenuOpen() {
@@ -179,6 +181,9 @@ func (i *menuItem) isSubmenuOpen() bool {
 }
 
 func (i *menuItem) trigger() {
+	if i.Item.Disabled {
+		return
+	}
 	i.parent.Dismiss()
 	if i.Item.Action != nil {
 		i.Item.Action()
@@ -186,6 +191,13 @@ func (i *menuItem) trigger() {
 }
 
 func (i *menuItem) triggerLast() {
+	if i.Item.Disabled {
+		return
+	}
+	if i.Item.ChildMenu != nil && !i.isSubmenuOpen() {
+		i.activateLastSubmenu()
+		return
+	}
 	if i.isSubmenuOpen() {
 		i.Child().TriggerLast()
 		return

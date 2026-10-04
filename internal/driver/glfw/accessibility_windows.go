@@ -78,6 +78,12 @@ func (w *window) updateAccessibility() {
 		x.selection_owner = C.uint32_t(n.SelectionOwner)
 		x.set_position, x.set_size = C.int(n.SetPosition), C.int(n.SetSize)
 		x.level = C.int(n.Level)
+		x.grid_owner = C.uint32_t(n.GridOwner)
+		x.rows, x.columns = C.int(n.Rows), C.int(n.Columns)
+		x.row, x.column = C.int(n.Row), C.int(n.Column)
+		x.row_span, x.column_span = C.int(n.RowSpan), C.int(n.ColumnSpan)
+		x.shortcut = C.CString(n.Shortcut)
+		defer C.free(unsafe.Pointer(x.shortcut))
 		x.name, x.description, x.value = C.CString(n.Name), C.CString(n.Description), C.CString(n.Text)
 		defer C.free(unsafe.Pointer(x.name))
 		defer C.free(unsafe.Pointer(x.description))
@@ -123,7 +129,7 @@ func (w *window) updateAccessibility() {
 				x.positions, x.position_count = positions, C.int(len(doc.Positions))
 			}
 		}
-		flags := []bool{n.Disabled, n.Focusable, n.Focused, n.Required, n.Invalid, n.Invoke, n.Toggle, n.Value, n.Range, n.Checked, n.ReadOnly, n.Protected, n.Document != nil, n.Selection, n.Multiple, n.SelectionRequired, n.Selectable, n.Selected, n.Expandable, n.Expanded, n.Role == fyne.AccessibleRoleTreeItem && !n.Expandable, n.ScrollItem, n.ItemContainer, n.VirtualizedItem}
+		flags := []bool{n.Disabled, n.Focusable, n.Focused, n.Required, n.Invalid, n.Invoke, n.Toggle, n.Value, n.Range, n.Checked, n.ReadOnly, n.Protected, n.Document != nil, n.Selection, n.Multiple, n.SelectionRequired, n.Selectable, n.Selected, n.Expandable, n.Expanded, n.Role == fyne.AccessibleRoleTreeItem && !n.Expandable, n.ScrollItem, n.ItemContainer, n.VirtualizedItem, n.Grid, n.GridItem, n.Table, n.RowHeaders, n.ColumnHeaders}
 		for bit, set := range flags {
 			if set {
 				x.flags |= 1 << bit
@@ -179,6 +185,22 @@ func roleToCWin(role fyne.AccessibleRole) C.int {
 		return 12
 	case fyne.AccessibleRoleList:
 		return 13
+	case fyne.AccessibleRoleTab:
+		return 14
+	case fyne.AccessibleRoleTabItem:
+		return 15
+	case fyne.AccessibleRoleMenu:
+		return 16
+	case fyne.AccessibleRoleMenuBar:
+		return 17
+	case fyne.AccessibleRoleMenuItem:
+		return 18
+	case fyne.AccessibleRoleTable:
+		return 19
+	case fyne.AccessibleRoleCell:
+		return 20
+	case fyne.AccessibleRoleHeader:
+		return 21
 	default:
 		return 0
 	}

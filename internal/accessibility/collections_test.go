@@ -170,3 +170,45 @@ func TestDemandRequestValidatesAncestors(t *testing.T) {
 		assert.False(t, tree.RequestElement(owner, key), key)
 	}
 }
+
+func TestGridLookupScopeAndEviction(t *testing.T) {
+	test.NewTempApp(t)
+	table := widget.NewTableWithHeaders(func() (int, int) { return 200, 3 }, func() fyne.CanvasObject { return widget.NewLabel("Template") }, func(widget.TableCellID, fyne.CanvasObject) {})
+	w := test.NewWindow(table)
+	defer w.Close()
+	w.Resize(fyne.NewSize(300, 150))
+	var tree accessibility.Tree
+	roots := []accessibility.Root{{Object: table}}
+	tree.Build(roots, nil)
+	root, ok := tree.NodeForObject(table)
+	require.True(t, ok)
+	owner, key, valid := tree.FindItem(root.ID, 0, accessibility.FindGridCell, "199,2")
+	require.True(t, valid)
+	require.Same(t, table, owner)
+	require.Equal(t, table.AccessibilityCellKey(199, 2), key)
+	require.True(t, tree.RequestElement(owner, key))
+	tree.Build(roots, nil)
+	last, ok := tree.NodeForElement(table, key)
+	require.True(t, ok)
+	for row := 0; row < 100; row++ {
+		require.True(t, tree.RequestElement(table, table.AccessibilityCellKey(row, 0)))
+	}
+	tree.Build(roots, nil)
+	_, ok = tree.NodeForElement(table, key)
+	assert.False(t, ok)
+	require.True(t, tree.Realize(last.ID))
+	tree.Build(roots, nil)
+	again, _ := tree.NodeForElement(table, key)
+	assert.Equal(t, last.ID, again.ID)
+	_, header, valid := tree.FindItem(root.ID, 0, accessibility.FindGridCell, "-1,2")
+	assert.True(t, valid)
+	assert.Equal(t, table.AccessibilityCellKey(-1, 2), header)
+	for _, coordinate := range []string{"200,2", "0,3", "-2,0", "-1,-1", "x,0"} {
+		_, _, valid = tree.FindItem(root.ID, 0, accessibility.FindGridCell, coordinate)
+		assert.False(t, valid)
+	}
+	tree.Build([]accessibility.Root{{Object: table, Suppressed: true}}, nil)
+	_, _, valid = tree.FindItem(root.ID, 0, accessibility.FindGridCell, "0,0")
+	assert.False(t, valid)
+	assert.False(t, tree.Realize(last.ID))
+}

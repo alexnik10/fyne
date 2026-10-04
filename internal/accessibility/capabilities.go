@@ -49,7 +49,28 @@ func populateCapabilities(n *Node, obj fyne.CanvasObject) {
 		n.Level, n.SetPosition, n.SetSize = h.AccessibilityHierarchy()
 	}
 	_, n.ScrollItem = obj.(fyne.AccessibleScrollItem)
+	if menu, ok := obj.(fyne.AccessibleMenuItem); ok {
+		submenu, checkable := menu.AccessibilityMenuItem()
+		n.Invoke = n.Invoke && !submenu
+		n.Toggle = n.Toggle && checkable && !submenu
+		n.Expandable = n.Expandable && submenu
+	}
+	if shortcut, ok := obj.(fyne.AccessibleShortcut); ok {
+		n.Shortcut = shortcut.AccessibilityShortcut()
+	}
 	n.ReadOnly = n.ReadOnly || n.Disabled
+	if g, ok := obj.(fyne.AccessibleGrid); ok {
+		n.Grid = true
+		n.Rows, n.Columns = g.AccessibilityGrid()
+	}
+	if table, ok := obj.(fyne.AccessibleTable); ok {
+		n.Table = true
+		n.RowHeaders, n.ColumnHeaders = table.AccessibilityTable()
+	}
+	if cell, ok := obj.(fyne.AccessibleGridItem); ok {
+		n.GridItem = true
+		_, n.Row, n.Column, n.RowSpan, n.ColumnSpan = cell.AccessibilityGridItem()
+	}
 }
 
 func copyDocument(document fyne.AccessibilityTextInfo, protected bool) *fyne.AccessibilityTextInfo {
@@ -124,6 +145,41 @@ func (t *Tree) resolveRelations(out []Node, focused fyne.Focusable) {
 			}
 		}
 		n.Focused = n.ID == focusedID
+		if cell, ok := t.objects[n.ID].(fyne.AccessibleGridItem); ok {
+			owner, _, _, _, _ := cell.AccessibilityGridItem()
+			n.GridOwner = t.ids[owner]
+			grid, live := t.nodes[n.GridOwner]
+			n.GridItem = live && grid.Grid && n.Row >= 0 && n.Column >= 0 && n.Row < grid.Rows && n.Column < grid.Columns && n.RowSpan > 0 && n.ColumnSpan > 0
+			n.Table = n.GridItem && grid.Table
+		}
 		t.nodes[n.ID] = *n
+	}
+}
+
+func isSemanticPopup(obj fyne.CanvasObject) bool {
+	popup, ok := obj.(fyne.AccessiblePopup)
+	return ok && popup.AccessibilityPopup()
+}
+
+func performActivation(n Node, obj fyne.CanvasObject, action Action) bool {
+	if action == Activate && n.Invoke {
+		if a, ok := obj.(fyne.AccessibleActionable); ok {
+			a.AccessibilityActivate()
+			return true
+		}
+	}
+	if action == Toggle && n.Toggle {
+		if a, ok := obj.(fyne.AccessibleToggler); ok {
+			a.AccessibilityToggle()
+			return true
+		}
+	}
+	return false
+}
+
+func (t *Tree) checkFocus(focused fyne.Focusable) {
+	if focused != nil && t.FocusedID(focused) == 0 {
+		obj, _ := focused.(fyne.CanvasObject)
+		t.Issues = append(t.Issues, Issue{obj, "unrepresented-focus", "Keyboard focus has no exposed semantic node or active descendant."})
 	}
 }

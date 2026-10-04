@@ -10,6 +10,7 @@
 						<text alignment="center" bold pos="8,8" size="36x20">Test2</text>
 					</widget>
 					<widget pos="112,0" size="52x36" type="*container.tabButton">
+						<rectangle fillColor="focus" radius="4" size="52x36"/>
 						<text alignment="center" bold color="primary" pos="8,8" size="36x20">Test3</text>
 					</widget>
 				</container>

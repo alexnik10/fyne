@@ -63,7 +63,8 @@ func main() {
 	trees := widget.NewButton("Open tree demo", func() { showTreeDemo(application) })
 	lists := widget.NewButton("Open list demo", func() { showListDemo(application) })
 	large := widget.NewButton("Open large collections demo", func() { showLargeCollectionsDemo(application) })
-	content := []fyne.CanvasObject{form, status, choices, textEditing, trees, lists, large, second}
+	navigation := widget.NewButton("Open tabs, menus and table demo", func() { showNavigationDemo(application) })
+	content := []fyne.CanvasObject{form, status, choices, textEditing, trees, lists, large, navigation, second}
 	content = append(content, diagnosticControls(window)...)
 	window.SetContent(container.NewVBox(content...))
 	window.Resize(fyne.NewSize(windowWidth, windowHeight))

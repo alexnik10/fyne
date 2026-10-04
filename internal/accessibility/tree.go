@@ -41,26 +41,30 @@ type Root struct {
 
 // Node is a value-only snapshot. ID zero denotes the platform window root.
 type Node struct {
-	ID, Parent                                      uint32
-	Name, Description                               string
-	Role                                            fyne.AccessibleRole
-	Position                                        fyne.Position
-	Size                                            fyne.Size
-	BoundsPosition                                  fyne.Position
-	BoundsSize                                      fyne.Size
-	Disabled, Focusable, Focused, Required, Invalid bool
-	Invoke, Toggle, Value, Range                    bool
-	Checked, ReadOnly, Protected                    bool
-	Text                                            string
-	Document                                        *fyne.AccessibilityTextInfo
-	Number, Min, Max, Step                          float64
-	Selection, Multiple, SelectionRequired          bool
-	Selectable, Selected, Expandable, Expanded      bool
-	SelectionOwner                                  uint32
-	SetPosition, SetSize                            int
-	Level                                           int
-	ScrollItem                                      bool
-	ItemContainer, VirtualizedItem                  bool
+	ID, Parent                                       uint32
+	Name, Description                                string
+	Shortcut                                         string
+	Role                                             fyne.AccessibleRole
+	Position                                         fyne.Position
+	Size                                             fyne.Size
+	BoundsPosition                                   fyne.Position
+	BoundsSize                                       fyne.Size
+	Disabled, Focusable, Focused, Required, Invalid  bool
+	Invoke, Toggle, Value, Range                     bool
+	Checked, ReadOnly, Protected                     bool
+	Text                                             string
+	Document                                         *fyne.AccessibilityTextInfo
+	Number, Min, Max, Step                           float64
+	Selection, Multiple, SelectionRequired           bool
+	Selectable, Selected, Expandable, Expanded       bool
+	SelectionOwner                                   uint32
+	SetPosition, SetSize                             int
+	Level                                            int
+	ScrollItem                                       bool
+	ItemContainer, VirtualizedItem                   bool
+	Grid, GridItem, Table, RowHeaders, ColumnHeaders bool
+	GridOwner                                        uint32
+	Rows, Columns, Row, Column, RowSpan, ColumnSpan  int
 }
 
 type Tree struct {
@@ -109,6 +113,9 @@ func (t *Tree) Build(roots []Root, focused fyne.Focusable) []Node {
 		mode := compositionMode(obj)
 		hidden = hidden || !obj.Visible() || mode == fyne.AccessibilityExclude
 		pos = pos.Add(obj.Position())
+		if isSemanticPopup(obj) {
+			clip = nil
+		}
 		if hidden {
 			// Preserve IDs while an attached subtree is hidden/suppressed. Do not
 			// construct hidden renderers or ask hidden controls for live semantics.
@@ -167,10 +174,7 @@ func (t *Tree) Build(roots []Root, focused fyne.Focusable) []Node {
 		}
 	}
 	t.resolveRelations(out, focused)
-	if focused != nil && t.FocusedID(focused) == 0 {
-		obj, _ := focused.(fyne.CanvasObject)
-		t.Issues = append(t.Issues, Issue{obj, "unrepresented-focus", "Keyboard focus has no exposed semantic node or active descendant."})
-	}
+	t.checkFocus(focused)
 	return out
 }
 
@@ -275,21 +279,13 @@ func (t *Tree) Perform(id uint32, action Action, text string, number float64, ca
 	case Select, AddToSelection, RemoveFromSelection:
 		return t.performSelection(n, obj, action)
 	case Expand, Collapse:
-		return performExpansion(obj, action == Expand)
+		return n.Expandable && performExpansion(obj, action == Expand)
 	case ScrollIntoView:
 		if s, ok := obj.(fyne.AccessibleScrollItem); ok {
 			return s.AccessibilityScrollIntoView()
 		}
-	case Activate:
-		if a, ok := obj.(fyne.AccessibleActionable); ok {
-			a.AccessibilityActivate()
-			return true
-		}
-	case Toggle:
-		if a, ok := obj.(fyne.AccessibleToggler); ok {
-			a.AccessibilityToggle()
-			return true
-		}
+	case Activate, Toggle:
+		return performActivation(n, obj, action)
 	case SetValue:
 		if a, ok := obj.(fyne.AccessibleValue); ok && !n.ReadOnly {
 			a.AccessibilitySetValue(text)

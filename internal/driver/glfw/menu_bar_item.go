@@ -21,9 +21,10 @@ type menuBarItem struct {
 	Menu   *fyne.Menu
 	Parent *MenuBar
 
-	active  bool
-	child   *publicWidget.Menu
-	hovered bool
+	active        bool
+	child         *publicWidget.Menu
+	hovered       bool
+	semanticChild *menuBarSubmenu
 }
 
 func (i *menuBarItem) Child() *publicWidget.Menu {
@@ -110,6 +111,10 @@ func (i *menuBarItem) Tapped(*fyne.PointEvent) {
 
 func (i *menuBarItem) TypedKey(event *fyne.KeyEvent) {
 	switch event.Name {
+	case fyne.KeyEscape:
+		if !i.Child().DeactivateLastSubmenu() {
+			i.Parent.deactivate()
+		}
 	case fyne.KeyLeft:
 		if !i.Child().DeactivateLastSubmenu() {
 			i.Parent.canvas.FocusPrevious()

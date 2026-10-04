@@ -21,6 +21,14 @@ const (
 	AccessibleRoleListItem  AccessibleRole = "listitem"
 	AccessibleRoleTree      AccessibleRole = "tree"
 	AccessibleRoleTreeItem  AccessibleRole = "treeitem"
+	AccessibleRoleTab       AccessibleRole = "tab"
+	AccessibleRoleTabItem   AccessibleRole = "tabitem"
+	AccessibleRoleMenu      AccessibleRole = "menu"
+	AccessibleRoleMenuBar   AccessibleRole = "menubar"
+	AccessibleRoleMenuItem  AccessibleRole = "menuitem"
+	AccessibleRoleTable     AccessibleRole = "table"
+	AccessibleRoleCell      AccessibleRole = "cell"
+	AccessibleRoleHeader    AccessibleRole = "header"
 )
 
 // Accessible interface should be implemented for a widget that should be accessible
@@ -221,6 +229,45 @@ type AccessibleChildDescriber interface {
 // Since: 2.9
 type AccessibleActionable interface {
 	AccessibilityActivate()
+}
+
+// AccessibleMenuItem identifies the commands supported by a menu item. Submenu
+// items expose expansion; commands expose activation and optionally toggling.
+// Since: 2.9
+type AccessibleMenuItem interface {
+	AccessibilityMenuItem() (submenu, checkable bool)
+}
+
+// AccessibleShortcut provides the displayed keyboard shortcut without adding it
+// to the spoken name or help text.
+// Since: 2.9
+type AccessibleShortcut interface{ AccessibilityShortcut() string }
+
+// AccessiblePopup marks a logical child drawn outside its parent's viewport,
+// such as a submenu. It resets geometric clipping, but never the input scope.
+// Since: 2.9
+type AccessiblePopup interface{ AccessibilityPopup() bool }
+
+// AccessibleGrid exposes dimensions and keys in an AccessibleCollection.
+// Coordinates are zero-based; CellKey returns empty for invalid coordinates.
+// A row of -1 requests a column header; a column of -1 requests a row header.
+// Since: 2.9
+type AccessibleGrid interface {
+	AccessibilityGrid() (rows, columns int)
+	AccessibilityCellKey(row, column int) string
+}
+
+// AccessibleTable adds row and column header relationships to a grid.
+// Since: 2.9
+type AccessibleTable interface {
+	AccessibilityTable() (rowHeaders, columnHeaders bool)
+}
+
+// AccessibleGridItem supplies an owning grid and zero-based cell coordinates.
+// Spans are positive. Headers do not implement this interface.
+// Since: 2.9
+type AccessibleGridItem interface {
+	AccessibilityGridItem() (owner CanvasObject, row, column, rowSpan, columnSpan int)
 }
 
 // AccessibleToggler exposes a two-state toggle and its command.

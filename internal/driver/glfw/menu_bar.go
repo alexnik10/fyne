@@ -16,9 +16,10 @@ type MenuBar struct {
 	widget.Base
 	Items []fyne.CanvasObject
 
-	active     bool
-	activeItem *menuBarItem
-	canvas     fyne.Canvas
+	active        bool
+	activeItem    *menuBarItem
+	canvas        fyne.Canvas
+	previousFocus fyne.Focusable
 }
 
 // NewMenuBar creates a menu bar populated with items from the passed main menu structure.
@@ -67,6 +68,9 @@ func (b *MenuBar) Toggle() {
 }
 
 func (b *MenuBar) activateChild(item *menuBarItem) {
+	if !b.active {
+		b.previousFocus = b.canvas.Focused()
+	}
 	b.active = true
 	if item.Child() != nil {
 		item.Child().DeactivateChild()
@@ -106,6 +110,11 @@ func (b *MenuBar) deactivate() {
 		b.activeItem = nil
 	}
 	b.Refresh()
+	if b.previousFocus != nil {
+		previous := b.previousFocus
+		b.previousFocus = nil
+		b.canvas.Focus(previous)
+	}
 }
 
 func (b *MenuBar) toggleItem(item *menuBarItem) {

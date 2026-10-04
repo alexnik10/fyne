@@ -3,23 +3,23 @@
 		<widget size="300x100" type="*container.DocTabs">
 			<container size="300x36">
 				<widget size="220x36" type="*widget.Scroll">
-					<container pos="-17,0" size="237x36">
+					<container size="237x36">
 						<widget size="76x36" type="*container.tabButton">
-							<text bold pos="8,8" size="60x20">Test1</text>
+							<rectangle fillColor="focus" radius="4" size="76x36"/>
+							<text bold color="primary" pos="8,8" size="60x20">Test1</text>
 						</widget>
 						<widget pos="80,0" size="76x36" type="*container.tabButton">
 							<text bold pos="8,8" size="60x20">Test2</text>
 						</widget>
 						<widget pos="160,0" size="76x36" type="*container.tabButton">
-							<rectangle fillColor="focus" radius="4" size="76x36"/>
-							<text bold color="primary" pos="8,8" size="60x20">Test3</text>
+							<text bold pos="8,8" size="60x20">Test3</text>
 						</widget>
 					</container>
-					<widget size="0x36" type="*widget.Shadow">
-						<linearGradient angle="270" size="8x36" startColor="shadow"/>
+					<widget pos="220,0" size="0x36" type="*widget.Shadow">
+						<linearGradient angle="270" endColor="shadow" pos="-8,0" size="8x36"/>
 					</widget>
 					<widget pos="0,30" size="220x6" type="*widget.scrollBarArea">
-						<widget pos="16,3" size="203x3" type="*widget.scrollBar">
+						<widget pos="0,3" size="203x3" type="*widget.scrollBar">
 							<rectangle fillColor="scrollbar" radius="3" size="203x3"/>
 						</widget>
 					</widget>
@@ -38,10 +38,10 @@
 				</container>
 			</container>
 			<rectangle fillColor="shadow" pos="0,36" size="300x1"/>
-			<rectangle fillColor="primary" pos="143,36" radius="4" size="76x1"/>
+			<rectangle fillColor="primary" pos="0,36" radius="4" size="76x1"/>
 			<widget pos="0,40" size="300x60" type="*widget.Label">
 				<widget size="300x60" type="*widget.RichText">
-					<text pos="8,8" size="38x19">Text 3</text>
+					<text pos="8,8" size="38x19">Text 1</text>
 				</widget>
 			</widget>
 		</widget>

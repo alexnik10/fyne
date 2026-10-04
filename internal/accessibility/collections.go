@@ -202,6 +202,7 @@ const (
 	FindName
 	FindSelected
 	FindAutomationID
+	FindGridCell
 )
 
 // FindItem finds a direct child of a collection or logical branch. It returns a
@@ -215,6 +216,20 @@ func (t *Tree) FindItem(container, startAfter uint32, property FindProperty, val
 	c := t.collections[owner]
 	if c == nil || !c.active || !t.nodes[container].ItemContainer {
 		return nil, "", false
+	}
+	if property == FindGridCell {
+		grid, ok := owner.(fyne.AccessibleGrid)
+		parts := strings.Split(value, ",")
+		if !ok || parent != "" || len(parts) != 2 {
+			return nil, "", false
+		}
+		row, errRow := strconv.Atoi(parts[0])
+		column, errColumn := strconv.Atoi(parts[1])
+		if errRow != nil || errColumn != nil {
+			return nil, "", false
+		}
+		key := grid.AccessibilityCellKey(row, column)
+		return owner, key, key != ""
 	}
 	if node := t.nodes[container]; node.Expandable && !node.Expanded {
 		return owner, "", true

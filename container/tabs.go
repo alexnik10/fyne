@@ -6,6 +6,7 @@ import (
 	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/internal"
 	"fyne.io/fyne/v2/internal/build"
+	"fyne.io/fyne/v2/internal/driver"
 	intTheme "fyne.io/fyne/v2/internal/theme"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
@@ -166,9 +167,31 @@ func removeIndex(t baseTabs, index int) {
 	if index < 0 || index >= len(items) {
 		return
 	}
-	setItems(t, append(items[:index], items[index+1:]...))
-	if s := t.getCurrent(); index < s {
-		t.setCurrent(s - 1)
+	restoreTabFocus(t, items[index])
+	current := selected(t)
+	next := append(append([]*TabItem(nil), items[:index]...), items[index+1:]...)
+	setItems(t, next)
+	if current != items[index] {
+		selectItem(t, current)
+	}
+}
+
+// Move focus out of a page before hiding/removing its focused control.
+func restoreTabFocus(t baseTabs, item *TabItem) {
+	if item == nil || item.Content == nil {
+		return
+	}
+	c := fyne.CurrentApp().Driver().CanvasForObject(t)
+	if c == nil || c.Focused() == nil {
+		return
+	}
+	if driver.WalkVisibleObjectTree(item.Content, func(o fyne.CanvasObject, _, _ fyne.Position, _ fyne.Size) bool {
+		f, ok := o.(fyne.Focusable)
+		return ok && f == c.Focused()
+	}, nil) {
+		if f, ok := t.(fyne.Focusable); ok {
+			c.Focus(f)
+		}
 	}
 }
 
@@ -192,29 +215,30 @@ func selected(t baseTabs) *TabItem {
 
 func selectIndex(t baseTabs, index int) {
 	selected := t.getCurrent()
+	items := t.items()
+	if index < -1 || index >= len(items) || (index >= 0 && items[index].Disabled()) {
+		return
+	}
 
 	if selected == index {
 		// No change, so do nothing
 		return
 	}
 
-	items := t.items()
+	if selected >= 0 && selected < len(items) {
+		restoreTabFocus(t, items[selected])
+	}
 
 	if f := t.onUnselected(); f != nil && selected >= 0 && selected < len(items) {
 		// Notification of unselected
 		f(items[selected])
 	}
 
-	if index < 0 || index >= len(items) {
-		// Out of bounds, so do nothing
-		return
-	}
-
 	t.setTransitioning(true)
 	t.setCurrent(index)
 	t.Refresh()
 
-	if f := t.onSelected(); f != nil {
+	if f := t.onSelected(); f != nil && index >= 0 {
 		// Notification of selected
 		f(items[index])
 	}
@@ -230,23 +254,39 @@ func selectItem(t baseTabs, item *TabItem) {
 }
 
 func setItems(t baseTabs, items []*TabItem) {
+	previous := selected(t)
 	if build.HasHints && mismatchedTabItems(items) {
 		internal.LogHint("Tab items should all have the same type of content (text, icons or both)")
 	}
 	t.applyItems(items)
-	selected := t.getCurrent()
+	for index, item := range items {
+		if item == previous {
+			t.setCurrent(index)
+			return
+		}
+	}
+	current := t.getCurrent()
 	count := len(items)
 	switch {
 	case count == 0:
 		// No items available to be selected
 		selectIndex(t, -1) // Unsure OnUnselected gets called if applicable
 		t.setCurrent(-1)
-	case selected < 0:
+	case current < 0:
 		// Current is first tab item
 		selectIndex(t, 0)
-	case selected >= count:
+	case current >= count:
 		// Current doesn't exist, select last tab
 		selectIndex(t, count-1)
+	}
+	if item := selected(t); item == nil || item.Disabled() {
+		for index, candidate := range items {
+			if !candidate.Disabled() {
+				selectIndex(t, index)
+				return
+			}
+		}
+		t.setCurrent(-1)
 	}
 }
 
@@ -291,6 +331,9 @@ func enableIndex(t baseTabs, index int) {
 
 	item := items[index]
 	item.enable()
+	if selected(t) == nil {
+		selectIndex(t, index)
+	}
 }
 
 func enableItem(t baseTabs, item *TabItem) {
@@ -601,6 +644,11 @@ func (b *tabButton) Tapped(*fyne.PointEvent) {
 	}
 
 	b.onTapped()
+	if c := fyne.CurrentApp().Driver().CanvasForObject(b.tabs); c != nil {
+		if f, ok := b.tabs.(fyne.Focusable); ok {
+			c.Focus(f)
+		}
+	}
 }
 
 type tabButtonRenderer struct {
@@ -700,8 +748,19 @@ func (r *tabButtonRenderer) Refresh() {
 	th := r.button.Theme()
 	v := fyne.CurrentApp().Settings().ThemeVariant()
 
-	if r.button.hovered && !r.button.Disabled() {
+	focused := false
+	switch tabs := r.button.tabs.(type) {
+	case *AppTabs:
+		focused = tabs.focused
+	case *DocTabs:
+		focused = tabs.focused
+	}
+	focused = focused && r.button.importance == widget.HighImportance
+	if (r.button.hovered || focused) && !r.button.Disabled() {
 		r.background.FillColor = th.Color(theme.ColorNameHover, v)
+		if focused {
+			r.background.FillColor = th.Color(theme.ColorNameFocus, v)
+		}
 		r.background.CornerRadius = th.Size(theme.SizeNameSelectionRadius)
 		r.background.Show()
 	} else {
