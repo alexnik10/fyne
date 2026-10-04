@@ -15,7 +15,10 @@ var _ fyne.CanvasObject = (*Text)(nil)
 // No formatting or text parsing will be performed
 type Text struct {
 	baseObject
-	Alignment fyne.TextAlign // The alignment of the text content
+	// Decorative suppresses text already represented by an owning semantic control.
+	// Since: 2.9
+	Decorative bool
+	Alignment  fyne.TextAlign // The alignment of the text content
 
 	Color     color.Color    // The main text draw color
 	Text      string         // The string content of this Text

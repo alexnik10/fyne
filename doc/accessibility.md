@@ -19,21 +19,13 @@ go run -tags accessibility ./cmd/accessibility_demo
 
 The feature remains opt-in. See [the implementation plan](accessibility-plan.md)
 for release gates. This branch is an implementation of the shared foundation and
-basic Windows controls, not a claim of complete screen-reader support.
+built-in Windows controls, pending manual acceptance of the remaining-widget increment.
 
 ## Current coverage
 
-| Area | Implemented | Remaining acceptance work |
-| --- | --- | --- |
-| Semantic tree | Logical children, names, descriptions, scoped form metadata, stable live-object IDs, hidden ancestor filtering | Logical IDs for recycled collection items, explicit label relationships, reading-order tooling |
-| Button / Hyperlink | Invoke, normal widget command, disabled guard for Button | NVDA and Narrator activation |
-| Check | Toggle, checked property and changes; confirmed with NVDA 2026.2 | Narrator acceptance |
-| Entry | Value, protected masked Text/Text2, caret and single selection, rune-based ranges, plain text navigation, edit/selection events | Multiline editing acceptance; Narrator, IME, complex scripts, rich text formatting |
-| Slider | RangeValue plus string Value, both change events, bounds, step, readonly and numeric validation | Broader boundary/disabled checks; Narrator acceptance |
-| Popups | Logical content, dialog marker, top-overlay scope, initial modal focus and restoration; confirmed with NVDA 2026.2 | Narrator acceptance |
-| Windows | Per-window context, fragment hierarchy, stable runtime IDs, snapshot queries, reference-counted detached providers, property/structure/focus events | Actual UIA client and screen-reader acceptance, DPI/multi-monitor coverage |
-| Select / RadioGroup | Selection/SelectionItem, ExpandCollapse, set position, stable options, actual keyboard focus, popup scope | Demo 4 NVDA acceptance received; demo 5 follow-up and Narrator pending; large collection patterns remain separate |
-| Other platforms | Public interfaces remain compatible; shared model has no Windows dependency | Migrate each adapter to the shared model |
+See the [built-in widget matrix and remaining-widget acceptance checklist](accessibility-widgets.md)
+for current coverage, and [editing and formatting](accessibility-editing.md) for
+the Table/RichText contracts. Earlier milestone notes below are historical.
 
 Use `SetAccessibilityInfo(fyne.AccessibilityInfo{Name: "...", Description: "..."})`
 for an icon-only button, an unlabelled slider or other custom name. In a Form,
@@ -58,7 +50,7 @@ Detached nodes return `UIA_E_ELEMENTNOTAVAILABLE`. Hiding a parent hides its
 semantic descendants. Containers used only for layout stay in the raw hierarchy
 but are excluded from the control/content view. Current bounds are canvas client
 pixels translated by the native provider into screen coordinates; scroll viewport
-clipping and virtualized offscreen items belong to the collection milestone.
+clipping and virtualized offscreen discovery are included.
 
 ## Automated checks
 

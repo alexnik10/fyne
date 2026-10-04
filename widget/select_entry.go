@@ -2,6 +2,7 @@ package widget
 
 import (
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/theme"
 )
 
@@ -13,9 +14,10 @@ var (
 // SelectEntry is an input field which supports selecting from a fixed set of options.
 type SelectEntry struct {
 	Entry
-	dropDown *fyne.Menu
-	popUp    *PopUpMenu
-	options  []string
+	dropDown          *fyne.Menu
+	popUp             *PopUpMenu
+	options           []string
+	accessibleOptions []*selectEntryOption
 }
 
 // NewSelectEntry creates a SelectEntry.
@@ -43,6 +45,9 @@ func (e *SelectEntry) Enable() {
 
 // Disable this widget so that it cannot be interacted with, updating any style appropriately.
 func (e *SelectEntry) Disable() {
+	if e.popUp != nil {
+		e.popUp.Dismiss()
+	}
 	if e.ActionItem != nil {
 		e.ActionItem.(fyne.Disableable).Disable()
 	}
@@ -73,7 +78,11 @@ func (e *SelectEntry) Resize(size fyne.Size) {
 
 // SetOptions sets the options the user might select from.
 func (e *SelectEntry) SetOptions(options []string) {
+	if e.popUp != nil {
+		e.popUp.Dismiss()
+	}
 	e.options = options
+	e.syncAccessibleOptions()
 	items := make([]*fyne.MenuItem, len(options))
 	for i, option := range options {
 		option := option // capture
@@ -95,18 +104,8 @@ func (e *SelectEntry) popUpPos() fyne.Position {
 }
 
 func (e *SelectEntry) setupDropDown() *Button {
-	dropDownButton := NewButton("", func() {
-		c := fyne.CurrentApp().Driver().CanvasForObject(e.super())
-		if c == nil {
-			// SelectEntry detached from its canvas; nothing to host the
-			// dropdown on (see fyne-io/fyne#5965).
-			return
-		}
-
-		e.popUp = NewPopUpMenu(e.dropDown, c)
-		e.popUp.ShowAtPosition(e.popUpPos())
-		e.popUp.Resize(fyne.NewSize(e.Size().Width, e.popUp.MinSize().Height))
-	})
+	dropDownButton := NewButton("", func() { e.setOptionsExpanded(!e.AccessibilityExpanded(), false) })
+	dropDownButton.SetAccessibilityInfo(fyne.AccessibilityInfo{Name: lang.X("accessibility.choices.show", "Show choices")})
 	dropDownButton.Importance = LowImportance
 	dropDownButton.SetIcon(e.Theme().Icon(theme.IconNameArrowDropDown))
 	return dropDownButton

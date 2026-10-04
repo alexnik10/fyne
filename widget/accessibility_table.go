@@ -55,7 +55,7 @@ func (t *Table) AccessibilityActiveElement() string {
 // costs O(rows+columns), not O(rows*columns), and never renders a cell.
 // Since: 2.9
 func (t *Table) AccessibilityCollection() fyne.AccessibilityCollection {
-	return t.ensureAccessibilitySource()
+	return t.accessibilityWithChildren(t.ensureAccessibilitySource())
 }
 
 // Refresh reconciles keyed row/column state before refreshing the visual cells.

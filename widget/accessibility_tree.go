@@ -34,6 +34,11 @@ func (t *Tree) AccessibilityActiveElement() string { return t.currentHighlight }
 //
 // Since: 2.9
 func (t *Tree) AccessibilityCollection() fyne.AccessibilityCollection {
+	base := t.accessibilityBaseCollection()
+	return t.accessibilityWithChildren(base)
+}
+
+func (t *Tree) accessibilityBaseCollection() fyne.AccessibilityCollectionView {
 	pad := t.Theme().Size(theme.SizeNamePadding)
 	if cached := t.accessibilityCache; cached != nil && cached.padding == pad && cached.leafHeight == t.leafMinSize.Height && cached.branchHeight == t.branchMinSize.Height {
 		return cached
@@ -202,7 +207,7 @@ type treeAccessibilityItem struct {
 }
 
 func (i *treeAccessibilityItem) attached() bool {
-	source, ok := i.owner.AccessibilityCollection().(*treeAccessibilitySource)
+	source, ok := i.owner.accessibilityBaseCollection().(*treeAccessibilitySource)
 	if !ok {
 		return false
 	}

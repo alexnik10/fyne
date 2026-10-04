@@ -71,15 +71,16 @@ type Node struct {
 }
 
 type Tree struct {
-	next        uint32
-	ids         map[fyne.CanvasObject]uint32
-	objects     map[uint32]fyne.CanvasObject
-	nodes       map[uint32]Node
-	children    map[fyne.CanvasObject][]fyne.CanvasObject
-	elements    map[fyne.CanvasObject]map[string]elementIdentity
-	collections map[fyne.CanvasObject]*collectionState
-	elementRefs map[uint32]elementReference
-	Issues      []Issue
+	next         uint32
+	ids          map[fyne.CanvasObject]uint32
+	objects      map[uint32]fyne.CanvasObject
+	focusTargets map[uint32]fyne.Focusable
+	nodes        map[uint32]Node
+	children     map[fyne.CanvasObject][]fyne.CanvasObject
+	elements     map[fyne.CanvasObject]map[string]elementIdentity
+	collections  map[fyne.CanvasObject]*collectionState
+	elementRefs  map[uint32]elementReference
+	Issues       []Issue
 }
 
 // Issue describes an authoring problem detected while building the tree.
@@ -104,6 +105,7 @@ func (t *Tree) Build(roots []Root, focused fyne.Focusable) []Node {
 	}
 	seen := make(map[fyne.CanvasObject]bool)
 	t.objects = make(map[uint32]fyne.CanvasObject)
+	t.focusTargets = make(map[uint32]fyne.Focusable)
 	t.nodes = make(map[uint32]Node)
 	t.Issues = nil
 	var out []Node
@@ -243,6 +245,11 @@ func (t *Tree) FocusedID(focused fyne.Focusable) uint32 {
 			return id
 		}
 	}
+	for id, object := range t.objects {
+		if object == target || (focused != nil && t.focusTargets[id] == focused) {
+			return id
+		}
+	}
 	return 0
 }
 
@@ -272,6 +279,13 @@ func (t *Tree) Perform(id uint32, action Action, text string, number float64, ca
 	}
 	switch action {
 	case Focus:
+		if !n.Focusable {
+			return false
+		}
+		if f := t.focusTargets[id]; f != nil && canvas != nil {
+			canvas.Focus(f)
+			return canvas.Focused() == f
+		}
 		if f, ok := obj.(fyne.AccessibleFocusHandler); ok {
 			return f.AccessibilityFocusable() && f.AccessibilityFocus()
 		}

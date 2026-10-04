@@ -11,8 +11,9 @@ A custom `BaseWidget` that composes standard controls does not need to repeat
 their accessibility implementations. If it has no `fyne.Accessible` interface,
 the builder traverses its renderer, using the same cached renderer as layout and
 input. Buttons, entries, labels and other semantic descendants keep their actual
-objects, actions, state and focus. Drawing primitives do not acquire semantics
-merely because the builder visits them.
+objects, actions, state and focus. Canvas text and explicitly described images carry semantics. Other drawing
+primitives remain decorative; set `canvas.Text.Decorative` when its text already
+belongs to an accessible owner.
 
 An `Accessible` object is a semantic boundary by default. Its name, role and
 capabilities describe the whole element; its renderer internals are not exposed.
@@ -298,3 +299,12 @@ collection semantics and paging remain separate work. List and Tree share the
 indexed keyed collection contract.
 
 This change does not implement arbitrary semantic merging or rich-text semantics.
+
+## Logical keyboard targets
+
+Logical descriptors may be recreated at every snapshot. Their `Focusable`
+implementation alone is not used: provide `AccessibleFocusHandler` to route focus
+through the owner, or `AccessibilityElement.FocusTarget` for a real stable rendered
+control. `Position` can override its geometry relative to the collection owner.
+See [model-backed built-in children](accessibility-widgets.md) for the collection
+callbacks and lifetime contract.

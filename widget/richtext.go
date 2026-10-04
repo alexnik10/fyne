@@ -1756,6 +1756,7 @@ func truncateLines(t *RichText, seg RichTextSegment, trunc fyne.TextTruncation, 
 				textObj, _ = codeInlineText(seg.Visual())
 			case *HyperlinkSegment:
 				textObj = canvas.NewText(string(txt), color.Black)
+				textObj.Decorative = true
 				textObj.TextStyle = s.TextStyle
 				sizeName := s.SizeName
 				if sizeName == "" {

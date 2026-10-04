@@ -66,9 +66,10 @@ func main() {
 	large := widget.NewButton("Open large collections demo", func() { showLargeCollectionsDemo(application) })
 	navigation := widget.NewButton("Open tabs, menus and table demo", func() { showNavigationDemo(application) })
 	scrolling := widget.NewButton("Open scrolling demo", func() { showScrollDemo(application) })
-	content := []fyne.CanvasObject{form, status, choices, textEditing, textFormatting, trees, lists, large, navigation, scrolling, second}
+	remaining := widget.NewButton("Open remaining widgets demo", func() { showRemainingDemo(application) })
+	content := []fyne.CanvasObject{form, status, remaining, choices, textEditing, textFormatting, trees, lists, large, navigation, scrolling, second}
 	content = append(content, diagnosticControls(window)...)
-	window.SetContent(container.NewVBox(content...))
+	window.SetContent(container.NewVScroll(container.NewVBox(content...)))
 	window.Resize(fyne.NewSize(windowWidth, windowHeight))
 	window.ShowAndRun()
 }

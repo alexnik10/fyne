@@ -137,6 +137,9 @@ func (s *Select) syncAccessibleOptions() {
 //
 // Since: 2.9
 func (p *PopUpMenu) AccessibilityOverlayOwner() fyne.CanvasObject {
+	if p.selectEntryOwner != nil {
+		return p.selectEntryOwner
+	}
 	if p.selectOwner == nil {
 		return nil
 	}
@@ -171,6 +174,14 @@ func (p *PopUpMenu) AccessibilityFocus() bool {
 //
 // Since: 2.9
 func (p *PopUpMenu) AccessibilityActiveDescendant() fyne.CanvasObject {
+	if p.selectEntryOwner != nil {
+		for i, item := range p.Items {
+			if item == p.activeItem && i < len(p.selectEntryOwner.accessibleOptions) {
+				return p.selectEntryOwner.accessibleOptions[i]
+			}
+		}
+		return p.selectEntryOwner
+	}
 	if p.selectOwner != nil {
 		for idx, item := range p.Items {
 			if item == p.activeItem && idx < len(p.selectOwner.accessibleOptions) {
@@ -183,7 +194,7 @@ func (p *PopUpMenu) AccessibilityActiveDescendant() fyne.CanvasObject {
 }
 
 func (p *PopUpMenu) revealSelectItem() {
-	if p.selectOwner == nil || p.activeItem == nil || !p.Visible() {
+	if (p.selectOwner == nil && p.selectEntryOwner == nil) || p.activeItem == nil || !p.Visible() {
 		return
 	}
 	r, ok := cache.Renderer(p).(*menuRenderer)

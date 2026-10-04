@@ -32,7 +32,7 @@ func TestNewCalendar_ButtonDate(t *testing.T) {
 
 	firstDate := firstDateButton(c.dates)
 	assert.Equal(t, "1", firstDate.Text)
-	lastDate := c.dates.Objects[len(c.dates.Objects)-1].(*Button)
+	lastDate := c.dates.Objects[len(c.dates.Objects)-1].(*calendarDay)
 	assert.Equal(t, strconv.Itoa(last.Day()), lastDate.Text)
 }
 
@@ -83,9 +83,9 @@ func TestNewCalendar_Resize(t *testing.T) {
 	assert.Greater(t, layout.cellSize.Height, minSize.Height)
 }
 
-func firstDateButton(c *fyne.Container) *Button {
+func firstDateButton(c *fyne.Container) *calendarDay {
 	for _, b := range c.Objects {
-		if nonBlank, ok := b.(*Button); ok {
+		if nonBlank, ok := b.(*calendarDay); ok {
 			return nonBlank
 		}
 	}

@@ -9,29 +9,34 @@ type AccessibleRole string
 
 // Known values for [AccessibleRole].
 const (
-	AccessibleRoleButton    AccessibleRole = "button"
-	AccessibleRoleContainer AccessibleRole = "container"
-	AccessibleRoleLink      AccessibleRole = "link"
-	AccessibleRoleText      AccessibleRole = "text"
-	AccessibleRoleCheck     AccessibleRole = "check"
-	AccessibleRoleEntry     AccessibleRole = "entry"
-	AccessibleRoleSlider    AccessibleRole = "slider"
-	AccessibleRoleDialog    AccessibleRole = "dialog"
-	AccessibleRoleComboBox  AccessibleRole = "combobox"
-	AccessibleRoleRadio     AccessibleRole = "radio"
-	AccessibleRoleList      AccessibleRole = "list"
-	AccessibleRoleListItem  AccessibleRole = "listitem"
-	AccessibleRoleTree      AccessibleRole = "tree"
-	AccessibleRoleTreeItem  AccessibleRole = "treeitem"
-	AccessibleRoleTab       AccessibleRole = "tab"
-	AccessibleRoleTabItem   AccessibleRole = "tabitem"
-	AccessibleRoleMenu      AccessibleRole = "menu"
-	AccessibleRoleMenuBar   AccessibleRole = "menubar"
-	AccessibleRoleMenuItem  AccessibleRole = "menuitem"
-	AccessibleRoleTable     AccessibleRole = "table"
-	AccessibleRoleCell      AccessibleRole = "cell"
-	AccessibleRoleHeader    AccessibleRole = "header"
-	AccessibleRoleDocument  AccessibleRole = "document"
+	AccessibleRoleButton      AccessibleRole = "button"
+	AccessibleRoleContainer   AccessibleRole = "container"
+	AccessibleRoleLink        AccessibleRole = "link"
+	AccessibleRoleText        AccessibleRole = "text"
+	AccessibleRoleCheck       AccessibleRole = "check"
+	AccessibleRoleEntry       AccessibleRole = "entry"
+	AccessibleRoleSlider      AccessibleRole = "slider"
+	AccessibleRoleDialog      AccessibleRole = "dialog"
+	AccessibleRoleComboBox    AccessibleRole = "combobox"
+	AccessibleRoleRadio       AccessibleRole = "radio"
+	AccessibleRoleList        AccessibleRole = "list"
+	AccessibleRoleListItem    AccessibleRole = "listitem"
+	AccessibleRoleTree        AccessibleRole = "tree"
+	AccessibleRoleTreeItem    AccessibleRole = "treeitem"
+	AccessibleRoleTab         AccessibleRole = "tab"
+	AccessibleRoleTabItem     AccessibleRole = "tabitem"
+	AccessibleRoleMenu        AccessibleRole = "menu"
+	AccessibleRoleMenuBar     AccessibleRole = "menubar"
+	AccessibleRoleMenuItem    AccessibleRole = "menuitem"
+	AccessibleRoleTable       AccessibleRole = "table"
+	AccessibleRoleCell        AccessibleRole = "cell"
+	AccessibleRoleHeader      AccessibleRole = "header"
+	AccessibleRoleDocument    AccessibleRole = "document"
+	AccessibleRoleProgressBar AccessibleRole = "progressbar"
+	AccessibleRoleToolBar     AccessibleRole = "toolbar"
+	AccessibleRoleImage       AccessibleRole = "image"
+	AccessibleRoleCalendar    AccessibleRole = "calendar"
+	AccessibleRoleSeparator   AccessibleRole = "separator"
 )
 
 // Accessible interface should be implemented for a widget that should be accessible
@@ -121,6 +126,13 @@ type AccessibleChildren interface {
 //
 // Since: 2.9
 type AccessibilityElement struct {
+	// Position optionally overrides Object.Position relative to the owner.
+	// This allows stable rendered controls to participate in logical collections.
+	Position *Position
+	// FocusTarget identifies an actual rendered keyboard control. Logical objects
+	// are often temporary, so their Focusable implementation alone is not enough.
+	// Alternatively implement AccessibleFocusHandler to route focus to the owner.
+	FocusTarget Focusable
 	Key, Parent string
 	Object      CanvasObject
 	Hidden      bool

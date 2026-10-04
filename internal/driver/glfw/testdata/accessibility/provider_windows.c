@@ -466,8 +466,38 @@ static void testFormattedText(void) {
     WinAccessibilityCleanup(c); DestroyWindow(hwnd);
 }
 
+static void testRemainingControlRoles(void) {
+    HWND hwnd = newWindow(); assert(hwnd);
+    WinAccessibility *c = WinAccessibilityCreate(hwnd, 77); assert(c);
+    WinAccessibilityNode nodes[] = {
+        {.id=1, .role=23, .flags=WinAccRange|WinAccValue|WinAccReadOnly, .name="Progress", .number=0.25, .minimum=0, .maximum=1, .step=NAN, .value="25%"},
+        {.id=2, .role=24, .name="Toolbar"}, {.id=3, .role=25, .name="Image"},
+        {.id=4, .role=26, .name="Calendar"}, {.id=5, .role=27, .name="Divider"}
+    };
+    int roles[] = {UIA_ProgressBarControlTypeId, UIA_ToolBarControlTypeId, UIA_ImageControlTypeId, UIA_CalendarControlTypeId, UIA_SeparatorControlTypeId};
+    assert(WinAccessibilityUpdate(c, nodes, 5));
+    for (int i=0; i<5; i++) {
+        Element *e = retain(c, i+1); VARIANT v;
+        assert(property(&e->simple, UIA_ControlTypePropertyId, &v) == S_OK && v.lVal == roles[i]);
+        VariantClear(&v); release(e);
+    }
+    Element *progress = retain(c, 1); BOOL ro;
+    assert(rangeReadOnly(&progress->range, &ro) == S_OK && ro);
+    assert(setRange(&progress->range, 0.5) == (HRESULT)UIA_E_INVALIDOPERATION);
+    int events = propertyEvents;
+    assert(WinAccessibilityUpdate(c, nodes, 5));
+    assert(events == propertyEvents); // Two NaN step values are the same property.
+    int numeric = numericEvents;
+    nodes[0].number = 0.5;
+    assert(WinAccessibilityUpdate(c, nodes, 5)); assert(numericEvents == numeric+1);
+    assert(WinAccessibilityUpdate(c, NULL, 0));
+    assert(rangeReadOnly(&progress->range, &ro) == UNAVAILABLE);
+    release(progress); WinAccessibilityCleanup(c); DestroyWindow(hwnd);
+}
+
 int main(void) {
     CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
+    testRemainingControlRoles();
     testCollectionProviders();
     testNavigationProviders();
     testScrollProvider();

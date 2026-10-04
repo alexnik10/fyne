@@ -367,6 +367,11 @@ static int controlType(int role) {
     case 20: return UIA_DataItemControlTypeId;
     case 21: return UIA_HeaderItemControlTypeId;
     case 22: return UIA_DocumentControlTypeId;
+    case 23: return UIA_ProgressBarControlTypeId;
+    case 24: return UIA_ToolBarControlTypeId;
+    case 25: return UIA_ImageControlTypeId;
+    case 26: return UIA_CalendarControlTypeId;
+    case 27: return UIA_SeparatorControlTypeId;
     default: return UIA_GroupControlTypeId;
     }
 }
@@ -803,7 +808,7 @@ static int equalVariant(VARIANT *a, VARIANT *b) {
     case VT_BSTR: return wcscmp(a->bstrVal ? a->bstrVal : L"", b->bstrVal ? b->bstrVal : L"") == 0;
     case VT_BOOL: return a->boolVal == b->boolVal;
     case VT_I4: return a->lVal == b->lVal;
-    case VT_R8: return a->dblVal == b->dblVal;
+    case VT_R8: return a->dblVal == b->dblVal || (isnan(a->dblVal) && isnan(b->dblVal));
     case VT_ARRAY | VT_R8:
         for (LONG i = 0; i < 4; ++i) {
             double x, y; SafeArrayGetElement(a->parray, &i, &x); SafeArrayGetElement(b->parray, &i, &y);

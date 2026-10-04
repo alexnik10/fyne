@@ -64,6 +64,10 @@ var _ fyne.CanvasObject = (*Image)(nil)
 type Image struct {
 	baseObject
 
+	// AltText describes meaningful image content. Empty images remain decorative.
+	// Since: 2.9
+	AltText string
+
 	aspect float32
 	icon   *svg.Decoder
 	isSVG  bool

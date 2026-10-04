@@ -49,6 +49,12 @@ type TableCellID struct {
 //
 // Since: 1.4
 type Table struct {
+	// CellElements supplies model-backed child controls, independently of recycled renderers.
+	// Keys and generations follow fyne.AccessibilityElement. Positions are relative to the item.
+	// Call Refresh after changing the model.
+	// Since: 2.9
+	CellElements          func(TableCellID) []fyne.AccessibilityElement `json:"-"`
+	accessibilityChildIDs collectionChildIDs
 	BaseWidget
 
 	Length       func() (rows int, cols int)                      `json:"-"`

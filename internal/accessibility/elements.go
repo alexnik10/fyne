@@ -104,11 +104,20 @@ func (s *elementSnapshot) add(element fyne.AccessibilityElement) bool {
 	if element.Parent != "" {
 		parentID = s.current[element.Parent].id
 	}
-	n := s.tree.snapshotObject(element.Object, id, s.position.Add(element.Object.Position()), parentID, s.describers, s.clip)
+	position := element.Object.Position()
+	if element.Position != nil {
+		position = *element.Position
+	}
+	n := s.tree.snapshotObject(element.Object, id, s.position.Add(position), parentID, s.describers, s.clip)
+	_, routed := element.Object.(fyne.AccessibleFocusHandler)
+	n.Focusable = !n.Disabled && (element.FocusTarget != nil || (routed && n.Focusable))
+	if element.FocusTarget != nil {
+		s.tree.focusTargets[id] = element.FocusTarget
+	}
 	if d, ok := s.owner.(fyne.Disableable); ok && d.Disabled() {
 		n.Disabled, n.ReadOnly, n.Focusable = true, true, false
-		s.tree.nodes[id] = n
 	}
+	s.tree.nodes[id] = n
 	s.nodes = append(s.nodes, n)
 	return true
 }

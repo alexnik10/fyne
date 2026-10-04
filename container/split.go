@@ -252,10 +252,10 @@ var (
 
 type divider struct {
 	widget.BaseWidget
-	split          *Split
-	hovered        bool
-	startDragOff   *fyne.Position
-	currentDragPos fyne.Position
+	split            *Split
+	hovered, focused bool
+	startDragOff     *fyne.Position
+	currentDragPos   fyne.Position
 }
 
 func newDivider(split *Split) *divider {
@@ -382,7 +382,9 @@ func (r *dividerRenderer) Refresh() {
 	th := r.divider.Theme()
 	v := fyne.CurrentApp().Settings().ThemeVariant()
 
-	if r.divider.hovered {
+	if r.divider.focused {
+		r.background.FillColor = th.Color(theme.ColorNameFocus, v)
+	} else if r.divider.hovered {
 		r.background.FillColor = th.Color(theme.ColorNameHover, v)
 	} else {
 		r.background.FillColor = th.Color(theme.ColorNameShadow, v)

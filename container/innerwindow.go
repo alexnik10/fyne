@@ -9,6 +9,7 @@ import (
 	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/internal/goos"
 	intWidget "fyne.io/fyne/v2/internal/widget"
+	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
@@ -318,8 +319,10 @@ func (i *innerWindowRenderer) Refresh() {
 	}
 	if i.win.maximized {
 		maximize.b.SetIcon(theme.ViewRestoreIcon())
+		maximize.b.SetAccessibilityInfo(fyne.AccessibilityInfo{Name: lang.X("accessibility.window.restore", "Restore")})
 	} else {
 		maximize.b.SetIcon(theme.WindowMaximizeIcon())
+		maximize.b.SetAccessibilityInfo(fyne.AccessibilityInfo{Name: lang.X("accessibility.window.maximize", "Maximize")})
 	}
 
 	title, _ := i.bar.Objects[2].(*fyne.Container).Objects[0].(*draggableLabel)
@@ -339,7 +342,8 @@ func (i *innerWindowRenderer) Refresh() {
 
 type draggableLabel struct {
 	widget.Label
-	win *InnerWindow
+	win     *InnerWindow
+	focused bool
 }
 
 func newDraggableLabel(title string, win *InnerWindow) *draggableLabel {
@@ -376,7 +380,8 @@ func (d *draggableLabel) labelMinSize() fyne.Size {
 
 type draggableCorner struct {
 	widget.BaseWidget
-	win *InnerWindow
+	win     *InnerWindow
+	focused bool
 }
 
 func newDraggableCorner(w *InnerWindow) *draggableCorner {
@@ -385,19 +390,19 @@ func newDraggableCorner(w *InnerWindow) *draggableCorner {
 	return d
 }
 
-func (*draggableCorner) CreateRenderer() fyne.WidgetRenderer {
+func (d *draggableCorner) CreateRenderer() fyne.WidgetRenderer {
 	prop := canvas.NewImageFromResource(fyne.CurrentApp().Settings().Theme().Icon(theme.IconNameDragCornerIndicator))
 	prop.SetMinSize(fyne.NewSquareSize(sizeDraggableCorner))
-	return widget.NewSimpleRenderer(prop)
+	return newWindowFocusRenderer(widget.NewSimpleRenderer(prop), &d.BaseWidget, &d.focused)
 }
 
 func (*draggableCorner) Cursor() desktop.Cursor {
 	return desktop.NWSEResizeCursor
 }
 
-func (c *draggableCorner) Dragged(ev *fyne.DragEvent) {
-	if f := c.win.OnResized; f != nil {
-		c.win.OnResized(ev)
+func (d *draggableCorner) Dragged(ev *fyne.DragEvent) {
+	if f := d.win.OnResized; f != nil {
+		f(ev)
 	}
 }
 
@@ -418,6 +423,8 @@ func newBorderButton(icon fyne.Resource, mode titleBarButtonMode, th fyne.Theme,
 		buttonImportance = widget.LowImportance
 	}
 	b := &widget.Button{Icon: icon, Importance: buttonImportance, OnTapped: fn}
+	names := map[titleBarButtonMode]string{modeClose: lang.L("Close"), modeMinimize: lang.X("accessibility.window.minimize", "Minimize"), modeMaximize: lang.X("accessibility.window.maximize", "Maximize"), modeIcon: lang.X("accessibility.window.menu", "Window menu")}
+	b.SetAccessibilityInfo(fyne.AccessibilityInfo{Name: names[mode]})
 	c := NewThemeOverride(b, &buttonTheme{Theme: th, mode: mode})
 
 	ret := &borderButton{b: b, c: c, mode: mode}

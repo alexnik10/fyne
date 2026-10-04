@@ -2,6 +2,7 @@ package container
 
 import (
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
@@ -170,6 +171,8 @@ func (nav *Navigation) CreateRenderer() fyne.WidgetRenderer {
 			OnTapped: nav.OnForward,
 		},
 	}
+	r.back.SetAccessibilityInfo(fyne.AccessibilityInfo{Name: lang.X("accessibility.navigation.back", "Back")})
+	r.forward.SetAccessibilityInfo(fyne.AccessibilityInfo{Name: lang.X("accessibility.navigation.forward", "Forward")})
 	r.back.Disable()
 	r.forward.Disable()
 

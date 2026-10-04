@@ -2,7 +2,7 @@
 	<content>
 		<container pos="4,4" size="96x154">
 			<widget size="96x154" type="*widget.Accordion">
-				<widget size="96x36" type="*widget.Button">
+				<widget size="96x36" type="*widget.accordionHeader">
 					<rectangle radius="4" size="96x36"/>
 					<rectangle size="96x36"/>
 					<widget pos="32,8" size="9x20" type="*widget.RichText">
@@ -10,7 +10,7 @@
 					</widget>
 					<image fillMode="contain" pos="8,8" rsc="menuDropUpIcon" size="iconInlineSize" themed="foreground"/>
 				</widget>
-				<widget pos="0,79" size="96x36" type="*widget.Button">
+				<widget pos="0,79" size="96x36" type="*widget.accordionHeader">
 					<rectangle radius="4" size="96x36"/>
 					<rectangle size="96x36"/>
 					<widget pos="32,8" size="9x20" type="*widget.RichText">

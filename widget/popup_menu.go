@@ -13,9 +13,10 @@ var (
 // PopUpMenu is a Menu which displays itself in an OverlayContainer.
 type PopUpMenu struct {
 	*Menu
-	canvas      fyne.Canvas
-	overlay     *widget.OverlayContainer
-	selectOwner *Select
+	canvas           fyne.Canvas
+	overlay          *widget.OverlayContainer
+	selectOwner      *Select
+	selectEntryOwner *SelectEntry
 }
 
 // NewPopUpMenu creates a new, reusable popup menu. You can show it using ShowAtPosition.

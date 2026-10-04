@@ -41,6 +41,11 @@ func (l *List) AccessibilityActiveElement() string {
 //
 // Since: 2.9
 func (l *List) AccessibilityCollection() fyne.AccessibilityCollection {
+	base := l.accessibilityBaseCollection()
+	return l.accessibilityWithChildren(base)
+}
+
+func (l *List) accessibilityBaseCollection() fyne.AccessibilityCollectionView {
 	pad := l.Theme().Size(theme.SizeNamePadding)
 	if cached := l.accessibilityCache; cached != nil && cached.height == l.itemMin.Height && cached.padding == pad {
 		return cached
@@ -162,7 +167,7 @@ func (i *listAccessibilityItem) AccessibilitySelectionItem() (owner fyne.CanvasO
 }
 
 func (i *listAccessibilityItem) resolve() int {
-	source, ok := i.owner.AccessibilityCollection().(*listAccessibilitySource)
+	source, ok := i.owner.accessibilityBaseCollection().(*listAccessibilitySource)
 	if !ok {
 		return -1
 	}

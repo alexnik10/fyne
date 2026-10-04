@@ -40,6 +40,12 @@ type listBind struct {
 //
 // Since: 1.4
 type List struct {
+	// ItemElements supplies model-backed child controls, independently of recycled renderers.
+	// Keys and generations follow fyne.AccessibilityElement. Positions are relative to the item.
+	// Call Refresh after changing the model.
+	// Since: 2.9
+	ItemElements          func(ListItemID) []fyne.AccessibilityElement `json:"-"`
+	accessibilityChildIDs collectionChildIDs
 	BaseWidget
 
 	// Length is a callback for returning the number of items in the list.

@@ -219,6 +219,16 @@ func roleToCWin(role fyne.AccessibleRole) C.int {
 		return 21
 	case fyne.AccessibleRoleDocument:
 		return 22
+	case fyne.AccessibleRoleProgressBar:
+		return 23
+	case fyne.AccessibleRoleToolBar:
+		return 24
+	case fyne.AccessibleRoleImage:
+		return 25
+	case fyne.AccessibleRoleCalendar:
+		return 26
+	case fyne.AccessibleRoleSeparator:
+		return 27
 	default:
 		return 0
 	}

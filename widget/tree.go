@@ -34,6 +34,12 @@ var (
 //
 // Since: 1.4
 type Tree struct {
+	// NodeElements supplies model-backed child controls, independently of recycled renderers.
+	// Keys and generations follow fyne.AccessibilityElement. Positions are relative to the item.
+	// Call Refresh after changing the model.
+	// Since: 2.9
+	NodeElements          func(TreeNodeID) []fyne.AccessibilityElement `json:"-"`
+	accessibilityChildIDs collectionChildIDs
 	BaseWidget
 	Root TreeNodeID
 

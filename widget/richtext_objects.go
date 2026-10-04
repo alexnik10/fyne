@@ -198,7 +198,9 @@ func (i *ImageSegment) Textual() string {
 
 // Visual returns a new instance of an image widget required to render this segment.
 func (i *ImageSegment) Visual() fyne.CanvasObject {
-	return newRichImage(i.Source, i.Alignment)
+	image := newRichImage(i.Source, i.Alignment)
+	image.img.AltText = i.Title
+	return image
 }
 
 // Update applies the current state of this image segment to an existing visual.
@@ -207,6 +209,7 @@ func (i *ImageSegment) Update(o fyne.CanvasObject) {
 	img, _ := o.(*richImage)
 
 	// one of the following will be used
+	img.img.AltText = i.Title
 	img.img.File = newer.File
 	img.img.Resource = newer.Resource
 	img.setAlign(i.Alignment)
@@ -368,6 +371,7 @@ func (l *listMarkerSegment) marker() string {
 // Visual returns a new text object drawing this marker.
 func (l *listMarkerSegment) Visual() fyne.CanvasObject {
 	text := canvas.NewText("", color.Transparent)
+	text.Decorative = true
 	l.Update(text)
 	return text
 }
@@ -920,6 +924,7 @@ func (t *TextSegment) Textual() string {
 // Visual returns a new instance of a graphical element required to render this segment.
 func (t *TextSegment) Visual() fyne.CanvasObject {
 	text := canvas.NewText(t.Text, t.color())
+	text.Decorative = true
 	if t.Style.codeInline {
 		bg := canvas.NewRectangle(theme.ColorForWidget(theme.ColorNameInputBackground, t.parent))
 		c := &fyne.Container{Layout: &codeInlineLayout{}, Objects: []fyne.CanvasObject{bg, text}}

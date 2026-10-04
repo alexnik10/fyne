@@ -112,6 +112,7 @@ func (a *Accordion) Remove(item *AccordionItem) {
 	for i, ai := range a.Items {
 		if ai == item {
 			a.Items = append(a.Items[:i], a.Items[i+1:]...)
+			a.Refresh()
 			return
 		}
 	}
@@ -130,7 +131,7 @@ func (a *Accordion) RemoveIndex(index int) {
 type accordionRenderer struct {
 	widget.BaseRenderer
 	container    *Accordion
-	headers      []*Button
+	headers      []*accordionHeader
 	dividers     []fyne.CanvasObject
 	minSizeCache fyne.Size
 }
@@ -231,6 +232,7 @@ func (r *accordionRenderer) Refresh() {
 }
 
 func (r *accordionRenderer) updateObjects() {
+	r.syncHeaders()
 	th := r.container.Theme()
 	is := len(r.container.Items)
 	hs := len(r.headers)
@@ -238,15 +240,17 @@ func (r *accordionRenderer) updateObjects() {
 	i := 0
 	for ; i < is; i++ {
 		ai := r.container.Items[i]
-		var h *Button
+		var h *accordionHeader
 		if i < hs {
 			h = r.headers[i]
 			h.Show()
 		} else {
-			h = &Button{}
+			h = &accordionHeader{}
+			h.ExtendBaseWidget(h)
 			r.headers = append(r.headers, h)
 			hs++
 		}
+		h.owner, h.item = r.container, ai
 		h.Alignment = ButtonAlignLeading
 		h.IconPlacement = ButtonIconLeadingText
 		h.Hidden = false

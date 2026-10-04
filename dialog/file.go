@@ -116,6 +116,7 @@ var _ Dialog = (*FileDialog)(nil)
 func (f *fileDialog) makeUI() fyne.CanvasObject {
 	if f.file.save {
 		saveName := widget.NewEntry()
+		saveName.SetAccessibilityInfo(fyne.AccessibilityInfo{Name: lang.X("file.name", "Name")})
 		saveName.OnChanged = func(s string) {
 			if s == "" {
 				f.open.Disable()
@@ -193,6 +194,7 @@ func (f *fileDialog) makeUI() fyne.CanvasObject {
 			f.setView(GridView)
 		}
 	})
+	f.toggleViewButton.SetAccessibilityInfo(fyne.AccessibilityInfo{Name: lang.X("accessibility.files.view", "Change file view")})
 	f.setView(view)
 
 	f.loadFavorites()
@@ -209,6 +211,11 @@ func (f *fileDialog) makeUI() fyne.CanvasObject {
 			item.(*fyne.Container).Objects[1].(*widget.Label).SetText(f.favorites[id].locName)
 		},
 	)
+	f.favoritesList.DescribeItem = func(id widget.ListItemID) fyne.AccessibilityInfo {
+		return fyne.AccessibilityInfo{Name: f.favorites[id].locName}
+	}
+	f.favoritesList.ItemKey = func(id widget.ListItemID) string { return f.favorites[id].loc.String() }
+	f.favoritesList.SetAccessibilityInfo(fyne.AccessibilityInfo{Name: lang.X("accessibility.files.favorites", "Locations")})
 	f.favoritesList.OnSelected = func(id widget.ListItemID) {
 		f.setLocation(f.favorites[id].loc)
 	}
@@ -218,6 +225,7 @@ func (f *fileDialog) makeUI() fyne.CanvasObject {
 		f.optionsMenu(fyne.CurrentApp().Driver().AbsolutePositionForObject(optionsButton), optionsButton.Size())
 	})
 
+	optionsButton.SetAccessibilityInfo(fyne.AccessibilityInfo{Name: lang.X("accessibility.files.options", "File options")})
 	newFolderButton := widget.NewButtonWithIcon("", theme.FolderNewIcon(), func() {
 		newFolderEntry := widget.NewEntry()
 		ShowForm(lang.L("New Folder"), lang.L("Create Folder"), lang.L("Cancel"), []*widget.FormItem{
@@ -242,6 +250,8 @@ func (f *fileDialog) makeUI() fyne.CanvasObject {
 			f.refreshDir(f.dir)
 		}, f.file.parent)
 	})
+
+	newFolderButton.SetAccessibilityInfo(fyne.AccessibilityInfo{Name: lang.L("New Folder")})
 
 	optionsbuttons := container.NewHBox(
 		newFolderButton,
@@ -595,12 +605,18 @@ func (f *fileDialog) setView(view ViewLayout) {
 	// It will be called only when we directly calls container.select(i)
 	if f.view == GridView {
 		grid := widget.NewGridWrap(count, template, update)
+		grid.ItemKey = f.accessibilityFileKey
+		grid.DescribeItem = f.accessibilityFileInfo
+		grid.SetAccessibilityInfo(fyne.AccessibilityInfo{Name: lang.X("accessibility.files", "Files")})
 		grid.OnSelected = choose
 		f.files = grid
 		f.toggleViewButton.SetIcon(theme.ListIcon())
 		selectF = grid.Select
 	} else {
 		list := widget.NewList(count, template, update)
+		list.ItemKey = f.accessibilityFileKey
+		list.DescribeItem = f.accessibilityFileInfo
+		list.SetAccessibilityInfo(fyne.AccessibilityInfo{Name: lang.X("accessibility.files", "Files")})
 		list.OnSelected = choose
 		f.files = list
 		f.toggleViewButton.SetIcon(theme.GridIcon())

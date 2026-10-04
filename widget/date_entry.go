@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/theme"
 )
 
@@ -86,6 +87,9 @@ func (e *DateEntry) Enable() {
 
 // Disable this widget so that it cannot be interacted with, updating any style appropriately.
 func (e *DateEntry) Disable() {
+	if e.popUp != nil {
+		e.popUp.Hide()
+	}
 	if e.ActionItem != nil {
 		if d, ok := e.ActionItem.(fyne.Disableable); ok {
 			d.Disable()
@@ -147,18 +151,8 @@ func (e *DateEntry) setupDropDown() *Button {
 	if e.dropDown == nil {
 		e.dropDown = NewCalendar(time.Now(), e.applyDate)
 	}
-	dropDownButton := NewButton("", func() {
-		c := fyne.CurrentApp().Driver().CanvasForObject(e.super())
-		if c == nil {
-			// DateEntry detached from its canvas; cannot host calendar
-			// dropdown (see fyne-io/fyne#5965).
-			return
-		}
-
-		e.popUp = NewPopUp(e.dropDown, c)
-		e.popUp.ShowAtPosition(e.popUpPos())
-		e.popUp.Resize(fyne.NewSize(e.Size().Width, e.popUp.MinSize().Height))
-	})
+	dropDownButton := NewButton("", func() { e.setCalendarExpanded(!e.AccessibilityExpanded(), false) })
+	dropDownButton.SetAccessibilityInfo(fyne.AccessibilityInfo{Name: lang.X("accessibility.calendar.show", "Choose date")})
 	dropDownButton.Importance = LowImportance
 	dropDownButton.SetIcon(e.Theme().Icon(theme.IconNameCalendar))
 	return dropDownButton

@@ -8,6 +8,7 @@ import (
 	"fyne.io/fyne/v2/container"
 	col "fyne.io/fyne/v2/internal/color"
 	"fyne.io/fyne/v2/internal/painter/geom"
+	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 )
@@ -154,6 +155,8 @@ func (p *colorAdvancedPicker) CreateRenderer() fyne.WidgetRenderer {
 
 	// Hex
 	hex := newUserChangeEntry("")
+	hex.accessibilityValidate = func(text string) error { _, err := col.Parse(text); return err }
+	hex.SetAccessibilityInfo(fyne.AccessibilityInfo{Name: lang.X("accessibility.color.hex", "Hex colour")})
 	hex.setOnChanged(func(text string) {
 		c, err := col.Parse(text)
 		if err != nil {

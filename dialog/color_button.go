@@ -20,9 +20,9 @@ var (
 // colorButton displays a color and triggers the callback when tapped.
 type colorButton struct {
 	widget.BaseWidget
-	color   color.Color
-	onTap   func(color.Color)
-	hovered bool
+	color            color.Color
+	onTap            func(color.Color)
+	hovered, focused bool
 }
 
 // newColorButton creates a colorButton with the given color and callback.
@@ -105,7 +105,10 @@ func (r *colorButtonRenderer) MinSize() fyne.Size {
 }
 
 func (r *colorButtonRenderer) Refresh() {
-	if r.button.hovered {
+	if r.button.focused {
+		r.rectangle.StrokeColor = theme.Color(theme.ColorNameFocus)
+		r.rectangle.StrokeWidth = theme.Padding()
+	} else if r.button.hovered {
 		r.rectangle.StrokeColor = theme.Color(theme.ColorNameHover)
 		r.rectangle.StrokeWidth = theme.Padding()
 	} else {

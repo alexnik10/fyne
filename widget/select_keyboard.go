@@ -66,14 +66,14 @@ func (s *Select) TypedShortcut(shortcut fyne.Shortcut) {
 //
 // Since: 2.9
 func (p *PopUpMenu) AcceptsTab() bool {
-	return runtime.GOOS == goos.Windows && p.selectOwner != nil
+	return runtime.GOOS == goos.Windows && (p.selectOwner != nil || p.selectEntryOwner != nil)
 }
 
 // TypedShortcut handles Windows Alt+Up/Down while a Select popup is open.
 //
 // Since: 2.9
 func (p *PopUpMenu) TypedShortcut(shortcut fyne.Shortcut) {
-	if runtime.GOOS == goos.Windows && p.selectOwner != nil && isSelectDisclosureShortcut(shortcut) {
+	if runtime.GOOS == goos.Windows && (p.selectOwner != nil || p.selectEntryOwner != nil) && isSelectDisclosureShortcut(shortcut) {
 		p.TriggerLast()
 		return
 	}
@@ -83,7 +83,7 @@ func (p *PopUpMenu) TypedShortcut(shortcut fyne.Shortcut) {
 }
 
 func (p *PopUpMenu) typedSelectKey(event *fyne.KeyEvent) bool {
-	if runtime.GOOS != goos.Windows || p.selectOwner == nil {
+	if runtime.GOOS != goos.Windows || (p.selectOwner == nil && p.selectEntryOwner == nil) {
 		return false
 	}
 	switch event.Name {
@@ -104,8 +104,11 @@ func (p *PopUpMenu) typedSelectKey(event *fyne.KeyEvent) bool {
 }
 
 func (p *PopUpMenu) commitSelectAndMoveFocus(backwards bool) {
-	owner := p.selectOwner
-	if owner == nil {
+	var owner fyne.Focusable = p.selectOwner
+	if p.selectEntryOwner != nil {
+		owner = p.selectEntryOwner
+	}
+	if p.selectOwner == nil && p.selectEntryOwner == nil {
 		return
 	}
 	p.TriggerLast() // Dismiss restores the owning canvas focus manager first.

@@ -220,3 +220,18 @@ process UIA scenario, normal/diagnostic demo builds, and the existing full CI
 matrix. Wait for every check before reporting completion. Request the next NVDA
 acceptance after publishing the demo. Incremental List/Tree model notifications
 remain deferred; Table editing/interactive cells require a separate contract.
+
+## Current increment: remaining built-in widgets
+
+The user authorized covering the remaining elements after reporting that the
+previous build generally worked. Add status indicators, groups/actions/images,
+Accordion, Calendar/DateEntry/SelectEntry, GridWrap, TextGrid, Split/InnerWindow,
+file/colour dialogs and explicit model-backed child controls in collections.
+See [the coverage matrix](accessibility-widgets.md) for implemented semantics,
+application responsibilities and the manual acceptance route.
+
+Keep the existing draft PR. Gate on shared/race and rendering tests, the native
+Windows provider and separate-process UIA scenario, demo builds and every CI
+workflow. Request NVDA acceptance after the updated Windows artifact is ready.
+Other native adapters, IME/complex-script work and incremental List/Tree updates
+remain outside this increment.
