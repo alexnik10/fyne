@@ -233,6 +233,28 @@ func TestWindow_ToggleMainMenuByKeyboard(t *testing.T) {
 		assert.False(t, menuBar.IsActive())
 	})
 
+	t.Run("Escape closes only the innermost submenu", func(t *testing.T) {
+		more := fyne.NewMenuItem("More", nil)
+		more.ChildMenu = fyne.NewMenu("Nested", fyne.NewMenuItem("Command", func() {}))
+		bar := NewMenuBar(fyne.NewMainMenu(fyne.NewMenu("File", more)), c)
+		c.setMenuOverlay(bar)
+		c.ToggleMenu()
+		child := bar.activeItem.Child()
+		child.ActivateNext()
+		require.True(t, child.ActivateLastSubmenu())
+		opener := child.Items[0].(fyne.AccessibleExpandable)
+		require.True(t, opener.AccessibilityExpanded())
+
+		w.keyPressed(w.viewport, glfw.KeyEscape, 0, glfw.Press, 0)
+		assert.True(t, opener.AccessibilityExpanded())
+		w.keyPressed(w.viewport, glfw.KeyEscape, 0, glfw.Release, 0)
+		assert.False(t, opener.AccessibilityExpanded())
+		assert.True(t, bar.IsActive())
+		w.keyPressed(w.viewport, glfw.KeyEscape, 0, glfw.Press, 0)
+		w.keyPressed(w.viewport, glfw.KeyEscape, 0, glfw.Release, 0)
+		assert.False(t, bar.IsActive())
+	})
+
 	t.Run("when canvas has no menu", func(*testing.T) {
 		w = createWindow("Test")
 		w.SetContent(canvas.NewRectangle(color.Black))

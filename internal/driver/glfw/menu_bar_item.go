@@ -111,10 +111,6 @@ func (i *menuBarItem) Tapped(*fyne.PointEvent) {
 
 func (i *menuBarItem) TypedKey(event *fyne.KeyEvent) {
 	switch event.Name {
-	case fyne.KeyEscape:
-		if !i.Child().DeactivateLastSubmenu() {
-			i.Parent.deactivate()
-		}
 	case fyne.KeyLeft:
 		if !i.Child().DeactivateLastSubmenu() {
 			i.Parent.canvas.FocusPrevious()

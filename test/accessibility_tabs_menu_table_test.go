@@ -83,9 +83,14 @@ func TestAccessibilityAppTabsOverflowAndVerticalKeys(t *testing.T) {
 	require.True(t, tree.Perform(last.ID, test.AccessibilityFocus, "", 0))
 	assert.Same(t, items[11], tabs.Selected())
 	tabs.SetTabLocation(container.TabLocationLeading)
-	tabs.TypedKey(&fyne.KeyEvent{Name: fyne.KeyDown})
+	forward, backward := fyne.KeyDown, fyne.KeyUp
+	if fyne.CurrentDevice().IsMobile() && fyne.IsVertical(fyne.CurrentDevice().Orientation()) {
+		// Portrait mobile layouts move leading tabs to the top edge.
+		forward, backward = fyne.KeyRight, fyne.KeyLeft
+	}
+	tabs.TypedKey(&fyne.KeyEvent{Name: forward})
 	assert.Same(t, items[0], tabs.Selected())
-	tabs.TypedKey(&fyne.KeyEvent{Name: fyne.KeyUp})
+	tabs.TypedKey(&fyne.KeyEvent{Name: backward})
 	assert.Same(t, items[11], tabs.Selected())
 }
 

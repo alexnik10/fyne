@@ -52,7 +52,10 @@ func (c *glCanvas) Content() fyne.CanvasObject {
 
 func (c *glCanvas) DismissMenu() bool {
 	if c.menu != nil && c.menu.(*MenuBar).IsActive() {
-		c.menu.(*MenuBar).Toggle()
+		bar := c.menu.(*MenuBar)
+		if bar.activeItem == nil || !bar.activeItem.Child().DeactivateLastSubmenu() {
+			bar.Toggle()
+		}
 		return true
 	}
 	return false

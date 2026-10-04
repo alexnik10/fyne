@@ -644,6 +644,9 @@ func (b *tabButton) Tapped(*fyne.PointEvent) {
 	}
 
 	b.onTapped()
+	if isMobile(b.tabs) {
+		return
+	}
 	if c := fyne.CurrentApp().Driver().CanvasForObject(b.tabs); c != nil {
 		if f, ok := b.tabs.(fyne.Focusable); ok {
 			c.Focus(f)
