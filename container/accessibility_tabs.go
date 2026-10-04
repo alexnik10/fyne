@@ -234,7 +234,9 @@ func (i *tabAccessibilityItem) AccessibilitySelect(mode fyne.AccessibilitySelect
 	selectItem(i.tabs, i.item)
 	return true
 }
+
 func (i *tabAccessibilityItem) AccessibilityFocusable() bool { return i.index() >= 0 && !i.Disabled() }
+
 func (i *tabAccessibilityItem) AccessibilityFocus() bool {
 	if !i.AccessibilityFocusable() {
 		return false
