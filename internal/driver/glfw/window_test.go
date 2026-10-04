@@ -236,12 +236,16 @@ func TestWindow_ToggleMainMenuByKeyboard(t *testing.T) {
 	t.Run("Escape closes only the innermost submenu", func(t *testing.T) {
 		more := fyne.NewMenuItem("More", nil)
 		more.ChildMenu = fyne.NewMenu("Nested", fyne.NewMenuItem("Command", func() {}))
-		bar := NewMenuBar(fyne.NewMainMenu(fyne.NewMenu("File", more)), c)
+		bar := NewMenuBar(fyne.NewMainMenu(fyne.NewMenu("File", more)), w.canvas)
 		c.setMenuOverlay(bar)
 		c.ToggleMenu()
 		child := bar.activeItem.Child()
-		child.ActivateNext()
-		require.True(t, child.ActivateLastSubmenu())
+		var activated bool
+		runOnMain(func() {
+			child.ActivateNext()
+			activated = child.ActivateLastSubmenu()
+		})
+		require.True(t, activated)
 		opener := child.Items[0].(fyne.AccessibleExpandable)
 		require.True(t, opener.AccessibilityExpanded())
 
