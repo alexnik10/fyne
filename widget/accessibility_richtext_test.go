@@ -23,6 +23,12 @@ func TestAccessibilityRichTextDocument(t *testing.T) {
 	assert.True(t, info.ReadOnly)
 	assert.False(t, info.SelectionDisabled)
 	assert.Len(t, info.Positions, utf8.RuneCountInString(info.Text)+1)
+	for i, r := range []rune(info.Text) {
+		if r == '\n' && i > 0 {
+			assert.Equal(t, info.Positions[i-1].Line, info.Positions[i].Line, "paragraph separator belongs to the preceding line")
+			assert.Greater(t, info.Positions[i+1].Line, info.Positions[i].Line)
+		}
+	}
 	require.NotEmpty(t, info.Runs)
 	assert.Equal(t, 1, info.Runs[0].HeadingLevel)
 	previous := 0

@@ -64,6 +64,9 @@ $preview = Named 'Native document'
 Assert ($preview.Current.ControlType -eq [System.Windows.Automation.ControlType]::Document) 'Wrong document role'
 $previewText = $preview.GetCurrentPattern([System.Windows.Automation.TextPattern]::Pattern)
 Assert ($previewText.DocumentRange.GetText(-1) -eq "Heading`nPlain bold") 'Document paragraph boundary lost'
+$line = $previewText.DocumentRange.Clone()
+$line.ExpandToEnclosingUnit([System.Windows.Automation.TextUnit]::Line)
+Assert ($line.GetText(-1) -eq "Heading`n") 'Paragraph separator belongs to the wrong rendered line'
 Assert ($previewText.SupportedTextSelection -eq [System.Windows.Automation.SupportedTextSelection]::None) 'Nonselectable document advertises selection'
 Assert ($previewText.DocumentRange.GetAttributeValue([System.Windows.Automation.TextPattern]::IsReadOnlyAttribute)) 'Document is not read-only'
 Write-Output 'Editable Table and formatted text passed through external UIA'

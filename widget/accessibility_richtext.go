@@ -78,8 +78,15 @@ func (t *RichText) AccessibilityText() fyne.AccessibilityTextInfo {
 	}
 	pad, size := t.Theme().Size(theme.SizeNameInnerPadding), t.Theme().Size(theme.SizeNameText)
 	info.Positions = make([]fyne.AccessibilityTextPosition, len(offsets))
+	runes := []rune(info.Text)
 	for i, raw := range offsets {
 		row, col := t.accessibilityRowColumn(raw)
+		// A synthetic paragraph separator shares the next character's model
+		// offset, but is laid out at the end of the preceding rendered line.
+		if i < len(runes) && runes[i] == '\n' && offsets[i] == offsets[i+1] && row > 0 {
+			row--
+			col = t.rowLength(row)
+		}
 		y, height := t.rowGeometry(row)
 		x := t.lineSizeToColumn(col, row, size, pad).Width
 		info.Positions[i] = fyne.AccessibilityTextPosition{Position: origin.Add(fyne.NewPos(x, y+pad)), Height: height, Line: row}
