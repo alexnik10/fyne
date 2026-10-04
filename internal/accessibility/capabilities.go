@@ -48,7 +48,7 @@ func populateCapabilities(n *Node, obj fyne.CanvasObject) {
 	if h, ok := obj.(fyne.AccessibleHierarchy); ok {
 		n.Level, n.SetPosition, n.SetSize = h.AccessibilityHierarchy()
 	}
-	_, n.ScrollItem = obj.(fyne.AccessibleScrollItem)
+	populateScroll(n, obj)
 	if menu, ok := obj.(fyne.AccessibleMenuItem); ok {
 		submenu, checkable := menu.AccessibilityMenuItem()
 		n.Invoke = n.Invoke && !submenu
@@ -145,6 +145,7 @@ func (t *Tree) resolveRelations(out []Node, focused fyne.Focusable) {
 			}
 		}
 		n.Focused = n.ID == focusedID
+		n.ScrollItem = n.ScrollItem || (!isSemanticPopup(t.objects[n.ID]) && t.scrollAncestor(n.Parent) != 0)
 		if cell, ok := t.objects[n.ID].(fyne.AccessibleGridItem); ok {
 			owner, _, _, _, _ := cell.AccessibilityGridItem()
 			n.GridOwner = t.ids[owner]

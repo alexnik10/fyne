@@ -90,6 +90,8 @@ func (w *window) updateAccessibility() {
 		defer C.free(unsafe.Pointer(x.value))
 		x.x, x.y = C.double(scale.ToScreenCoordinate(w.canvas, n.BoundsPosition.X)), C.double(scale.ToScreenCoordinate(w.canvas, n.BoundsPosition.Y))
 		x.width, x.height = C.double(scale.ToScreenCoordinate(w.canvas, n.BoundsSize.Width)), C.double(scale.ToScreenCoordinate(w.canvas, n.BoundsSize.Height))
+		x.horizontal_percent, x.vertical_percent = C.double(n.HorizontalScrollPercent), C.double(n.VerticalScrollPercent)
+		x.horizontal_view, x.vertical_view = C.double(n.HorizontalViewSize), C.double(n.VerticalViewSize)
 		x.number, x.minimum, x.maximum, x.step = C.double(n.Number), C.double(n.Min), C.double(n.Max), C.double(n.Step)
 		if doc := n.Document; doc != nil {
 			originX := C.double(scale.ToScreenCoordinate(w.canvas, n.Position.X))
@@ -129,7 +131,7 @@ func (w *window) updateAccessibility() {
 				x.positions, x.position_count = positions, C.int(len(doc.Positions))
 			}
 		}
-		flags := []bool{n.Disabled, n.Focusable, n.Focused, n.Required, n.Invalid, n.Invoke, n.Toggle, n.Value, n.Range, n.Checked, n.ReadOnly, n.Protected, n.Document != nil, n.Selection, n.Multiple, n.SelectionRequired, n.Selectable, n.Selected, n.Expandable, n.Expanded, n.Role == fyne.AccessibleRoleTreeItem && !n.Expandable, n.ScrollItem, n.ItemContainer, n.VirtualizedItem, n.Grid, n.GridItem, n.Table, n.RowHeaders, n.ColumnHeaders}
+		flags := []bool{n.Disabled, n.Focusable, n.Focused, n.Required, n.Invalid, n.Invoke, n.Toggle, n.Value, n.Range, n.Checked, n.ReadOnly, n.Protected, n.Document != nil, n.Selection, n.Multiple, n.SelectionRequired, n.Selectable, n.Selected, n.Expandable, n.Expanded, n.Role == fyne.AccessibleRoleTreeItem && !n.Expandable, n.ScrollItem, n.ItemContainer, n.VirtualizedItem, n.Grid, n.GridItem, n.Table, n.RowHeaders, n.ColumnHeaders, n.Scroll}
 		for bit, set := range flags {
 			if set {
 				x.flags |= 1 << bit
@@ -256,6 +258,30 @@ func performAccessibilityAction(handle uintptr, id uint32, action accessibility.
 	}
 	b.window.updateAccessibility()
 	return accepted
+}
+
+//export goFyneAccessibilityScroll
+func goFyneAccessibilityScroll(handle C.uintptr_t, id C.uint32_t, relative C.int, horizontal, vertical C.double) C.int {
+	stored, ok := accessibilityHandles.Load(uintptr(handle))
+	if !ok {
+		return 0
+	}
+	b := stored.(*accessibilityBridge)
+	if b.window.closing || b.window.view() == nil {
+		return 0
+	}
+	b.tree.Build(b.window.accessibilityRoots(), b.window.canvas.Focused())
+	var accepted bool
+	if relative != 0 {
+		accepted = b.tree.Scroll(uint32(id), fyne.AccessibilityScrollAmount(horizontal), fyne.AccessibilityScrollAmount(vertical))
+	} else {
+		accepted = b.tree.SetScrollPercent(uint32(id), float64(horizontal), float64(vertical))
+	}
+	b.window.updateAccessibility()
+	if accepted {
+		return 1
+	}
+	return 0
 }
 
 //export goFyneAccessibilityFindItem

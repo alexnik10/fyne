@@ -522,8 +522,9 @@ type Scroll struct {
 	// Since: 2.0
 	OnScrolled func(fyne.Position) `json:"-"`
 
-	scrolling      bool
-	scrollEndTimer *time.Timer
+	scrolling         bool
+	scrollEndTimer    *time.Timer
+	accessibilityInfo fyne.AccessibilityInfo
 }
 
 // CreateRenderer is a private method to Fyne which links this widget to its renderer

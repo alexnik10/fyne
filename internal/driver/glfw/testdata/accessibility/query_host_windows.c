@@ -5,6 +5,7 @@
 
 void goFyneAccessibilityAction(uintptr_t h, uint32_t id, int a, char *v, double n) {}
 int goFyneAccessibilityPerform(uintptr_t h, uint32_t id, int a, char *v, double n) { return 1; }
+int goFyneAccessibilityScroll(uintptr_t h, uint32_t id, int relative, double horizontal, double vertical) { return 1; }
 int goFyneAccessibilityTextAction(uintptr_t h, uint32_t id, int s, int e, int scroll, int top) { return 1; }
 int goFyneAccessibilityFindItem(uintptr_t h, uint32_t id, uint32_t start, int prop, char *v, uint32_t *out) { *out = 0; return 1; }
 

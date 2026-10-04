@@ -17,7 +17,7 @@ enum {
     WinAccLeaf = 1048576, WinAccScrollItem = 2097152,
     WinAccItemContainer = 4194304, WinAccVirtualizedItem = 8388608,
     WinAccGrid = 16777216, WinAccGridItem = 33554432, WinAccTable = 67108864,
-    WinAccRowHeaders = 134217728, WinAccColumnHeaders = 268435456
+    WinAccRowHeaders = 134217728, WinAccColumnHeaders = 268435456, WinAccScroll = 536870912
 };
 typedef struct {
     double x, y, height;
@@ -32,6 +32,7 @@ typedef struct {
     const char *name, *description, *value, *shortcut;
     double x, y, width, height;
     double number, minimum, maximum, step;
+    double horizontal_percent, vertical_percent, horizontal_view, vertical_view;
     const char *text;
     int caret, selection_start, selection_end;
     uint64_t text_revision;

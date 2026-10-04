@@ -38,6 +38,8 @@ static HRESULT WINAPI automationEvent(IRawElementProviderSimple *p, EVENTID id) 
 #include "../../accessibility_windows.c"
 
 static int actions, lastAction;
+static double scrollX, scrollY;
+static int scrollRelative;
 static uintptr_t actionWindow;
 static uint32_t actionID;
 static char actionValue[128];
@@ -59,6 +61,10 @@ void goFyneAccessibilityAction(uintptr_t handle, uint32_t id, int act, char *val
 }
 int goFyneAccessibilityPerform(uintptr_t handle, uint32_t id, int act, char *value, double number) {
     goFyneAccessibilityAction(handle, id, act, value, number);
+    return 1;
+}
+int goFyneAccessibilityScroll(uintptr_t handle, uint32_t id, int relative, double horizontal, double vertical) {
+    actionWindow=handle; actionID=id; scrollRelative=relative; scrollX=horizontal; scrollY=vertical; ++actions;
     return 1;
 }
 static HWND newWindow(void) {
@@ -337,10 +343,75 @@ static void testNavigationProviders(void) {
     WinAccessibilityCleanup(c); DestroyWindow(hwnd);
 }
 
+static int scrollEvents;
+static void observeScroll(IRawElementProviderSimple *p, PROPERTYID id) {
+    (void)p;
+    if (id >= UIA_ScrollHorizontalScrollPercentPropertyId && id <= UIA_ScrollVerticallyScrollablePropertyId) ++scrollEvents;
+}
+static void testScrollProvider(void) {
+    HWND hwnd=newWindow(); assert(hwnd);
+    WinAccessibility *c=WinAccessibilityCreate(hwnd,77); assert(c);
+    WinAccessibilityNode node={.id=1,.flags=WinAccScroll,.horizontal_percent=-1,.vertical_percent=0,.horizontal_view=100,.vertical_view=20};
+    assert(WinAccessibilityUpdate(c,&node,1));
+    Element *e=retain(c,1);
+    IUnknown *provider=NULL;
+    assert(pattern(&e->simple,UIA_ScrollPatternId,&provider)==S_OK && provider==(IUnknown *)&e->scroll);
+    IUnknown_Release(provider);
+    void *queried=NULL;
+    assert(query(e,&IID_IScrollProvider,&queried)==S_OK && queried==&e->scroll);
+    IScrollProvider_Release((IScrollProvider *)queried);
+    double number=0; BOOL enabled=TRUE;
+    assert(IScrollProvider_get_HorizontalScrollPercent(&e->scroll,&number)==S_OK && number==-1);
+    assert(IScrollProvider_get_HorizontalViewSize(&e->scroll,&number)==S_OK && number==100);
+    assert(IScrollProvider_get_VerticalScrollPercent(&e->scroll,&number)==S_OK && number==0);
+    assert(IScrollProvider_get_VerticalViewSize(&e->scroll,&number)==S_OK && number==20);
+    assert(IScrollProvider_get_HorizontallyScrollable(&e->scroll,&enabled)==S_OK && !enabled);
+    assert(IScrollProvider_get_VerticallyScrollable(&e->scroll,&enabled)==S_OK && enabled);
+    assert(IScrollProvider_get_VerticalViewSize(&e->scroll,NULL)==E_POINTER);
+    assert(IScrollProvider_get_HorizontallyScrollable(&e->scroll,NULL)==E_POINTER);
+    assert(IScrollProvider_SetScrollPercent(&e->scroll,-1,50)==S_OK);
+    assert(actionWindow==77 && actionID==1 && !scrollRelative && scrollX==-1 && scrollY==50);
+    assert(IScrollProvider_Scroll(&e->scroll,ScrollAmount_NoAmount,ScrollAmount_LargeIncrement)==S_OK);
+    assert(scrollRelative && scrollX==0 && scrollY==4);
+    int before=actions;
+    assert(IScrollProvider_SetScrollPercent(&e->scroll,0,100)==(HRESULT)UIA_E_INVALIDOPERATION);
+    assert(IScrollProvider_Scroll(&e->scroll,ScrollAmount_SmallIncrement,ScrollAmount_LargeIncrement)==(HRESULT)UIA_E_INVALIDOPERATION);
+    assert(IScrollProvider_Scroll(&e->scroll,(enum ScrollAmount)99,ScrollAmount_NoAmount)==E_INVALIDARG);
+    double invalid[]={-2,101,NAN,INFINITY,-INFINITY};
+    for (int i=0;i<5;++i) {
+        assert(IScrollProvider_SetScrollPercent(&e->scroll,-1,invalid[i])==E_INVALIDARG);
+        assert(IScrollProvider_SetScrollPercent(&e->scroll,invalid[i],50)==E_INVALIDARG);
+    }
+    assert(actions==before);
+    node.flags |= WinAccDisabled; assert(WinAccessibilityUpdate(c,&node,1));
+    assert(IScrollProvider_get_VerticallyScrollable(&e->scroll,&enabled)==S_OK && enabled);
+    assert(IScrollProvider_SetScrollPercent(&e->scroll,-1,0)==(HRESULT)UIA_E_ELEMENTNOTENABLED);
+    node.flags &= ~WinAccDisabled;
+    observeProperty=observeScroll; scrollEvents=0;
+    node.vertical_percent=50;
+    assert(WinAccessibilityUpdate(c,&node,1)); assert(scrollEvents==1);
+    assert(WinAccessibilityUpdate(c,&node,1)); assert(scrollEvents==1);
+    node.vertical_percent=-1; node.vertical_view=100;
+    assert(WinAccessibilityUpdate(c,&node,1)); assert(scrollEvents==4);
+    observeProperty=NULL;
+    assert(IScrollProvider_SetScrollPercent(&e->scroll,-1,-1)==S_OK);
+    assert(IScrollProvider_Scroll(&e->scroll,ScrollAmount_NoAmount,ScrollAmount_NoAmount)==S_OK);
+    node.flags=0; assert(WinAccessibilityUpdate(c,&node,1));
+    assert(IScrollProvider_get_VerticalScrollPercent(&e->scroll,&number)==(HRESULT)UIA_E_NOTSUPPORTED);
+    assert(IScrollProvider_SetScrollPercent(&e->scroll,-1,-1)==(HRESULT)UIA_E_NOTSUPPORTED);
+    assert(WinAccessibilityUpdate(c,NULL,0));
+    assert(IScrollProvider_get_VerticalViewSize(&e->scroll,&number)==UNAVAILABLE);
+    assert(IScrollProvider_Scroll(&e->scroll,ScrollAmount_NoAmount,ScrollAmount_SmallIncrement)==UNAVAILABLE);
+    WinAccessibilityCleanup(c);
+    assert(IScrollProvider_SetScrollPercent(&e->scroll,-1,-1)==UNAVAILABLE);
+    release(e); DestroyWindow(hwnd);
+}
+
 int main(void) {
     CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
     testCollectionProviders();
     testNavigationProviders();
+    testScrollProvider();
     testLargeSnapshotIndex();
     testWindowMetadata();
     testTextProvider();

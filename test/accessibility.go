@@ -31,6 +31,9 @@ type AccessibilityNode struct {
 	SetPosition, SetSize                             int
 	Level                                            int
 	ScrollItem                                       bool
+	Scroll                                           bool
+	HorizontalScrollPercent, VerticalScrollPercent   float64
+	HorizontalViewSize, VerticalViewSize             float64
 	ItemContainer, VirtualizedItem                   bool
 	Grid, GridItem, Table, RowHeaders, ColumnHeaders bool
 	GridOwner                                        uint32
@@ -149,4 +152,17 @@ func (t *AccessibilityTree) SelectText(id uint32, start, end int) bool {
 func (t *AccessibilityTree) ScrollText(id uint32, start, end int, alignTop bool) bool {
 	t.Snapshot()
 	return t.tree.ScrollText(id, start, end, alignTop)
+}
+
+// Scroll changes the viewport by small increments or pages, after revalidation.
+func (t *AccessibilityTree) Scroll(id uint32, horizontal, vertical fyne.AccessibilityScrollAmount) bool {
+	t.Snapshot()
+	return t.tree.Scroll(id, horizontal, vertical)
+}
+
+// SetScrollPercent changes either axis in [0,100]. -1 leaves an axis unchanged.
+// Invalid or unsupported requested axes reject the entire command.
+func (t *AccessibilityTree) SetScrollPercent(id uint32, horizontal, vertical float64) bool {
+	t.Snapshot()
+	return t.tree.SetScrollPercent(id, horizontal, vertical)
 }

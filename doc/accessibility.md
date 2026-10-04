@@ -7,6 +7,10 @@ See [Large collections](accessibility-collections.md) for current demand-driven
 List/Tree publication, Windows discovery/realization, measurements and acceptance.
 Historical full-snapshot notes below describe earlier increments.
 
+See [Tabs, menus and tables](accessibility-navigation.md) for the increment accepted
+with NVDA on 2026-10-04, and [Scroll containers](accessibility-scroll.md) for the
+current ScrollPattern contract, demo and acceptance checklist.
+
 Build and run the acceptance example:
 
 ```sh

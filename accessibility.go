@@ -214,6 +214,44 @@ type AccessibleScrollItem interface {
 	AccessibilityScrollIntoView() bool
 }
 
+// AccessibilityScrollInfo describes a scroll viewport in logical canvas units.
+// ViewportPosition is relative to the accessible owner. ContentSize is the full
+// scrollable extent, excluding fixed headers. Offset is measured from the top
+// left. SmallStep specifies the preferred small increment on each axis; zero
+// uses a default. Queries must not create renderer cells or change the viewport.
+//
+// Since: 2.9
+type AccessibilityScrollInfo struct {
+	Offset, ViewportPosition             Position
+	ContentSize, ViewportSize, SmallStep Size
+	Direction                            ScrollDirection
+}
+
+// AccessibilityScrollAmount requests a relative change without moving focus.
+//
+// Since: 2.9
+type AccessibilityScrollAmount uint8
+
+// Relative scroll requests for either viewport axis. None leaves the axis unchanged.
+const (
+	AccessibilityScrollNone AccessibilityScrollAmount = iota
+	AccessibilityScrollSmallDecrement
+	AccessibilityScrollSmallIncrement
+	AccessibilityScrollLargeDecrement
+	AccessibilityScrollLargeIncrement
+)
+
+// AccessibleScroll exposes a viewport independently of its scroll bar widgets.
+// Commands run on the event thread, clamp offsets to the supported axes, and
+// preserve keyboard focus and selection. True includes a successful no-op at
+// an edge. Return false when the viewport is unavailable.
+//
+// Since: 2.9
+type AccessibleScroll interface {
+	AccessibilityScroll() AccessibilityScrollInfo
+	AccessibilityScrollTo(offset Position) bool
+}
+
 // AccessibleChildDescriber supplies contextual metadata for descendants (for
 // example labels, hints and validation errors belonging to form fields).
 // Explicit metadata on the child takes precedence over a contextual name.

@@ -17,6 +17,7 @@
 #include "accessibility_windows.h"
 
 extern void goFyneAccessibilityAction(uintptr_t, uint32_t, int, char *, double);
+extern int goFyneAccessibilityScroll(uintptr_t, uint32_t, int, double, double);
 extern int goFyneAccessibilityPerform(uintptr_t, uint32_t, int, char *, double);
 extern int goFyneAccessibilityTextAction(uintptr_t, uint32_t, int, int, int, int);
 extern int goFyneAccessibilityFindItem(uintptr_t, uint32_t, uint32_t, int, char *, uint32_t *);
@@ -25,7 +26,7 @@ typedef struct {
     uint32_t id;
     int action;
     char *text;
-    double number;
+    double number, horizontal, vertical;
     HRESULT result;
     int start, end, scroll, alignTop;
     uint32_t startAfter, resultID;
@@ -155,6 +156,7 @@ struct Element {
     ISelectionItemProvider selectionItem;
     IExpandCollapseProvider expand;
     IScrollItemProvider scrollItem;
+    IScrollProvider scroll;
     IItemContainerProvider itemContainer;
     IVirtualizedItemProvider virtualizedItem;
     IGridProvider grid;
@@ -183,6 +185,7 @@ static ISelectionProviderVtbl selectionVtbl;
 static ISelectionItemProviderVtbl selectionItemVtbl;
 static IExpandCollapseProviderVtbl expandVtbl;
 static IScrollItemProviderVtbl scrollItemVtbl;
+static IScrollProviderVtbl scrollVtbl;
 static IItemContainerProviderVtbl itemContainerVtbl;
 static IVirtualizedItemProviderVtbl virtualizedItemVtbl;
 static IGridProviderVtbl gridVtbl;
@@ -236,6 +239,7 @@ static Element *newElement(WinAccessibility *c, uint32_t id) {
     e->selection.lpVtbl = &selectionVtbl; e->selectionItem.lpVtbl = &selectionItemVtbl;
     e->expand.lpVtbl = &expandVtbl;
     e->scrollItem.lpVtbl = &scrollItemVtbl;
+    e->scroll.lpVtbl = &scrollVtbl;
     e->itemContainer.lpVtbl = &itemContainerVtbl;
     e->virtualizedItem.lpVtbl = &virtualizedItemVtbl;
     e->grid.lpVtbl = &gridVtbl; e->gridItem.lpVtbl = &gridItemVtbl;
@@ -261,6 +265,7 @@ static HRESULT query(Element *e, REFIID iid, void **out) {
         if ((flags & WinAccSelection) && IsEqualIID(iid, &IID_ISelectionProvider)) *out = &e->selection;
         if ((flags & WinAccSelectable) && IsEqualIID(iid, &IID_ISelectionItemProvider)) *out = &e->selectionItem;
         if ((flags & (WinAccExpandable|WinAccLeaf)) && IsEqualIID(iid, &IID_IExpandCollapseProvider)) *out = &e->expand;
+        if ((flags & WinAccScroll) && IsEqualIID(iid, &IID_IScrollProvider)) *out = &e->scroll;
         if ((flags & WinAccScrollItem) && IsEqualIID(iid, &IID_IScrollItemProvider)) *out = &e->scrollItem;
         if ((flags & WinAccItemContainer) && IsEqualIID(iid, &IID_IItemContainerProvider)) *out = &e->itemContainer;
         if (e->virtualized && !e->context->closed && IsEqualIID(iid, &IID_IVirtualizedItemProvider)) *out = &e->virtualizedItem;
@@ -289,6 +294,7 @@ IUNKNOWN(SL, ISelectionProvider, selection)
 IUNKNOWN(SI, ISelectionItemProvider, selectionItem)
 IUNKNOWN(EC, IExpandCollapseProvider, expand)
 IUNKNOWN(SC, IScrollItemProvider, scrollItem)
+IUNKNOWN(SP, IScrollProvider, scroll)
 IUNKNOWN(IC, IItemContainerProvider, itemContainer)
 IUNKNOWN(VI, IVirtualizedItemProvider, virtualizedItem)
 IUNKNOWN(GR, IGridProvider, grid)
@@ -319,6 +325,7 @@ static HRESULT STDMETHODCALLTYPE pattern(IRawElementProviderSimple *p, PATTERNID
     if (id == UIA_SelectionPatternId && (flags & WinAccSelection)) *out = (IUnknown *)&e->selection;
     if (id == UIA_SelectionItemPatternId && (flags & WinAccSelectable)) *out = (IUnknown *)&e->selectionItem;
     if (id == UIA_ExpandCollapsePatternId && (flags & (WinAccExpandable|WinAccLeaf))) *out = (IUnknown *)&e->expand;
+    if (id == UIA_ScrollPatternId && (flags & WinAccScroll)) *out = (IUnknown *)&e->scroll;
     if (id == UIA_ScrollItemPatternId && (flags & WinAccScrollItem)) *out = (IUnknown *)&e->scrollItem;
     if (id == UIA_ItemContainerPatternId && (flags & WinAccItemContainer)) *out = (IUnknown *)&e->itemContainer;
     if (id == UIA_GridPatternId && (flags & WinAccGrid)) *out = (IUnknown *)&e->grid;
@@ -395,7 +402,7 @@ static void propertyValue(WinAccessibility *c, Record *r, PROPERTYID id, VARIANT
     case UIA_IsContentElementPropertyId:
         if (n && (n->role == 16 || n->role == 17 || n->role == 21)) { variantBool(out, 0); break; }
         /* fall through */
-    case UIA_IsControlElementPropertyId: variantBool(out, !n || n->role != 0 || (r->name && r->name[0])); break;
+    case UIA_IsControlElementPropertyId: variantBool(out, !n || n->role != 0 || (f & WinAccScroll) || (r->name && r->name[0])); break;
     case UIA_IsPasswordPropertyId: variantBool(out, f & WinAccProtected); break;
     case UIA_IsRequiredForFormPropertyId: variantBool(out, f & WinAccRequired); break;
     case UIA_IsDataValidForFormPropertyId: variantBool(out, !(f & WinAccInvalid)); break;
@@ -432,6 +439,13 @@ static void propertyValue(WinAccessibility *c, Record *r, PROPERTYID id, VARIANT
     case UIA_TableRowOrColumnMajorPropertyId: if (f & WinAccTable) integer(out,RowOrColumnMajor_RowMajor); break;
     case UIA_GridItemContainingGridPropertyId:
         if (f & WinAccGridItem) { Element *owner=elementFor(c,n->grid_owner); if (owner) { out->vt=VT_UNKNOWN; out->punkVal=(IUnknown *)&owner->simple; addRef(owner); } } break;
+    case UIA_IsScrollPatternAvailablePropertyId: variantBool(out, f & WinAccScroll); break;
+    case UIA_ScrollHorizontallyScrollablePropertyId: if (f & WinAccScroll) variantBool(out, n->horizontal_percent >= 0); break;
+    case UIA_ScrollVerticallyScrollablePropertyId: if (f & WinAccScroll) variantBool(out, n->vertical_percent >= 0); break;
+    case UIA_ScrollHorizontalScrollPercentPropertyId: if (f & WinAccScroll) variantNumber(out, n->horizontal_percent); break;
+    case UIA_ScrollVerticalScrollPercentPropertyId: if (f & WinAccScroll) variantNumber(out, n->vertical_percent); break;
+    case UIA_ScrollHorizontalViewSizePropertyId: if (f & WinAccScroll) variantNumber(out, n->horizontal_view); break;
+    case UIA_ScrollVerticalViewSizePropertyId: if (f & WinAccScroll) variantNumber(out, n->vertical_view); break;
     case UIA_IsScrollItemPatternAvailablePropertyId: variantBool(out, f & WinAccScrollItem); break;
     case UIA_IsItemContainerPatternAvailablePropertyId: variantBool(out, f & WinAccItemContainer); break;
     case UIA_IsVirtualizedItemPatternAvailablePropertyId: variantBool(out, f & WinAccVirtualizedItem); break;
@@ -694,6 +708,7 @@ static IRangeValueProviderVtbl rangeVtbl = {N_QI, N_Add, N_Release, setRange, ra
 #include "accessibility_selection_windows.h"
 #include "accessibility_collection_windows.h"
 #include "accessibility_grid_windows.h"
+#include "accessibility_scroll_windows.h"
 
 static LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     WinAccessibility *c = (WinAccessibility *)GetPropW(hwnd, WINDOW_PROPERTY);
@@ -701,7 +716,9 @@ static LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     if (msg == actionMessage) {
         ActionRequest *request = (ActionRequest *)lp;
         if (request->handle == c->handle) {
-            int success = request->action == 13
+            int success = request->action == 14
+                ? goFyneAccessibilityScroll(request->handle, request->id, request->scroll, request->horizontal, request->vertical)
+                : request->action == 13
                 ? goFyneAccessibilityFindItem(request->handle, request->id, request->startAfter, request->property, request->text, &request->resultID)
                 : request->action == 5
                 ? goFyneAccessibilityTextAction(request->handle, request->id, request->start, request->end, request->scroll, request->alignTop)
@@ -855,7 +872,10 @@ int WinAccessibilityUpdateWithStats(WinAccessibility *c, const WinAccessibilityN
     if (stats) stats->snapshot_ms = diagnosticNow(stats) - snapshotStart;
     // Queries may re-enter during events and see the complete new tree.
     if (structure) diagnosticStructure(stats, root);
-    PROPERTYID properties[] = {UIA_AcceleratorKeyPropertyId, UIA_GridRowCountPropertyId, UIA_GridColumnCountPropertyId, UIA_GridItemRowPropertyId, UIA_GridItemColumnPropertyId, UIA_NamePropertyId, UIA_HelpTextPropertyId, UIA_IsEnabledPropertyId,
+    PROPERTYID properties[] = {UIA_IsScrollPatternAvailablePropertyId,
+        UIA_ScrollHorizontallyScrollablePropertyId, UIA_ScrollVerticallyScrollablePropertyId,
+        UIA_ScrollHorizontalScrollPercentPropertyId, UIA_ScrollVerticalScrollPercentPropertyId,
+        UIA_ScrollHorizontalViewSizePropertyId, UIA_ScrollVerticalViewSizePropertyId, UIA_AcceleratorKeyPropertyId, UIA_GridRowCountPropertyId, UIA_GridColumnCountPropertyId, UIA_GridItemRowPropertyId, UIA_GridItemColumnPropertyId, UIA_NamePropertyId, UIA_HelpTextPropertyId, UIA_IsEnabledPropertyId,
         UIA_IsKeyboardFocusablePropertyId, UIA_IsPasswordPropertyId, UIA_IsRequiredForFormPropertyId,
         UIA_IsDataValidForFormPropertyId, UIA_ToggleToggleStatePropertyId, UIA_ValueValuePropertyId,
         UIA_ValueIsReadOnlyPropertyId, UIA_RangeValueValuePropertyId, UIA_RangeValueIsReadOnlyPropertyId,

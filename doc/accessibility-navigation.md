@@ -3,6 +3,10 @@
 This increment adds shared semantics and Windows UI Automation support. It does
 not change the deferred plan for incremental List/Tree model notifications.
 
+On 2026-10-04 the user completed NVDA testing and reported no critical problems.
+This increment is accepted for proceeding to [ScrollPattern](accessibility-scroll.md).
+Narrator and the remaining Windows environment checks are still separate gates.
+
 ## Tabs
 
 AppTabs and DocTabs expose Tab and TabItem with single, required selection.

@@ -61,6 +61,9 @@ type Node struct {
 	SetPosition, SetSize                             int
 	Level                                            int
 	ScrollItem                                       bool
+	Scroll                                           bool
+	HorizontalScrollPercent, VerticalScrollPercent   float64
+	HorizontalViewSize, VerticalViewSize             float64
 	ItemContainer, VirtualizedItem                   bool
 	Grid, GridItem, Table, RowHeaders, ColumnHeaders bool
 	GridOwner                                        uint32
@@ -281,9 +284,7 @@ func (t *Tree) Perform(id uint32, action Action, text string, number float64, ca
 	case Expand, Collapse:
 		return n.Expandable && performExpansion(obj, action == Expand)
 	case ScrollIntoView:
-		if s, ok := obj.(fyne.AccessibleScrollItem); ok {
-			return s.AccessibilityScrollIntoView()
-		}
+		return t.scrollIntoView(n, obj)
 	case Activate, Toggle:
 		return performActivation(n, obj, action)
 	case SetValue:

@@ -188,3 +188,25 @@ Gates include bounded work on 100,000 records, eviction/realization, stale IDs,
 modal/collapse scope, external-module tests, native C lifetime/index tests and
 cross-process UIA discovery. Ship a size-selectable demo and request a separate
 NVDA/Narrator run; warm semantic benchmarks do not prove speech responsiveness.
+
+## Accepted increment: tabs, menus and Table
+
+AppTabs/DocTabs, menu navigation and model-based Table/Grid/TableItem support
+are implemented. On 2026-10-04 the user reported checking the increment with NVDA
+and finding no critical problems. This is the acceptance to proceed with
+ScrollPattern; it does not establish Narrator or other platform acceptance.
+See [navigation coverage](accessibility-navigation.md).
+
+## Current increment: ScrollPattern
+
+Add a shared viewport capability and Windows IScrollProvider for Scroll,
+List, Tree and Table, including both axes, relative steps, absolute percentages,
+view sizes and property changes. Preserve focus and selection; reject invalid,
+disabled, stale and out-of-scope commands. Generic scroll descendants also receive
+ScrollItem, with nested viewport reveal. See [scroll semantics and acceptance](accessibility-scroll.md).
+
+Gates: shared/public API tests, native COM lifetime/event tests, a real separate
+process UIA scenario, normal/diagnostic demo builds, and the existing full CI
+matrix. Wait for every check before reporting completion. Request the next NVDA
+acceptance after publishing the demo. Incremental List/Tree model notifications
+remain deferred; Table editing/interactive cells require a separate contract.
