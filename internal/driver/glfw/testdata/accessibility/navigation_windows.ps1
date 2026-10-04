@@ -37,9 +37,9 @@ if ($cell.Current.Name -ne 'record-119 State' -or !$cell.Current.IsOffscreen) { 
 $item=$cell.GetCurrentPattern([System.Windows.Automation.GridItemPattern]::Pattern)
 if ($item.Current.Row -ne 119 -or $item.Current.Column -ne 1 -or $item.Current.RowSpan -ne 1) { throw 'Wrong coordinates' }
 if ((Runtime-ID $item.Current.ContainingGrid) -ne (Runtime-ID $table)) { throw 'Wrong grid owner' }
-$headers=$cell.GetCurrentPattern([System.Windows.Automation.TableItemPattern]::Pattern).GetCurrentColumnHeaderItems()
+$headers=$cell.GetCurrentPattern([System.Windows.Automation.TableItemPattern]::Pattern).Current.GetColumnHeaderItems()
 if ($headers.Length -ne 1 -or $headers[0].Current.Name -ne 'State') { throw 'Wrong column header relation' }
-$allHeaders=$table.GetCurrentPattern([System.Windows.Automation.TablePattern]::Pattern).GetCurrentColumnHeaders()
+$allHeaders=$table.GetCurrentPattern([System.Windows.Automation.TablePattern]::Pattern).Current.GetColumnHeaders()
 if ($allHeaders.Length -ne 2) { throw 'Wrong table header count' }
 $cell.GetCurrentPattern([System.Windows.Automation.ScrollItemPattern]::Pattern).ScrollIntoView()
 Wait-Until { !$cell.Current.IsOffscreen }
@@ -50,7 +50,10 @@ $cell=$grid.GetItem(0,1)
 if ((Runtime-ID $cell) -ne $id) { throw 'Reorder changed cell identity' }
 if (!$cell.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Current.IsSelected) { throw 'Reorder lost selection' }
 Invoke-Name 'Replace table target'
-Wait-Until { (Runtime-ID $grid.GetItem(119,1)) -ne $id }
+Wait-Until {
+    $replacement=$grid.GetItem(119,1)
+    $replacement.Current.Name -eq 'record-119 State' -and (Runtime-ID $replacement) -ne $id
+}
 try { $cell.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select(); throw 'Stale cell accepted' }
 catch {
     if (!($_.Exception -is [System.Windows.Automation.ElementNotAvailableException]) -and
