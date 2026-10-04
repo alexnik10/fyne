@@ -4,8 +4,12 @@ Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
 $root = [System.Windows.Automation.AutomationElement]::FromHandle([IntPtr]$WindowHandle)
 function Assert($condition, $message) { if (-not $condition) { throw $message } }
-function Named($name) {
+function Named($name, $type = $null) {
     $condition = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::NameProperty, $name)
+    if ($null -ne $type) {
+        $role = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ControlTypeProperty, $type)
+        $condition = [System.Windows.Automation.AndCondition]::new($condition, $role)
+    }
     return $root.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $condition)
 }
 function WaitFor($test, $message) {
@@ -31,7 +35,7 @@ $readOnly = $grid.GetItem(0, 0).GetCurrentPattern([System.Windows.Automation.Val
 Assert $readOnly.Current.IsReadOnly 'Read-only column is writable'
 $cell.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
 WaitFor { $null -ne (Named 'Edit cell') } 'Editor did not open'
-$entry = Named 'Cell 119 1'
+$entry = Named 'Cell 119 1' ([System.Windows.Automation.ControlType]::Edit)
 Assert ($entry.Current.ControlType -eq [System.Windows.Automation.ControlType]::Edit) 'Wrong editor role'
 Assert $entry.Current.HasKeyboardFocus 'Cell editor has no keyboard focus'
 $editorValue = $entry.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)
