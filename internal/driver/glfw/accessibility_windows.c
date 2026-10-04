@@ -69,6 +69,7 @@ static HRESULT (WINAPI *uiaProperty)(IRawElementProviderSimple *, PROPERTYID, VA
 static HRESULT (WINAPI *uiaStructure)(IRawElementProviderSimple *, enum StructureChangeType, int *, int);
 static HRESULT (WINAPI *uiaDisconnect)(IRawElementProviderSimple *);
 static HRESULT (WINAPI *uiaNotSupported)(IUnknown **);
+static HRESULT (WINAPI *uiaMixedAttribute)(IUnknown **);
 static BOOL CALLBACK loadUIA(PINIT_ONCE once, PVOID parameter, PVOID *context) {
     (void)once; (void)parameter; (void)context;
     HMODULE dll = LoadLibraryExW(L"UIAutomationCore.dll", NULL, LOAD_LIBRARY_SEARCH_SYSTEM32);
@@ -81,8 +82,9 @@ static BOOL CALLBACK loadUIA(PINIT_ONCE once, PVOID parameter, PVOID *context) {
     LOAD(uiaStructure, "UiaRaiseStructureChangedEvent");
     LOAD(uiaDisconnect, "UiaDisconnectProvider");
     LOAD(uiaNotSupported, "UiaGetReservedNotSupportedValue");
+    LOAD(uiaMixedAttribute, "UiaGetReservedMixedAttributeValue");
 #undef LOAD
-    if (!uiaReturn || !uiaHost || !uiaEvent || !uiaProperty || !uiaStructure || !uiaDisconnect || !uiaNotSupported) {
+    if (!uiaReturn || !uiaHost || !uiaEvent || !uiaProperty || !uiaStructure || !uiaDisconnect || !uiaNotSupported || !uiaMixedAttribute) {
         FreeLibrary(dll); return FALSE;
     }
     actionMessage = RegisterWindowMessageW(L"Fyne.UIAutomation.PerformAction");
@@ -114,6 +116,8 @@ typedef struct {
     int *offsets, length;
     unsigned char *wordBoundaries;
     WinAccessibilityTextPosition *positions;
+    WinAccessibilityTextRun *runs;
+    int runCount;
 } Record;
 // A snapshot remains alive while events are raised, including nested native
 // message dispatch that publishes a newer snapshot or closes the window.
@@ -362,6 +366,7 @@ static int controlType(int role) {
     case 19: return UIA_TableControlTypeId;
     case 20: return UIA_DataItemControlTypeId;
     case 21: return UIA_HeaderItemControlTypeId;
+    case 22: return UIA_DocumentControlTypeId;
     default: return UIA_GroupControlTypeId;
     }
 }
@@ -769,6 +774,7 @@ static void freeRecords(Record *records, int count) {
         free(records[i].shortcut); free(records[i].name); free(records[i].description); free(records[i].value);
         free(records[i].text); free(records[i].offsets); free(records[i].positions);
         free(records[i].wordBoundaries);
+        free(records[i].runs);
         if (records[i].element) release(records[i].element);
     }
     free(snapshot);
@@ -839,6 +845,7 @@ int WinAccessibilityUpdateWithStats(WinAccessibility *c, const WinAccessibilityN
         r->data.shortcut = r->data.name = r->data.description = r->data.value = r->data.text = NULL;
         r->data.positions = NULL;
         r->data.word_boundaries = NULL;
+        r->data.runs = NULL;
         r->shortcut = wide(nodes[i].shortcut); r->name = wide(nodes[i].name); r->description = wide(nodes[i].description);
         r->value = wide((nodes[i].flags & WinAccProtected) ? "" : nodes[i].value);
         int textOK = copyText(r, &nodes[i]);
@@ -918,7 +925,7 @@ int WinAccessibilityUpdateWithStats(WinAccessibility *c, const WinAccessibilityN
                 diagnosticAutomation(stats, next[i].element, event);
             }
             if ((next[i].data.flags & WinAccText) && eventsCurrent(c, generation)) {
-                int textChanged = old[j].data.text_revision != next[i].data.text_revision || wcscmp(old[j].text, next[i].text);
+                int textChanged = old[j].data.text_revision != next[i].data.text_revision || wcscmp(old[j].text, next[i].text) || textFormatsChanged(&old[j], &next[i]);
                 if (textChanged) diagnosticAutomation(stats, next[i].element, UIA_Text_TextChangedEventId);
                 if (eventsCurrent(c, generation) && (textChanged || old[j].data.caret != next[i].data.caret ||
                     old[j].data.selection_start != next[i].data.selection_start || old[j].data.selection_end != next[i].data.selection_end))

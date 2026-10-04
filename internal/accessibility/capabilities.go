@@ -33,6 +33,7 @@ func populateCapabilities(n *Node, obj fyne.CanvasObject) {
 	}
 	if text, ok := obj.(fyne.AccessibleText); ok {
 		n.Document = copyDocument(text.AccessibilityText(), n.Protected)
+		n.ReadOnly = n.ReadOnly || n.Document.ReadOnly
 	}
 	if s, ok := obj.(fyne.AccessibleSelection); ok {
 		n.Selection = true
@@ -76,6 +77,7 @@ func populateCapabilities(n *Node, obj fyne.CanvasObject) {
 func copyDocument(document fyne.AccessibilityTextInfo, protected bool) *fyne.AccessibilityTextInfo {
 	length := utf8.RuneCountInString(document.Text)
 	if protected {
+		document.Runs = nil
 		// Defend against custom controls accidentally returning clear text.
 		document.Text = strings.Repeat("•", length)
 		document.WordBoundaries = []int{0}
@@ -88,7 +90,22 @@ func copyDocument(document fyne.AccessibilityTextInfo, protected bool) *fyne.Acc
 	document.SelectionEnd = min(max(document.SelectionEnd, document.SelectionStart), length)
 	document.Positions = append([]fyne.AccessibilityTextPosition(nil), document.Positions...)
 	document.WordBoundaries = append([]int(nil), document.WordBoundaries...)
+	document.Runs = copyTextRuns(document.Runs, length)
 	return &document
+}
+
+func copyTextRuns(runs []fyne.AccessibilityTextRun, length int) []fyne.AccessibilityTextRun {
+	end := 0
+	for _, run := range runs {
+		if run.Start != end || run.End < run.Start || run.End > length || (run.Start == run.End && length != 0) {
+			return nil
+		}
+		end = run.End
+	}
+	if end != length {
+		return nil
+	}
+	return append([]fyne.AccessibilityTextRun(nil), runs...)
 }
 
 func (t *Tree) performSelection(n Node, obj fyne.CanvasObject, action Action) bool {

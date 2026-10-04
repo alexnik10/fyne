@@ -101,6 +101,7 @@ func (l *Label) CreateRenderer() fyne.WidgetRenderer {
 	l.syncSegments()
 
 	l.selection = &focusSelectable{}
+	l.selection.accessibilityOwner = l.super()
 	l.selection.ExtendBaseWidget(l.selection)
 	l.selection.focus = l.selection
 	l.selection.style = l.TextStyle
@@ -261,6 +262,7 @@ func (r *labelRenderer) Refresh() {
 
 type focusSelectable struct {
 	selectable
+	accessibilityOwner fyne.CanvasObject
 }
 
 func (f *focusSelectable) FocusGained() {

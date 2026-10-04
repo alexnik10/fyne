@@ -184,7 +184,7 @@ func (t *Tree) Build(roots []Root, focused fyne.Focusable) []Node {
 // SelectText revalidates a text command against the current input scope.
 func (t *Tree) SelectText(id uint32, start, end int) bool {
 	n, ok := t.nodes[id]
-	if !ok || n.Disabled || n.Document == nil || start < 0 || end < start || end > utf8.RuneCountInString(n.Document.Text) {
+	if !ok || n.Disabled || n.Document == nil || n.Document.SelectionDisabled || start < 0 || end < start || end > utf8.RuneCountInString(n.Document.Text) {
 		return false
 	}
 	if text, ok := t.objects[id].(fyne.AccessibleText); ok {
@@ -289,6 +289,9 @@ func (t *Tree) Perform(id uint32, action Action, text string, number float64, ca
 		return performActivation(n, obj, action)
 	case SetValue:
 		if a, ok := obj.(fyne.AccessibleValue); ok && !n.ReadOnly {
+			if checked, ok := obj.(fyne.AccessibleValueSetter); ok {
+				return checked.AccessibilitySetValueChecked(text)
+			}
 			a.AccessibilitySetValue(text)
 			return true
 		}

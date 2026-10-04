@@ -65,6 +65,15 @@ type Table struct {
 	// DescribeCell supplies semantics without rendering. Headers use a -1 coordinate.
 	// Since: 2.9
 	DescribeCell func(TableCellID) fyne.AccessibilityInfo `json:"-"`
+	// CellValue reads a text cell from the model, independently of its renderer.
+	// The boolean is true for read-only cells. Pair with OnCellChanged to enable
+	// F2/Enter editing and accessibility Value commands. Nil preserves display-only cells.
+	// Since: 2.9
+	CellValue func(TableCellID) (value string, readOnly bool) `json:"-"`
+	// OnCellChanged validates and stores a new value. On error it must leave the
+	// model unchanged; the editor stays open and exposes the validation error.
+	// Since: 2.9
+	OnCellChanged func(TableCellID, string) error `json:"-"`
 
 	// ShowHeaderRow specifies that a row should be added to the table with header content.
 	// This will default to an A-Z style content, unless overridden with `CreateHeader` and `UpdateHeader` calls.
@@ -129,6 +138,7 @@ type Table struct {
 	dragStartPos                                                 fyne.Position
 	accessibilityCache                                           *tableAccessibilitySource
 	accessibilityRevision                                        uint64
+	cellEdit                                                     *tableCellEdit
 	rowLifetimes, columnLifetimes                                collectionLifetimes
 }
 
@@ -381,6 +391,8 @@ func (t *Table) TypedKey(event *fyne.KeyEvent) {
 	oldHighlight := t.currentHighlight
 
 	switch event.Name {
+	case fyne.KeyF2, fyne.KeyReturn, fyne.KeyEnter:
+		t.EditCell(t.currentHighlight)
 	case fyne.KeySpace:
 		t.Select(t.currentHighlight)
 	case fyne.KeyDown:

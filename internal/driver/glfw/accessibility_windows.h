@@ -24,6 +24,12 @@ typedef struct {
     int line;
 } WinAccessibilityTextPosition;
 typedef struct {
+    int start, end;
+    double size;
+    int weight, italic, underline, strike, monospace, alignment, heading;
+    uint32_t foreground;
+} WinAccessibilityTextRun;
+typedef struct {
     uint32_t id, parent, selection_owner;
     int set_position, set_size, level;
     uint32_t grid_owner;
@@ -40,6 +46,8 @@ typedef struct {
     int word_boundary_count;
     const WinAccessibilityTextPosition *positions;
     int position_count;
+    const WinAccessibilityTextRun *runs;
+    int run_count, selection_disabled;
     double viewport_x, viewport_y, viewport_width, viewport_height;
 } WinAccessibilityNode;
 

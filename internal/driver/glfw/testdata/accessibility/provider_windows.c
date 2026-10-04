@@ -407,6 +407,65 @@ static void testScrollProvider(void) {
     release(e); DestroyWindow(hwnd);
 }
 
+static void testFormattedText(void) {
+    HWND hwnd = newWindow(); assert(hwnd);
+    WinAccessibility *c = WinAccessibilityCreate(hwnd, 88); assert(c);
+    WinAccessibilityTextRun runs[] = {
+        {.start=0,.end=2,.size=12,.weight=400,.foreground=0x123456},
+        {.start=2,.end=4,.size=18,.weight=700,.italic=1,.heading=2,.foreground=0x654321},
+        {.start=4,.end=6,.size=12,.weight=400,.foreground=0x123456}
+    };
+    WinAccessibilityNode node = {.id=1,.role=22,.flags=WinAccText|WinAccReadOnly,
+        .text="abCDxy",.runs=runs,.run_count=3,.selection_disabled=1};
+    assert(WinAccessibilityUpdate(c, &node, 1));
+    Element *e = retain(c, 1);
+    ITextRangeProvider *doc = NULL, *found = NULL;
+    assert(textDocument(&e->text, &doc) == S_OK);
+    VARIANT attr;
+    assert(rangeAttribute(doc, UIA_FontWeightAttributeId, &attr) == S_OK && attr.vt == VT_UNKNOWN);
+    IUnknown *mixed = NULL; assert(uiaMixedAttribute(&mixed) == S_OK);
+    assert(attr.punkVal == mixed); IUnknown_Release(mixed); VariantClear(&attr);
+    integer(&attr, 700);
+    assert(rangeFindAttribute(doc, UIA_FontWeightAttributeId, attr, FALSE, &found) == S_OK && found);
+    expectText(found, L"CD");
+    assert(rangeAttribute(found, UIA_FontSizeAttributeId, &attr) == S_OK && attr.vt == VT_R8 && attr.dblVal == 18);
+    assert(rangeAttribute(found, UIA_StyleIdAttributeId, &attr) == S_OK && attr.lVal == 70002);
+    assert(rangeAttribute(found, UIA_IsItalicAttributeId, &attr) == S_OK && attr.boolVal == VARIANT_TRUE);
+    int moved;
+    assert(rangeMove(found, TextUnit_Format, 1, &moved) == S_OK && moved == 1); expectText(found, L"xy");
+    assert(rangeMove(found, TextUnit_Format, -2, &moved) == S_OK && moved == -2); expectText(found, L"ab");
+    ITextRangeProvider_Release(found); found = NULL;
+    integer(&attr, 400);
+    assert(rangeFindAttribute(doc, UIA_FontWeightAttributeId, attr, TRUE, &found) == S_OK && found); expectText(found, L"xy");
+    ITextRangeProvider_Release(found); found = NULL;
+    // Formatting changes notify even with identical text and revision.
+    int events = textEvents;
+    runs[1].weight = 400;
+    assert(WinAccessibilityUpdate(c, &node, 1)); assert(textEvents == events + 1);
+    assert(rangeAttribute(doc, UIA_FontWeightAttributeId, &attr) == S_OK && attr.lVal == 400);
+    integer(&attr, 400);
+    assert(rangeFindAttribute(doc, UIA_FontWeightAttributeId, attr, FALSE, &found) == S_OK && found); expectText(found, L"abCDxy");
+    ITextRangeProvider_Release(found); found = NULL;
+    enum SupportedTextSelection support;
+    assert(textSelectionSupport(&e->text, &support) == S_OK && support == SupportedTextSelection_None);
+    SAFEARRAY *selection = NULL; LONG upper;
+    assert(textSelection(&e->text, &selection) == S_OK); SafeArrayGetUBound(selection, 1, &upper); assert(upper == -1); SafeArrayDestroy(selection);
+    assert(rangeSelect(doc) == (HRESULT)UIA_E_INVALIDOPERATION);
+    // Zero-width ranges use the following run, or the preceding run at EOF.
+    assert(textRangeResult(e, 2, 2, &found) == S_OK);
+    assert(rangeAttribute(found, UIA_FontSizeAttributeId, &attr) == S_OK && attr.dblVal == 18);
+    ITextRangeProvider_Release(found); found = NULL;
+    node.flags |= WinAccProtected;
+    assert(WinAccessibilityUpdate(c, &node, 1));
+    assert(rangeAttribute(doc, UIA_FontSizeAttributeId, &attr) == S_OK && attr.vt == VT_UNKNOWN); VariantClear(&attr);
+    assert(!find(c, 1)->runCount);
+    expectText(doc, L"\u2022\u2022\u2022\u2022\u2022\u2022");
+    assert(WinAccessibilityUpdate(c, NULL, 0));
+    assert(rangeAttribute(doc, UIA_FontWeightAttributeId, &attr) == UNAVAILABLE);
+    ITextRangeProvider_Release(doc); release(e);
+    WinAccessibilityCleanup(c); DestroyWindow(hwnd);
+}
+
 int main(void) {
     CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
     testCollectionProviders();
@@ -415,6 +474,7 @@ int main(void) {
     testLargeSnapshotIndex();
     testWindowMetadata();
     testTextProvider();
+    testFormattedText();
     testWordNavigation();
     testSelectionProviders();
     testTreeProviders();

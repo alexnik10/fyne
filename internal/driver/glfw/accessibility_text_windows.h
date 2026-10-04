@@ -18,6 +18,7 @@ static ITextRangeProviderVtbl textRangeVtbl;
 #define TEXT_RANGE(p) ((TextRange *)(p))
 static int clampOffset(int value, int length) { return value < 0 ? 0 : value > length ? length : value; }
 static int surrogatePair(const WCHAR *p) { return p[0] >= 0xd800 && p[0] <= 0xdbff && p[1] >= 0xdc00 && p[1] <= 0xdfff; }
+#include "accessibility_format_windows.h"
 static int copyText(Record *r, const WinAccessibilityNode *n) {
     r->text = wide(n->text);
     if (!r->text) return 0;
@@ -53,7 +54,7 @@ static int copyText(Record *r, const WinAccessibilityNode *n) {
         if (!r->positions) return 0;
         memcpy(r->positions, n->positions, (size_t)n->position_count * sizeof(*r->positions));
     }
-    return 1;
+    return copyTextFormats(r, n);
 }
 static unsigned int runeAt(Record *r, int offset) {
     const WCHAR *p = r->text + r->offsets[offset];
@@ -135,8 +136,10 @@ static HRESULT STDMETHODCALLTYPE textCaret(ITextProvider2 *p, BOOL *active, ITex
 static HRESULT STDMETHODCALLTYPE textSelectionSupport(ITextProvider2 *p, enum SupportedTextSelection *out) {
     if (!out) return E_POINTER;
     Element *e = OWNER(p, text); AcquireSRWLockShared(&e->context->lock);
-    HRESULT hr = textRecord(e) ? S_OK : UNAVAILABLE;
-    *out = SupportedTextSelection_Single; ReleaseSRWLockShared(&e->context->lock); return hr;
+    Record *r = textRecord(e);
+    HRESULT hr = r ? S_OK : UNAVAILABLE;
+    *out = r && !r->data.selection_disabled ? SupportedTextSelection_Single : SupportedTextSelection_None;
+    ReleaseSRWLockShared(&e->context->lock); return hr;
 }
 static HRESULT STDMETHODCALLTYPE textNoChild(ITextProvider2 *p, IRawElementProviderSimple *child, ITextRangeProvider **out) {
     if (!out) return E_POINTER;
@@ -149,6 +152,10 @@ static HRESULT STDMETHODCALLTYPE textSelection(ITextProvider2 *p, SAFEARRAY **ou
     *out = NULL; Element *e = OWNER(p, text); WinAccessibility *c = e->context;
     ITextRangeProvider *range = NULL;
     AcquireSRWLockExclusive(&c->lock); Record *r = textRecord(e);
+    if (r && r->data.selection_disabled) {
+        *out = SafeArrayCreateVector(VT_UNKNOWN, 0, 0);
+        ReleaseSRWLockExclusive(&c->lock); return *out ? S_OK : E_OUTOFMEMORY;
+    }
     HRESULT hr = r ? textRangeResult(e, r->data.selection_start, r->data.selection_end, &range) : UNAVAILABLE;
     ReleaseSRWLockExclusive(&c->lock);
     if (FAILED(hr)) return hr;
@@ -282,6 +289,7 @@ static int unitBoundary(Record *r, enum TextUnit unit, int pos) {
     if (pos == 0 || pos == r->length) return 1;
     switch (unit) {
     case TextUnit_Character: return 1;
+    case TextUnit_Format: return textFormatBoundary(r, pos);
     case TextUnit_Word: {
         if (r->wordBoundaries) return r->wordBoundaries[pos] != 0;
         int before = runeClass(r, pos - 1), after = runeClass(r, pos);
@@ -397,31 +405,48 @@ static HRESULT STDMETHODCALLTYPE rangeFindText(ITextRangeProvider *p, BSTR needl
     }
     ReleaseSRWLockExclusive(&c->lock); return hr;
 }
-static HRESULT textAttribute(int flags, TEXTATTRIBUTEID attribute, VARIANT *out) {
-    VariantInit(out);
-    if (attribute == UIA_IsReadOnlyAttributeId) variantBool(out, flags & WinAccReadOnly);
-    else {
-        IUnknown *value = NULL; HRESULT hr = uiaNotSupported(&value);
-        if (FAILED(hr)) return hr;
-        out->vt = VT_UNKNOWN; out->punkVal = value;
-    }
-    return S_OK;
-}
 static HRESULT STDMETHODCALLTYPE rangeAttribute(ITextRangeProvider *p, TEXTATTRIBUTEID attribute, VARIANT *out) {
     if (!out) return E_POINTER;
     VariantInit(out); TextRange *range = TEXT_RANGE(p); WinAccessibility *c = range->element->context;
     AcquireSRWLockExclusive(&c->lock); Record *r = textRecord(range->element);
-    int flags = r ? r->data.flags : 0, valid = r != NULL;
+    HRESULT hr = r ? S_OK : UNAVAILABLE;
+    if (r && !textAttributeAt(r, range->start, attribute, out)) hr = reservedTextAttribute(out, 0);
+    else if (r) {
+        for (int i = 0; i < r->runCount; ++i) {
+            int pos = r->runs[i].start;
+            if (pos <= range->start || pos >= range->end) continue;
+            VARIANT next;
+            textAttributeAt(r, pos, attribute, &next);
+            if (!sameTextAttribute(out, &next)) { hr = reservedTextAttribute(out, 1); break; }
+        }
+    }
     ReleaseSRWLockExclusive(&c->lock);
-    return valid ? textAttribute(flags, attribute, out) : UNAVAILABLE;
+    return hr;
 }
 static HRESULT STDMETHODCALLTYPE rangeFindAttribute(ITextRangeProvider *p, TEXTATTRIBUTEID attribute, VARIANT value, BOOL backwards, ITextRangeProvider **out) {
     if (!out) return E_POINTER;
     *out = NULL; TextRange *range = TEXT_RANGE(p); WinAccessibility *c = range->element->context;
     AcquireSRWLockExclusive(&c->lock); Record *r = textRecord(range->element); HRESULT hr = r ? S_OK : UNAVAILABLE;
-    if (r && attribute == UIA_IsReadOnlyAttributeId && value.vt == VT_BOOL &&
-        (value.boolVal != VARIANT_FALSE) == ((r->data.flags & WinAccReadOnly) != 0))
-        hr = textRangeResult(range->element, range->start, range->end, out);
+    if (r) {
+        VARIANT actual;
+        int foundStart = -1, foundEnd = -1;
+        int pos = backwards ? range->end - 1 : range->start;
+        if (range->start == range->end) pos = range->start;
+        while (pos >= range->start && pos <= range->end) {
+            if (!textAttributeAt(r, pos, attribute, &actual)) break;
+            if (actual.vt != value.vt) { hr = E_INVALIDARG; break; }
+            int index = textFormatIndex(r, pos);
+            int start = index >= 0 && r->runs[index].start > range->start ? r->runs[index].start : range->start;
+            int end = index >= 0 && r->runs[index].end < range->end ? r->runs[index].end : range->end;
+            if (sameTextAttribute(&actual, &value)) {
+                if (foundStart < 0) { foundStart = start; foundEnd = end; }
+                else if (backwards) foundStart = start; else foundEnd = end;
+            } else if (foundStart >= 0) break;
+            if (backwards ? start == range->start : end == range->end) break;
+            pos = backwards ? start - 1 : end;
+        }
+        if (SUCCEEDED(hr) && foundStart >= 0) hr = textRangeResult(range->element, foundStart, foundEnd, out);
+    }
     ReleaseSRWLockExclusive(&c->lock); return hr;
 }
 static HRESULT STDMETHODCALLTYPE rangeEnclosing(ITextRangeProvider *p, IRawElementProviderSimple **out) {
@@ -469,6 +494,7 @@ static HRESULT rangeCommand(TextRange *range, int scroll, int alignTop) {
     Element *e = range->element; WinAccessibility *c = e->context;
     AcquireSRWLockExclusive(&c->lock); Record *r = textRecord(e);
     HRESULT hr = !r ? UNAVAILABLE : !scroll && (r->data.flags & WinAccDisabled) ? (HRESULT)UIA_E_ELEMENTNOTENABLED : S_OK;
+    if (r && !scroll && r->data.selection_disabled) hr = UIA_E_INVALIDOPERATION;
     ActionRequest request = {.handle=c->handle, .id=e->id, .action=5, .result=UNAVAILABLE,
         .start=range->start, .end=range->end, .scroll=scroll, .alignTop=alignTop};
     HWND hwnd = c->hwnd; ReleaseSRWLockExclusive(&c->lock);

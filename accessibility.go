@@ -1,5 +1,7 @@
 package fyne
 
+import "image/color"
+
 // AccessibleRole describes the different roles an accessible element can take.
 //
 // Since: 2.8
@@ -29,6 +31,7 @@ const (
 	AccessibleRoleTable     AccessibleRole = "table"
 	AccessibleRoleCell      AccessibleRole = "cell"
 	AccessibleRoleHeader    AccessibleRole = "header"
+	AccessibleRoleDocument  AccessibleRole = "document"
 )
 
 // Accessible interface should be implemented for a widget that should be accessible
@@ -325,6 +328,14 @@ type AccessibleValue interface {
 	AccessibilitySetValue(string)
 }
 
+// AccessibleValueSetter optionally reports whether a Value command was accepted.
+// Adapters prefer it to AccessibleValue.AccessibilitySetValue when implemented.
+// A false result must leave the value unchanged (for example after validation).
+// Since: 2.9
+type AccessibleValueSetter interface {
+	AccessibilitySetValueChecked(value string) bool
+}
+
 // AccessibleRange exposes a numeric value, bounds and smallest increment.
 //
 // Since: 2.9
@@ -344,7 +355,7 @@ type AccessibilityTextPosition struct {
 	Line     int
 }
 
-// AccessibilityTextInfo is a snapshot of editable plain text. All offsets count
+// AccessibilityTextInfo is a snapshot of plain or formatted text. All offsets count
 // runes, not bytes or UTF-16 units. A collapsed selection describes the caret.
 // Protected controls must supply only masking characters, never their contents.
 // Revision changes on text edits, including replacement with identical text.
@@ -364,9 +375,30 @@ type AccessibilityTextInfo struct {
 	// breaks. Nil permits a platform fallback. Protected text must not reveal
 	// the word boundaries of the original value.
 	WordBoundaries []int
+	// ReadOnly prevents editing; SelectionDisabled also prevents selecting text.
+	// Reading and range navigation remain available in both cases.
+	ReadOnly, SelectionDisabled bool
+	// Runs are ordered, contiguous, non-overlapping and cover the entire text.
+	// Nil means formatting is unavailable. An empty document may have one 0..0 run.
+	// Protected text must not supply formatting that reveals its contents.
+	Runs []AccessibilityTextRun
 }
 
-// AccessibleText exposes editable text, its caret and a single selection.
+// AccessibilityTextRun describes uniform formatting at rune offsets [Start, End).
+// Size is in Fyne logical units, not platform pixels or typographic points.
+// HeadingLevel is 0 for ordinary text or 1..6 for a heading. Unknown attributes
+// such as the actual font family are intentionally not inferred from a file name.
+// Since: 2.9
+type AccessibilityTextRun struct {
+	Start, End   int
+	Style        TextStyle
+	Size         float32
+	Foreground   color.NRGBA
+	Alignment    TextAlign
+	HeadingLevel int
+}
+
+// AccessibleText exposes text, its caret and an optional single selection.
 // Methods run on the Fyne event thread. Selection offsets are rune offsets and
 // must be clamped to the current text; selecting must not change the text.
 //

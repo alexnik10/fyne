@@ -60,12 +60,13 @@ func main() {
 	})
 	choices := widget.NewButton("Open selection demo", func() { showSelectionDemo(application) })
 	textEditing := widget.NewButton("Open multiline text demo", func() { showTextDemo(application) })
+	textFormatting := widget.NewButton("Open editable cells and formatted text", func() { showEditingDemo(application) })
 	trees := widget.NewButton("Open tree demo", func() { showTreeDemo(application) })
 	lists := widget.NewButton("Open list demo", func() { showListDemo(application) })
 	large := widget.NewButton("Open large collections demo", func() { showLargeCollectionsDemo(application) })
 	navigation := widget.NewButton("Open tabs, menus and table demo", func() { showNavigationDemo(application) })
 	scrolling := widget.NewButton("Open scrolling demo", func() { showScrollDemo(application) })
-	content := []fyne.CanvasObject{form, status, choices, textEditing, trees, lists, large, navigation, scrolling, second}
+	content := []fyne.CanvasObject{form, status, choices, textEditing, textFormatting, trees, lists, large, navigation, scrolling, second}
 	content = append(content, diagnosticControls(window)...)
 	window.SetContent(container.NewVBox(content...))
 	window.Resize(fyne.NewSize(windowWidth, windowHeight))

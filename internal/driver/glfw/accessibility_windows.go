@@ -100,6 +100,20 @@ func (w *window) updateAccessibility() {
 			defer C.free(unsafe.Pointer(x.text))
 			x.caret, x.selection_start, x.selection_end = C.int(doc.Caret), C.int(doc.SelectionStart), C.int(doc.SelectionEnd)
 			x.text_revision = C.uint64_t(doc.Revision)
+			if doc.SelectionDisabled {
+				x.selection_disabled = 1
+			}
+			if len(doc.Runs) != 0 {
+				runs := (*C.WinAccessibilityTextRun)(C.calloc(C.size_t(len(doc.Runs)), C.size_t(C.sizeof_WinAccessibilityTextRun)))
+				if runs == nil {
+					return
+				}
+				defer C.free(unsafe.Pointer(runs))
+				for j, run := range doc.Runs {
+					marshalTextRun(&unsafe.Slice(runs, len(doc.Runs))[j], run)
+				}
+				x.runs, x.run_count = runs, C.int(len(doc.Runs))
+			}
 			if len(doc.WordBoundaries) != 0 {
 				words := (*C.int)(C.calloc(C.size_t(len(doc.WordBoundaries)), C.size_t(C.sizeof_int)))
 				if words == nil {
@@ -203,9 +217,36 @@ func roleToCWin(role fyne.AccessibleRole) C.int {
 		return 20
 	case fyne.AccessibleRoleHeader:
 		return 21
+	case fyne.AccessibleRoleDocument:
+		return 22
 	default:
 		return 0
 	}
+}
+
+func marshalTextRun(out *C.WinAccessibilityTextRun, run fyne.AccessibilityTextRun) {
+	out.start, out.end = C.int(run.Start), C.int(run.End)
+	// Fyne text sizes use logical 96-DPI units. UIA requires typographic points.
+	const pointsPerLogicalUnit = 72.0 / 96.0
+	out.size = C.double(float64(run.Size) * pointsPerLogicalUnit)
+	out.weight = 400
+	if run.Style.Bold {
+		out.weight = 700
+	}
+	if run.Style.Italic {
+		out.italic = 1
+	}
+	if run.Style.Underline {
+		out.underline = 1
+	}
+	if run.Style.Strikethrough {
+		out.strike = 1
+	}
+	if run.Style.Monospace {
+		out.monospace = 1
+	}
+	out.alignment, out.heading = C.int(run.Alignment), C.int(run.HeadingLevel)
+	out.foreground = C.uint32_t(uint32(run.Foreground.R) | uint32(run.Foreground.G)<<8 | uint32(run.Foreground.B)<<16)
 }
 
 //export goFyneAccessibilityAction

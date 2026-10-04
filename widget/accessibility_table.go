@@ -98,6 +98,7 @@ func (t *Table) Refresh() {
 			t.currentHighlight = TableCellID{}
 		}
 	}
+	t.reconcileCellEdit()
 	t.BaseWidget.Refresh()
 }
 
@@ -359,6 +360,12 @@ func (s *tableAccessibilitySource) Element(key string) (fyne.AccessibilityElemen
 	var obj fyne.CanvasObject = &tableAccessibilityCell{tableAccessibilityObject: base}
 	if id.Row < 0 || id.Col < 0 {
 		obj = &tableAccessibilityHeader{tableAccessibilityObject: base}
+	} else if s.owner.CellValue != nil {
+		cell := tableAccessibilityValueCell{tableAccessibilityCell{tableAccessibilityObject: base}}
+		obj = &cell
+		if _, readOnly := s.owner.CellValue(id); !readOnly && s.owner.OnCellChanged != nil {
+			obj = &tableAccessibilityEditableCell{cell}
+		}
 	}
 	return fyne.AccessibilityElement{Key: key, Generation: generation, Object: obj}, true
 }

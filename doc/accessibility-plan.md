@@ -1,5 +1,15 @@
 # Accessibility implementation plan (Windows first)
 
+## Current increment: editable Table and formatted text
+
+The user selected these two stages after the accepted navigation and ScrollPattern
+increments. Model-backed text cells now have validated Value commands and a keyed
+modal editor. RichText/RichTextEntry add read-only/selection capabilities, styled
+ranges and Windows formatting queries, search, movement and change notifications.
+See [editing contract and acceptance](accessibility-editing.md). Automated and
+manual acceptance are tracked independently. IME and complex scripts are explicitly
+deferred at the user's request; other-platform adapters remain a separate stage.
+
 Baseline: `312219185e6aebb7ac7728abc7044089b657ef27`. The existing
 `Accessible` interface and the `accessibility` build tag remain compatible.
 
