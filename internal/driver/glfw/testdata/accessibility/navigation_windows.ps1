@@ -43,7 +43,8 @@ $allHeaders=$table.GetCurrentPattern([System.Windows.Automation.TablePattern]::P
 if ($allHeaders.Length -ne 2) { throw 'Wrong table header count' }
 $cell.GetCurrentPattern([System.Windows.Automation.ScrollItemPattern]::Pattern).ScrollIntoView()
 Wait-Until { !$cell.Current.IsOffscreen }
-$cell.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select()
+$select=$cell.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern)
+$select.Select()
 Invoke-Name 'Reverse table'
 Wait-Until { $grid.GetItem(0,1).Current.Name -eq 'record-119 State' }
 $cell=$grid.GetItem(0,1)
@@ -54,7 +55,7 @@ Wait-Until {
     $replacement=$grid.GetItem(119,1)
     $replacement.Current.Name -eq 'record-119 State' -and (Runtime-ID $replacement) -ne $id
 }
-try { $cell.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select(); throw 'Stale cell accepted' }
+try { $select.Select(); throw 'Stale cell accepted' }
 catch {
     if (!($_.Exception -is [System.Windows.Automation.ElementNotAvailableException]) -and
         !($_.Exception.InnerException -is [System.Windows.Automation.ElementNotAvailableException])) { throw }
