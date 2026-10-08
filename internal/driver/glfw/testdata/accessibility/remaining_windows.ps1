@@ -62,17 +62,27 @@ Assert ($value.Current.Value -eq 'Second') 'Editable combo selection did not cha
 $text = (Named 'Native text grid').GetCurrentPattern([System.Windows.Automation.TextPattern]::Pattern)
 Assert ($text.DocumentRange.GetText(-1) -eq "Read only`nРусский 😀") 'TextGrid lost model text'
 Assert ($text.SupportedTextSelection -eq [System.Windows.Automation.SupportedTextSelection]::None) 'TextGrid invents selection'
-$grid = Named 'Native wrapping grid'
+$grid = Named 'Keyed wrapping grid'
 $items = $grid.GetCurrentPattern([System.Windows.Automation.ItemContainerPattern]::Pattern)
-$last = $items.FindItemByProperty($null,[System.Windows.Automation.AutomationElement]::NameProperty,'Record 999')
+$last = $items.FindItemByProperty($null,[System.Windows.Automation.AutomationElement]::NameProperty,'Record 499')
 Assert ($null -ne $last) 'Offscreen GridWrap record missing'
 $last.GetCurrentPattern([System.Windows.Automation.ScrollItemPattern]::Pattern).ScrollIntoView()
 WaitFor { -not $last.Current.IsOffscreen } 'GridWrap failed to reveal record'
 $children = $last.GetCurrentPattern([System.Windows.Automation.ItemContainerPattern]::Pattern)
-$flag = $children.FindItemByProperty($null,[System.Windows.Automation.AutomationElement]::NameProperty,'Flag 999')
+$flag = $children.FindItemByProperty($null,[System.Windows.Automation.AutomationElement]::NameProperty,'Enable Record 499')
 Assert ($null -ne $flag) 'Nested model control missing'
-Assert (-not $flag.Current.IsKeyboardFocusable) 'Temporary model control advertises phantom focus'
+Assert $flag.Current.IsKeyboardFocusable 'Model checkbox must route keyboard focus to its grid'
+$flag.SetFocus()
+WaitFor { $flag.Current.HasKeyboardFocus } 'Nested checkbox did not receive semantic focus'
+$identity = $flag.GetRuntimeId() -join ','
 $toggle = $flag.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern)
 $toggle.Toggle()
 Assert ($toggle.Current.ToggleState -eq [System.Windows.Automation.ToggleState]::On) 'Nested command did not update model'
+Assert $flag.Current.HasKeyboardFocus 'Toggling the nested checkbox moved focus'
+(Named 'Swap first and last').GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+Assert (($flag.GetRuntimeId() -join ',') -eq $identity) 'Reorder replaced the checkbox identity'
+WaitFor { $flag.Current.HasKeyboardFocus -and -not $flag.Current.IsOffscreen } 'Reorder lost or hid the active checkbox'
+$toggle.Toggle()
+Assert ($toggle.Current.ToggleState -eq [System.Windows.Automation.ToggleState]::Off) 'Old provider did not target the reordered record'
+Assert $flag.Current.HasKeyboardFocus 'Second toggle moved focus'
 Write-Output 'Remaining controls passed through external UIA'

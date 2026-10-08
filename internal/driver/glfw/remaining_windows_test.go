@@ -4,7 +4,6 @@ package glfw
 
 import (
 	"context"
-	"fmt"
 	"os/exec"
 	"strconv"
 	"testing"
@@ -13,7 +12,10 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/internal/accessibilitydemo"
+	"fyne.io/fyne/v2/test"
 	"fyne.io/fyne/v2/widget"
+	"github.com/go-gl/glfw/v3.4/glfw"
 	"github.com/stretchr/testify/require"
 )
 
@@ -34,15 +36,8 @@ func TestMainLoopNativeRemainingControls(t *testing.T) {
 		combo.SetAccessibilityInfo(fyne.AccessibilityInfo{Name: "Native editable choice"})
 		text := widget.NewTextGridFromString("Read only\nРусский 😀")
 		text.SetAccessibilityInfo(fyne.AccessibilityInfo{Name: "Native text grid"})
-		grid := widget.NewGridWrap(func() int { return 1000 }, func() fyne.CanvasObject { return widget.NewLabel("Record 0000") }, func(i int, o fyne.CanvasObject) { o.(*widget.Label).SetText(fmt.Sprintf("Record %d", i)) })
-		grid.SetAccessibilityInfo(fyne.AccessibilityInfo{Name: "Native wrapping grid"})
-		grid.DescribeItem = func(i int) fyne.AccessibilityInfo { return fyne.AccessibilityInfo{Name: fmt.Sprintf("Record %d", i)} }
-		checked := false
-		grid.ItemElements = func(i int) []fyne.AccessibilityElement {
-			check := widget.NewCheck(fmt.Sprintf("Flag %d", i), func(v bool) { checked = v; grid.Refresh() })
-			check.Checked = checked
-			return []fyne.AccessibilityElement{{Key: "flag", Object: check}}
-		}
+		gridStatus := widget.NewLabel("Grid ready")
+		grid := container.NewBorder(nil, gridStatus, nil, nil, accessibilitydemo.NewGrid(gridStatus))
 		accordion := widget.NewAccordion(widget.NewAccordionItem("Native section", widget.NewLabel("Section content")))
 		status := widget.NewLabel("Native ready")
 		status.SetAccessibilityLiveSetting(fyne.AccessibilityLivePolite)
@@ -54,12 +49,45 @@ func TestMainLoopNativeRemainingControls(t *testing.T) {
 		w.window.updateAccessibility()
 		hwnd = uintptr(unsafe.Pointer(w.view().GetWin32Window()))
 	})
-	ctx, cancel := context.WithTimeout(context.Background(), 35*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "powershell.exe", "-NoProfile", "-NonInteractive", "-File", "testdata/accessibility/remaining_windows.ps1", "-WindowHandle", strconv.FormatUint(uint64(hwnd), 10))
 	output, err := cmd.CombinedOutput()
 	require.NoError(t, err, "%s", output)
+	checkNativeGridKeyboard(t, w)
 	client := exec.CommandContext(ctx, "testdata/accessibility/live-client.exe", strconv.FormatUint(uint64(hwnd), 10))
 	output, err = client.CombinedOutput()
 	require.NoError(t, err, "%s", output)
+}
+
+func checkNativeGridKeyboard(t *testing.T, w *safeWindow) {
+	t.Helper()
+	grid := w.Canvas().Focused()
+	require.NotNil(t, grid)
+	press := func(key glfw.Key, mods glfw.ModifierKey) {
+		w.keyPressed(nil, key, 0, glfw.Press, mods)
+		w.keyPressed(nil, key, 0, glfw.Release, mods)
+	}
+	press(glfw.KeyTab, 0)
+	button, ok := w.Canvas().Focused().(*widget.Button)
+	require.True(t, ok, "Tab must leave the grid without focusing pooled checks")
+	require.Equal(t, "Swap first and last", button.Text)
+	press(glfw.KeyTab, glfw.ModShift)
+	require.Same(t, grid, w.Canvas().Focused())
+	for _, checked := range []bool{true, false} {
+		press(glfw.KeySpace, 0)
+		var focused []test.AccessibilityNode
+		runOnMain(func() {
+			for _, node := range test.NewAccessibilityTree(w.canvas).Snapshot() {
+				if node.Focused {
+					focused = append(focused, node)
+				}
+			}
+		})
+		require.Len(t, focused, 1)
+		require.Equal(t, "Enable Record 499", focused[0].Name)
+		require.Equal(t, fyne.AccessibleRoleCheck, focused[0].Role)
+		require.Equal(t, checked, focused[0].Checked)
+		require.Same(t, grid, w.Canvas().Focused())
+	}
 }

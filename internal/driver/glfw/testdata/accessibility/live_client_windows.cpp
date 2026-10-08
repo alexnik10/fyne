@@ -5,6 +5,7 @@
 #include <atomic>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string>
 #include <wrl/client.h>
 using Microsoft::WRL::ComPtr;
 static constexpr LONG politeLiveSetting = 1; // UIA LiveSetting's documented polite value.
@@ -29,6 +30,8 @@ static ComPtr<IUIAutomationElement> named(IUIAutomation *uia, IUIAutomationEleme
 class LiveEvents final : public IUIAutomationEventHandler {
     std::atomic<ULONG> refs{1};
 public:
+    const std::wstring expected;
+    explicit LiveEvents(const wchar_t *name = L"Native saved") : expected(name) {}
     std::atomic<int> count{0};
     std::atomic<bool> bad{false};
     HRESULT STDMETHODCALLTYPE QueryInterface(REFIID iid, void **out) override {
@@ -46,7 +49,7 @@ public:
     HRESULT STDMETHODCALLTYPE HandleAutomationEvent(IUIAutomationElement *sender, EVENTID id) override {
         BSTR name = nullptr;
         HRESULT hr = sender->get_CurrentName(&name);
-        if (id != UIA_LiveRegionChangedEventId || FAILED(hr) || !name || wcscmp(name, L"Native saved")) bad = true;
+        if (id != UIA_LiveRegionChangedEventId || FAILED(hr) || !name || wcscmp(name, expected.c_str())) bad = true;
         SysFreeString(name);
         ++count;
         return S_OK;
@@ -83,6 +86,28 @@ int main(int argc, char **argv) {
         }
         check(uia->RemoveAutomationEventHandler(UIA_LiveRegionChangedEventId, status.Get(), events.Get()));
         puts("Two identical live status results reached the native UIA client without moving focus");
+
+        auto gridStatus = named(uia.Get(), root.Get(), L"Record 499 enabled: false");
+        check(gridStatus->GetCurrentPropertyValue(UIA_LiveSettingPropertyId, &setting));
+        expect(setting.vt == VT_I4 && setting.lVal == politeLiveSetting, "Grid status is not a polite live region");
+        VariantClear(&setting);
+        auto checkbox = named(uia.Get(), root.Get(), L"Enable Record 499");
+        check(checkbox->SetFocus());
+        ComPtr<IUIAutomationTogglePattern> toggle;
+        check(checkbox->GetCurrentPatternAs(UIA_TogglePatternId, IID_PPV_ARGS(&toggle)));
+        const wchar_t *results[] = {L"Record 499 enabled: true", L"Record 499 enabled: false"};
+        for (const wchar_t *result : results) {
+            ComPtr<LiveEvents> changed; changed.Attach(new LiveEvents(result));
+            check(uia->AddAutomationEventHandler(UIA_LiveRegionChangedEventId, gridStatus.Get(), TreeScope_Element, nullptr, changed.Get()));
+            check(toggle->Toggle());
+            ULONGLONG deadline = GetTickCount64() + 8000;
+            while (changed->count < 1 && GetTickCount64() < deadline) Sleep(10);
+            expect(changed->count == 1 && !changed->bad, "Checkbox status did not deliver its current live announcement");
+            BOOL focused = FALSE; check(checkbox->get_CurrentHasKeyboardFocus(&focused));
+            expect(focused != FALSE, "Checkbox toggle or announcement moved keyboard focus");
+            check(uia->RemoveAutomationEventHandler(UIA_LiveRegionChangedEventId, gridStatus.Get(), changed.Get()));
+        }
+        puts("Keyed checkbox toggles delivered live status while retaining semantic focus");
     }
     CoUninitialize();
     return 0;

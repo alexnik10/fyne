@@ -9,6 +9,7 @@ import (
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/internal/accessibilitydemo"
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/storage"
 	"fyne.io/fyne/v2/theme"
@@ -16,7 +17,6 @@ import (
 )
 
 const (
-	remainingRecords  = 500
 	remainingLogoSize = 48
 	remainingWidth    = 850
 	remainingHeight   = 650
@@ -87,7 +87,7 @@ func showRemainingDemo(application fyne.App) {
 	tabs := container.NewAppTabs(
 		container.NewTabItem("Status and groups", container.NewVScroll(indicators)),
 		container.NewTabItem("Dates and choices", dates),
-		container.NewTabItem("Grid and nested controls", remainingGrid(status)),
+		container.NewTabItem("Grid and nested controls", accessibilitydemo.NewGrid(status)),
 		container.NewTabItem("Text and split", split),
 		container.NewTabItem("Inner windows", windows),
 		container.NewTabItem("Dialogs", dialogs),
@@ -106,40 +106,4 @@ func remainingDates(status *widget.Label) fyne.CanvasObject {
 	calendar.SetAccessibilityInfo(fyne.AccessibilityInfo{Name: "Appointment calendar"})
 	fields := container.NewVBox(date, choice)
 	return container.New(layout.NewBorderLayout(fields, nil, nil, nil), fields, calendar)
-}
-
-func remainingGrid(status *widget.Label) fyne.CanvasObject {
-	keys := make([]string, remainingRecords)
-	enabled := make(map[string]bool)
-	for i := range keys {
-		keys[i] = fmt.Sprintf("Record %03d", i)
-	}
-	var grid *widget.GridWrap
-	change := func(key string, value bool) {
-		enabled[key] = value
-		status.SetText(fmt.Sprintf("%s enabled: %t", key, value))
-		grid.Refresh()
-	}
-	grid = widget.NewGridWrap(func() int { return len(keys) }, func() fyne.CanvasObject { return widget.NewCheck("Record 000", nil) }, func(i int, obj fyne.CanvasObject) {
-		check, ok := obj.(*widget.Check)
-		if !ok {
-			return
-		}
-		key := keys[i]
-		check.Text, check.Checked = key, enabled[key]
-		check.OnChanged = func(value bool) { change(key, value) }
-		check.Refresh()
-	})
-	grid.ItemKey = func(i int) string { return keys[i] }
-	grid.DescribeItem = func(i int) fyne.AccessibilityInfo { return fyne.AccessibilityInfo{Name: keys[i]} }
-	grid.ItemElements = func(i int) []fyne.AccessibilityElement {
-		key := keys[i]
-		check := widget.NewCheck("Enable "+key, func(v bool) { change(key, v) })
-		check.Checked = enabled[key]
-		check.Resize(check.MinSize())
-		return []fyne.AccessibilityElement{{Key: "enabled", Object: check}}
-	}
-	grid.SetAccessibilityInfo(fyne.AccessibilityInfo{Name: "Keyed wrapping grid"})
-	controls := container.NewHBox(widget.NewButton("Swap first and last", func() { keys[0], keys[len(keys)-1] = keys[len(keys)-1], keys[0]; grid.Refresh() }))
-	return container.NewBorder(controls, nil, nil, nil, grid)
 }

@@ -61,6 +61,14 @@ interaction, or set `FocusTarget` to an actual stable rendered control. The tool
 does not infer a custom cell's tab order or editor lifecycle. Standard Table text
 editing continues to use the explicit `CellValue`/`OnCellChanged` contract.
 
+The remaining demo's `internal/accessibilitydemo` grid shows one keyboard policy
+for records containing a single checkbox. Canvas focus stays on the grid, whose
+`AccessibilityActiveElement` points directly to the model checkbox. Its
+`AccessibleFocusHandler` routes UIA focus back to the grid and the correct record.
+Renderer checkboxes implement `TabStop() false`; pointer input also routes through
+the model key. This keeps recycled cells out of the Tab sequence and preserves
+the semantic focus identity while scrolling, toggling and reordering records.
+
 ## Manual acceptance
 
 The remaining-widgets demo's bottom status label uses
@@ -93,6 +101,17 @@ they have empty bounds (Windows `IsOffscreen`) and cannot receive keyboard focus
 Their presence in object navigation does not mean that the popup is open. These
 model children retain their identities across opening and closing.
 
+On **Grid and nested controls**, entering the grid or using its arrow keys should
+announce **Enable Record NNN**, the checkbox role and its checked state. Space
+(also either Enter key) toggles that checkbox; it no longer selects a separate
+record in this demo. Home/End reach the first/last record. Tab moves directly from
+the grid to **Swap first and last**; Shift+Tab returns to the active checkbox.
+Toggling with the keyboard, UIA Toggle or a pointer preserves its semantic focus.
+The bottom status is a polite live region and reports `Record NNN enabled: true`
+or `false` without moving focus. Reordering retains the active record's identity
+and state and reveals its new position. Verify these announcements with NVDA;
+native tests exercise the same demo component, not a separately recreated grid.
+
 Build `go run -tags accessibility ./cmd/accessibility_demo`, then open **Open
 remaining widgets demo**. Repeat with NVDA and Narrator; record versions and the
 commit.
@@ -101,8 +120,10 @@ commit.
    collapse sections. Check checkbox states and absence of duplicate drawing text.
 2. Type a date and a custom choice. Use Alt+Down, date arrows across a month boundary,
    Enter to choose and Escape to cancel. Check actual focus after closing.
-3. Discover Record 499 in the wrapping grid, reveal it and toggle its nested flag.
-   Swap first/last and verify commands still affect the same record.
+3. Enter the wrapping grid, press End and toggle **Enable Record 499** with Space.
+   Check checkbox state speech, the live status and stable focus. Tab to **Swap
+   first and last**, activate it, then Shift+Tab and toggle the same record again.
+   Also check UIA focus/Toggle and pointer activation of the nested checkbox.
 4. Read TextGrid text, including tabs/Cyrillic/emoji. Tab to the divider and resize
    the panes. Move/resize an inner window with the arrows and invoke its buttons.
 5. In file/colour dialogs, check names, actual chosen file/colour, disabled controls,

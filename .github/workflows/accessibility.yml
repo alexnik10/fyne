@@ -17,7 +17,7 @@ jobs:
         working-directory: test/testdata/accessibility
         run: go test -mod=readonly -race -tags ci ./...
       - name: Diagnostic recorder and demo tests
-        run: go test -race -tags ci,accessibilitydiagnostics ./internal/accessibility/diagnostic ./cmd/accessibility_demo
+        run: go test -race -tags ci,accessibilitydiagnostics ./internal/accessibility/diagnostic ./internal/accessibilitydemo ./cmd/accessibility_demo
       - name: Large collection snapshot measurements
         run: go test -tags ci ./internal/accessibility -run '^$' -bench BenchmarkCollectionSnapshots -benchtime=10x
   windows:
@@ -45,7 +45,7 @@ jobs:
         working-directory: test/testdata/accessibility
         run: go test -mod=readonly -race -tags accessibility,ci ./...
       - name: Diagnostic tests
-        run: go test -race -tags accessibility,ci,accessibilitydiagnostics ./internal/accessibility/diagnostic ./cmd/accessibility_demo
+        run: go test -race -tags accessibility,ci,accessibilitydiagnostics ./internal/accessibility/diagnostic ./internal/accessibilitydemo ./cmd/accessibility_demo
       - name: Upload demo for manual screen-reader acceptance
         uses: actions/upload-artifact@v5
         with:
