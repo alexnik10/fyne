@@ -87,7 +87,7 @@ type fileDialog struct {
 	// this will be the initial filename in a FileDialog in save mode
 	initialFileName string
 
-	toggleViewButton *widget.Button
+	toggleViewButton *fileViewButton
 }
 
 // FileDialog is a dialog containing a file picker for use in opening or saving files.
@@ -186,15 +186,17 @@ func (f *fileDialog) makeUI() fyne.CanvasObject {
 		}
 	}
 
-	// icon of button is set in subsequent setView() call
-	f.toggleViewButton = widget.NewButtonWithIcon("", nil, func() {
+	f.toggleViewButton = &fileViewButton{picker: f}
+	f.toggleViewButton.ExtendBaseWidget(f.toggleViewButton)
+	f.toggleViewButton.SetIcon(theme.ListIcon())
+	f.toggleViewButton.OnTapped = func() {
 		if f.view == GridView {
 			f.setView(ListView)
 		} else {
 			f.setView(GridView)
 		}
-	})
-	f.toggleViewButton.SetAccessibilityInfo(fyne.AccessibilityInfo{Name: lang.X("accessibility.files.view", "Change file view")})
+	}
+	f.toggleViewButton.SetAccessibilityInfo(fyne.AccessibilityInfo{Name: lang.X("accessibility.files.listView", "List view")})
 	f.setView(view)
 
 	f.loadFavorites()
@@ -369,17 +371,18 @@ func (f *fileDialog) makeDismissButton(label string) *widget.Button {
 }
 
 func (f *fileDialog) optionsMenu(position fyne.Position, buttonSize fyne.Size) {
-	hiddenFiles := widget.NewCheck(lang.L("Show Hidden Files"), func(changed bool) {
-		f.showHidden = changed
+	hiddenFiles := fyne.NewMenuItem(lang.L("Show Hidden Files"), func() {
+		f.showHidden = !f.showHidden
 		f.refreshDir(f.dir)
 	})
 	hiddenFiles.Checked = f.showHidden
-	hiddenFiles.Refresh()
-	content := container.NewVBox(hiddenFiles)
+	hiddenFiles.Checkable = true
+	menu := widget.NewPopUpMenu(fyne.NewMenu(lang.X("accessibility.files.options", "File options"), hiddenFiles), f.win.Canvas)
 
 	p := position.Add(buttonSize)
-	pos := fyne.NewPos(p.X-content.MinSize().Width-theme.Padding()*2, p.Y+theme.Padding()*2)
-	widget.ShowPopUpAtPosition(content, f.win.Canvas, pos)
+	pos := fyne.NewPos(p.X-menu.MinSize().Width, p.Y+theme.Padding()*2)
+	menu.ShowAtPosition(pos)
+	menu.ActivateNext()
 }
 
 func getFavoriteLocations() (map[string]fyne.ListableURI, error) {
@@ -610,7 +613,7 @@ func (f *fileDialog) setView(view ViewLayout) {
 		grid.SetAccessibilityInfo(fyne.AccessibilityInfo{Name: lang.X("accessibility.files", "Files")})
 		grid.OnSelected = choose
 		f.files = grid
-		f.toggleViewButton.SetIcon(theme.ListIcon())
+		f.toggleViewButton.Importance = widget.MediumImportance
 		selectF = grid.Select
 	} else {
 		list := widget.NewList(count, template, update)
@@ -619,7 +622,7 @@ func (f *fileDialog) setView(view ViewLayout) {
 		list.SetAccessibilityInfo(fyne.AccessibilityInfo{Name: lang.X("accessibility.files", "Files")})
 		list.OnSelected = choose
 		f.files = list
-		f.toggleViewButton.SetIcon(theme.GridIcon())
+		f.toggleViewButton.Importance = widget.HighImportance
 		selectF = list.Select
 	}
 
@@ -628,6 +631,7 @@ func (f *fileDialog) setView(view ViewLayout) {
 	}
 	f.filesScroll.Content = container.NewPadded(f.files)
 	f.filesScroll.Refresh()
+	f.toggleViewButton.Refresh()
 }
 
 func (f *fileDialog) getDataItem(id int) (fyne.URI, bool) {

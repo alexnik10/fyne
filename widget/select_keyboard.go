@@ -61,12 +61,12 @@ func (s *Select) TypedShortcut(shortcut fyne.Shortcut) {
 	}
 }
 
-// AcceptsTab lets a Windows Select popup commit before the canvas moves focus.
-// Ordinary menus retain their existing Tab behavior.
+// AcceptsTab lets menus close before moving focus out of the popup. Windows
+// Select popups additionally commit their tentative selection.
 //
 // Since: 2.9
 func (p *PopUpMenu) AcceptsTab() bool {
-	return runtime.GOOS == goos.Windows && (p.selectOwner != nil || p.selectEntryOwner != nil)
+	return (p.selectOwner == nil && p.selectEntryOwner == nil) || runtime.GOOS == goos.Windows
 }
 
 // TypedShortcut handles Windows Alt+Up/Down while a Select popup is open.

@@ -158,7 +158,7 @@ func TestSelectDisclosureShortcuts(t *testing.T) {
 	assert.Equal(t, 2, called, "adding Shortcutable must preserve canvas shortcuts")
 	s.popUp.Dismiss()
 	menu := NewPopUpMenu(fyne.NewMenu("", fyne.NewMenuItem("Ordinary", nil)), w.Canvas())
-	assert.False(t, menu.AcceptsTab(), "ordinary menu traversal is unchanged")
+	assert.True(t, menu.AcceptsTab(), "Tab must close an ordinary popup menu")
 }
 
 type selectKeyboardApp struct {

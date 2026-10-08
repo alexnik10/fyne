@@ -314,7 +314,7 @@ func (l *GridWrap) TypedKey(event *fyne.KeyEvent) {
 	oldHighlight := l.currentHighlight
 
 	switch event.Name {
-	case fyne.KeySpace:
+	case fyne.KeySpace, fyne.KeyReturn, fyne.KeyEnter:
 		l.Select(l.currentHighlight)
 	case fyne.KeyDown:
 		count := 0

@@ -2,16 +2,13 @@ package main
 
 import (
 	"fmt"
-	"image/color"
 	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/internal/accessibilitydemo"
 	"fyne.io/fyne/v2/layout"
-	"fyne.io/fyne/v2/storage"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 )
@@ -64,24 +61,7 @@ func showRemainingDemo(application fyne.App) {
 
 	inner := container.NewInnerWindow("Notes", widget.NewEntry())
 	windows := container.NewMultipleWindows(inner)
-	dialogs := container.NewVBox(
-		widget.NewButton("Choose colour", func() {
-			dialog.ShowColorPicker("Choose colour", "Use swatches or named RGB/HSL fields", func(c color.Color) { status.SetText(fmt.Sprint(c)) }, window)
-		}),
-		widget.NewButton("Open file", func() {
-			dialog.ShowFileOpen(func(reader fyne.URIReadCloser, err error) {
-				if err != nil {
-					status.SetText(err.Error())
-					return
-				}
-				if reader != nil {
-					status.SetText(reader.URI().Name())
-					_ = reader.Close()
-				}
-			}, window)
-		}),
-		widget.NewFileIcon(storage.NewFileURI("report.txt")),
-	)
+	dialogs := accessibilitydemo.NewDialogs(window, status)
 	tabs := container.NewAppTabs(
 		container.NewTabItem("Status and groups", container.NewVScroll(indicators)),
 		container.NewTabItem("Dates and choices", dates),

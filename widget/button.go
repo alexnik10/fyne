@@ -213,7 +213,7 @@ func (*Button) TypedRune(rune) {
 
 // TypedKey is a hook called by the input handling logic on key events if this object is focused.
 func (b *Button) TypedKey(ev *fyne.KeyEvent) {
-	if ev.Name == fyne.KeySpace {
+	if ev.Name == fyne.KeySpace || ev.Name == fyne.KeyReturn || ev.Name == fyne.KeyEnter {
 		b.AccessibilityActivate()
 	}
 }

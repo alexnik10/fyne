@@ -2,6 +2,7 @@ package widget
 
 import (
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/internal/widget"
 )
 
@@ -125,6 +126,12 @@ func (p *PopUpMenu) TypedKey(e *fyne.KeyEvent) {
 		return
 	}
 	switch e.Name {
+	case fyne.KeyTab:
+		var modifiers fyne.KeyModifier
+		if d, ok := fyne.CurrentApp().Driver().(desktop.Driver); ok {
+			modifiers = d.CurrentKeyModifiers()
+		}
+		p.dismissAndMoveFocus(modifiers&fyne.KeyModifierShift != 0)
 	case fyne.KeyDown:
 		p.ActivateNext()
 	case fyne.KeyEnter, fyne.KeyReturn, fyne.KeySpace:
@@ -139,6 +146,28 @@ func (p *PopUpMenu) TypedKey(e *fyne.KeyEvent) {
 		p.ActivateLastSubmenu()
 	case fyne.KeyUp:
 		p.ActivatePrevious()
+	}
+}
+
+func (p *PopUpMenu) dismissAndMoveFocus(backwards bool) {
+	// Removing this overlay restores the underlying canvas focus manager.
+	var underlying fyne.CanvasObject
+	for i, overlay := range p.canvas.Overlays().List() {
+		if overlay == p.overlay {
+			if i > 0 {
+				underlying = p.canvas.Overlays().List()[i-1]
+			}
+			break
+		}
+	}
+	p.Dismiss()
+	if p.canvas.Overlays().Top() != underlying {
+		return // An OnDismiss callback opened a different input scope.
+	}
+	if backwards {
+		p.canvas.FocusPrevious()
+	} else {
+		p.canvas.FocusNext()
 	}
 }
 

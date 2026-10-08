@@ -431,7 +431,7 @@ func (l *List) TypedKey(event *fyne.KeyEvent) {
 	oldFocus := l.currentHighlight
 
 	switch event.Name {
-	case fyne.KeySpace:
+	case fyne.KeySpace, fyne.KeyReturn, fyne.KeyEnter:
 		l.Select(l.currentHighlight)
 	case fyne.KeyDown:
 		if f := l.Length; f != nil && l.currentHighlight >= f()-1 {
