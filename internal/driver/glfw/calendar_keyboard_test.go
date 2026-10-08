@@ -21,12 +21,18 @@ func TestWindow_CalendarKeyboardNavigation(t *testing.T) {
 	w := createWindow("Calendar keyboard navigation")
 	defer w.Close()
 	var before, after *widget.Button
+	var calendar *widget.Calendar
 	var chosen time.Time
 	runOnMain(func() {
 		before, after = widget.NewButton("Before", nil), widget.NewButton("After", nil)
-		calendar := widget.NewCalendar(time.Date(2026, time.January, 31, 0, 0, 0, 0, time.UTC), func(value time.Time) { chosen = value })
+		calendar = widget.NewCalendar(time.Date(2026, time.January, 31, 0, 0, 0, 0, time.UTC), func(value time.Time) { chosen = value })
 		w.window.SetContent(container.NewVBox(before, calendar, after))
 	})
+	// The first paint registers objects with the canvas used by arrow navigation.
+	repaintWindow(w)
+	var attached bool
+	runOnMain(func() { attached = fyne.CurrentApp().Driver().CanvasForObject(calendar) == w.canvas })
+	require.True(t, attached, "calendar must be attached to the native canvas before keyboard input")
 	press := func(key glfw.Key, mods glfw.ModifierKey) {
 		w.keyPressed(nil, key, 0, glfw.Press, mods)
 		w.keyPressed(nil, key, 0, glfw.Release, mods)
