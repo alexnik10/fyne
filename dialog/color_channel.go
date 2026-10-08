@@ -1,6 +1,7 @@
 package dialog
 
 import (
+	"errors"
 	"strconv"
 
 	"fyne.io/fyne/v2"
@@ -39,6 +40,7 @@ func newColorChannel(name string, minValue, maxValue, value int, onChanged func(
 func (c *colorChannel) CreateRenderer() fyne.WidgetRenderer {
 	label := widget.NewLabelWithStyle(c.name, fyne.TextAlignTrailing, fyne.TextStyle{Bold: true})
 	entry := newColorChannelEntry(c)
+	entry.SetAccessibilityInfo(fyne.AccessibilityInfo{Name: colorChannelName(c.name)})
 	slider := &widget.Slider{
 		Value:       0.0,
 		Min:         float64(c.min),
@@ -49,6 +51,7 @@ func (c *colorChannel) CreateRenderer() fyne.WidgetRenderer {
 			c.SetValue(int(value))
 		},
 	}
+	slider.SetAccessibilityInfo(fyne.AccessibilityInfo{Name: colorChannelName(c.name)})
 	r := &colorChannelRenderer{
 		BaseRenderer: internalwidget.NewBaseRenderer([]fyne.CanvasObject{
 			label,
@@ -132,6 +135,16 @@ func newColorChannelEntry(c *colorChannel) *colorChannelEntry {
 	e := &colorChannelEntry{}
 	e.Text = "0"
 	e.ExtendBaseWidget(e)
+	e.accessibilityValidate = func(text string) error {
+		value, err := strconv.Atoi(text)
+		if err != nil {
+			return err
+		}
+		if value < c.min || value > c.max {
+			return errors.New("colour channel out of range")
+		}
+		return nil
+	}
 	e.setOnChanged(func(text string) {
 		value, err := strconv.Atoi(text)
 		if err != nil {
@@ -152,7 +165,8 @@ func (e *colorChannelEntry) MinSize() fyne.Size {
 
 type userChangeEntry struct {
 	widget.Entry
-	userTyped bool
+	userTyped             bool
+	accessibilityValidate func(string) error
 }
 
 func newUserChangeEntry(text string) *userChangeEntry {

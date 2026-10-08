@@ -49,6 +49,12 @@ type TableCellID struct {
 //
 // Since: 1.4
 type Table struct {
+	// CellElements supplies model-backed child controls, independently of recycled renderers.
+	// Keys and generations follow fyne.AccessibilityElement. Positions are relative to the item.
+	// Call Refresh after changing the model.
+	// Since: 2.9
+	CellElements          func(TableCellID) []fyne.AccessibilityElement `json:"-"`
+	accessibilityChildIDs collectionChildIDs
 	BaseWidget
 
 	Length       func() (rows int, cols int)                      `json:"-"`
@@ -56,6 +62,24 @@ type Table struct {
 	UpdateCell   func(id TableCellID, template fyne.CanvasObject) `json:"-"`
 	OnSelected   func(id TableCellID)                             `json:"-"`
 	OnUnselected func(id TableCellID)                             `json:"-"`
+	// RowKey and ColumnKey optionally identify records across sorting/reordering.
+	// Keys must be nonempty and unique on each axis. Nil uses positional identity.
+	// Call Refresh after changing the model, including observed removal/reinsertion.
+	// Since: 2.9
+	RowKey    func(row int) string    `json:"-"`
+	ColumnKey func(column int) string `json:"-"`
+	// DescribeCell supplies semantics without rendering. Headers use a -1 coordinate.
+	// Since: 2.9
+	DescribeCell func(TableCellID) fyne.AccessibilityInfo `json:"-"`
+	// CellValue reads a text cell from the model, independently of its renderer.
+	// The boolean is true for read-only cells. Pair with OnCellChanged to enable
+	// F2/Enter editing and accessibility Value commands. Nil preserves display-only cells.
+	// Since: 2.9
+	CellValue func(TableCellID) (value string, readOnly bool) `json:"-"`
+	// OnCellChanged validates and stores a new value. On error it must leave the
+	// model unchanged; the editor stays open and exposes the validation error.
+	// Since: 2.9
+	OnCellChanged func(TableCellID, string) error `json:"-"`
 
 	// ShowHeaderRow specifies that a row should be added to the table with header content.
 	// This will default to an A-Z style content, unless overridden with `CreateHeader` and `UpdateHeader` calls.
@@ -118,6 +142,10 @@ type Table struct {
 	top, left, corner, dividerLayer                              *clip
 	hoverHeaderRow, hoverHeaderCol, dragCol, dragRow             int
 	dragStartPos                                                 fyne.Position
+	accessibilityCache                                           *tableAccessibilitySource
+	accessibilityRevision                                        uint64
+	cellEdit                                                     *tableCellEdit
+	rowLifetimes, columnLifetimes                                collectionLifetimes
 }
 
 // NewTable returns a new performant table widget defined by the passed functions.
@@ -150,6 +178,9 @@ func NewTableWithHeaders(length func() (rows int, cols int), create func() fyne.
 // CreateRenderer returns a new renderer for the table.
 func (t *Table) CreateRenderer() fyne.WidgetRenderer {
 	t.ExtendBaseWidget(t)
+	if t.RowKey != nil || t.ColumnKey != nil {
+		t.ensureAccessibilitySource()
+	}
 
 	t.headerSize = t.createHeader().MinSize()
 	if t.columnWidths != nil {
@@ -366,6 +397,8 @@ func (t *Table) TypedKey(event *fyne.KeyEvent) {
 	oldHighlight := t.currentHighlight
 
 	switch event.Name {
+	case fyne.KeyF2, fyne.KeyReturn, fyne.KeyEnter:
+		t.EditCell(t.currentHighlight)
 	case fyne.KeySpace:
 		t.Select(t.currentHighlight)
 	case fyne.KeyDown:
@@ -481,7 +514,7 @@ func (t *Table) Highlight(id TableCellID) {
 	if t.OnHighlighted != nil {
 		t.OnHighlighted(id)
 	}
-	t.Refresh()
+	t.BaseWidget.Refresh()
 }
 
 // ScrollTo will scroll to the given cell without changing the selection.
@@ -702,6 +735,9 @@ func (t *Table) createHeader() fyne.CanvasObject {
 func (t *Table) findX(col int) (cellX float32, cellWidth float32) {
 	cellSize := t.templateSize()
 	padding := t.Theme().Size(theme.SizeNamePadding)
+	if col >= 0 && len(t.columnWidths) == 0 {
+		return float32(col) * (cellSize.Width + padding), cellSize.Width
+	}
 	for i := 0; i <= col; i++ {
 		if cellWidth > 0 {
 			cellX += cellWidth + padding
@@ -719,6 +755,9 @@ func (t *Table) findX(col int) (cellX float32, cellWidth float32) {
 func (t *Table) findY(row int) (cellY float32, cellHeight float32) {
 	cellSize := t.templateSize()
 	padding := t.Theme().Size(theme.SizeNamePadding)
+	if row >= 0 && len(t.rowHeights) == 0 {
+		return float32(row) * (cellSize.Height + padding), cellSize.Height
+	}
 	for i := 0; i <= row; i++ {
 		if cellHeight > 0 {
 			cellY += cellHeight + padding

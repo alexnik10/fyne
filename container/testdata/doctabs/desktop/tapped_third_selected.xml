@@ -11,6 +11,7 @@
 							<text bold pos="8,8" size="60x20">Test2</text>
 						</widget>
 						<widget pos="160,0" size="76x36" type="*container.tabButton">
+							<rectangle fillColor="focus" radius="4" size="76x36"/>
 							<text bold color="primary" pos="8,8" size="60x20">Test3</text>
 						</widget>
 					</container>

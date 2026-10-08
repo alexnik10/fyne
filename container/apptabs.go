@@ -18,6 +18,7 @@ var _ fyne.Widget = (*AppTabs)(nil)
 // Since: 1.4
 type AppTabs struct {
 	widget.BaseWidget
+	tabsAccessibility
 
 	Items []*TabItem
 

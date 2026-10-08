@@ -295,6 +295,7 @@ type selectableRenderer struct {
 	sel *selectable
 
 	selections []fyne.CanvasObject
+	caret      *canvas.Rectangle
 }
 
 func (*selectableRenderer) Destroy() {
@@ -308,20 +309,20 @@ func (*selectableRenderer) MinSize() fyne.Size {
 }
 
 func (r *selectableRenderer) Objects() []fyne.CanvasObject {
+	var objects []fyne.CanvasObject
+	if r.caret != nil {
+		objects = append(objects, r.caret)
+	}
 	if r.sel.provider != nil && len(r.sel.provider.decor) > 0 {
-		return nil // the text draws them, above the panels that its blocks sit on
+		return nil // the text draws selection and caret above its block panels
 	}
 
-	return r.selections
+	return append(objects, r.selections...)
 }
 
 func (r *selectableRenderer) Refresh() {
 	r.buildSelection()
 	selections := r.selections
-	if r.sel.provider != nil {
-		// hand them over so the text can draw them above any panels that it has
-		r.sel.provider.setHighlights(r.sel, selections)
-	}
 	v := fyne.CurrentApp().Settings().ThemeVariant()
 
 	selectionColor := r.sel.theme.Color(theme.ColorNameSelection, v)
@@ -334,7 +335,32 @@ func (r *selectableRenderer) Refresh() {
 			rect.Hide()
 		}
 	}
+	if provider := r.sel.provider; provider != nil && provider.Selectable {
+		if r.caret == nil {
+			r.caret = canvas.NewRectangle(selectionColor)
+		}
+		if r.sel.focused && !r.sel.selecting {
+			info := provider.AccessibilityText()
+			p := info.Positions[info.Caret]
+			if provider.scr != nil {
+				p.Position = p.Position.Add(provider.scr.Offset).Subtract(provider.scr.Position())
+			}
+			r.caret.FillColor = r.sel.theme.Color(theme.ColorNameForeground, v)
+			r.caret.Move(p.Position)
+			r.caret.Resize(fyne.NewSize(1, p.Height))
+			r.caret.Show()
+		} else {
+			r.caret.Hide()
+		}
+	}
 
+	if r.sel.provider != nil {
+		highlights := selections
+		if r.caret != nil {
+			highlights = append(append([]fyne.CanvasObject(nil), selections...), r.caret)
+		}
+		r.sel.provider.setHighlights(r.sel, highlights)
+	}
 	canvas.Refresh(r.sel.impl)
 }
 

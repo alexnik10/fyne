@@ -5,6 +5,7 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
+	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
@@ -20,6 +21,7 @@ var _ fyne.Widget = (*DocTabs)(nil)
 // Since: 2.1
 type DocTabs struct {
 	widget.BaseWidget
+	tabsAccessibility
 
 	Items []*TabItem
 
@@ -298,6 +300,7 @@ func (r *docTabsRenderer) buildAllTabsButton() (all *widget.Button) {
 		r.docTabs.popUpMenu = buildPopUpMenu(r.docTabs, all, items)
 	}}
 
+	all.SetAccessibilityInfo(fyne.AccessibilityInfo{Name: lang.X("accessibility.tabs.all", "All tabs")})
 	return all
 }
 
@@ -311,6 +314,7 @@ func (r *docTabsRenderer) buildCreateTabsButton() *widget.Button {
 		}
 	})
 	create.Importance = widget.LowImportance
+	create.SetAccessibilityInfo(fyne.AccessibilityInfo{Name: lang.X("accessibility.tabs.new", "New tab")})
 	return create
 }
 

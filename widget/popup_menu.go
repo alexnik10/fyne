@@ -2,6 +2,7 @@ package widget
 
 import (
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/internal/widget"
 )
 
@@ -13,8 +14,10 @@ var (
 // PopUpMenu is a Menu which displays itself in an OverlayContainer.
 type PopUpMenu struct {
 	*Menu
-	canvas  fyne.Canvas
-	overlay *widget.OverlayContainer
+	canvas           fyne.Canvas
+	overlay          *widget.OverlayContainer
+	selectOwner      *Select
+	selectEntryOwner *SelectEntry
 }
 
 // NewPopUpMenu creates a new, reusable popup menu. You can show it using ShowAtPosition.
@@ -118,19 +121,53 @@ func (p *PopUpMenu) ShowAtRelativePosition(rel fyne.Position, to fyne.CanvasObje
 
 // TypedKey handles key events. It allows keyboard control of the pop-up menu.
 func (p *PopUpMenu) TypedKey(e *fyne.KeyEvent) {
+	defer p.revealSelectItem()
+	if p.typedSelectKey(e) {
+		return
+	}
 	switch e.Name {
+	case fyne.KeyTab:
+		var modifiers fyne.KeyModifier
+		if d, ok := fyne.CurrentApp().Driver().(desktop.Driver); ok {
+			modifiers = d.CurrentKeyModifiers()
+		}
+		p.dismissAndMoveFocus(modifiers&fyne.KeyModifierShift != 0)
 	case fyne.KeyDown:
 		p.ActivateNext()
 	case fyne.KeyEnter, fyne.KeyReturn, fyne.KeySpace:
 		p.TriggerLast()
 	case fyne.KeyEscape:
-		p.Dismiss()
+		if !p.DeactivateLastSubmenu() {
+			p.Dismiss()
+		}
 	case fyne.KeyLeft:
 		p.DeactivateLastSubmenu()
 	case fyne.KeyRight:
 		p.ActivateLastSubmenu()
 	case fyne.KeyUp:
 		p.ActivatePrevious()
+	}
+}
+
+func (p *PopUpMenu) dismissAndMoveFocus(backwards bool) {
+	// Removing this overlay restores the underlying canvas focus manager.
+	var underlying fyne.CanvasObject
+	for i, overlay := range p.canvas.Overlays().List() {
+		if overlay == p.overlay {
+			if i > 0 {
+				underlying = p.canvas.Overlays().List()[i-1]
+			}
+			break
+		}
+	}
+	p.Dismiss()
+	if p.canvas.Overlays().Top() != underlying {
+		return // An OnDismiss callback opened a different input scope.
+	}
+	if backwards {
+		p.canvas.FocusPrevious()
+	} else {
+		p.canvas.FocusNext()
 	}
 }
 

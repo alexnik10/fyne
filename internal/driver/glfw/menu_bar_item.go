@@ -21,9 +21,10 @@ type menuBarItem struct {
 	Menu   *fyne.Menu
 	Parent *MenuBar
 
-	active  bool
-	child   *publicWidget.Menu
-	hovered bool
+	active        bool
+	child         *publicWidget.Menu
+	hovered       bool
+	semanticChild *menuBarSubmenu
 }
 
 func (i *menuBarItem) Child() *publicWidget.Menu {

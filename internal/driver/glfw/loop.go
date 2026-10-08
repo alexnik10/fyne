@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/internal/accessibility/diagnostic"
 	"fyne.io/fyne/v2/internal/app"
 	"fyne.io/fyne/v2/internal/async"
 	"fyne.io/fyne/v2/internal/cache"
@@ -20,9 +21,28 @@ type funcData struct {
 	done chan struct{} // Zero allocation signalling channel
 }
 
+type mainLoopEvent uint8
+
+const (
+	mainLoopStop mainLoopEvent = iota
+	mainLoopWork
+	mainLoopFrame
+)
+
+func waitMainLoopChannels(done <-chan struct{}, work <-chan funcData, ticks <-chan time.Time) (mainLoopEvent, funcData) {
+	select {
+	case <-done:
+		return mainLoopStop, funcData{}
+	case f := <-work:
+		return mainLoopWork, f
+	case <-ticks:
+		return mainLoopFrame, funcData{}
+	}
+}
+
 // channel for queuing functions on the main thread
 var (
-	funcQueue        = async.NewUnboundedChan[funcData]()
+	funcQueue        = newMainLoopQueue()
 	running, drained atomic.Bool
 )
 
@@ -70,15 +90,18 @@ func (d *gLDriver) drawSingleFrame() {
 		}
 
 		if decideRepaint(w.visible, w.frame.ready(), w.canvas.CheckDirtyAndClear) {
+			paintStart := diagnostic.Start()
 			w.RunWithContext(func() {
 				if w.driver.repaintWindow(w) {
 					refreshed = true
 				}
 			})
+			diagnostic.Duration("render", diagnostic.WindowID(w), "", paintStart)
 			w.updateAccessibility()
 		} else {
 			w.markCacheAlive()
 		}
+		w.pollAccessibility()
 	}
 	cache.Clean(refreshed)
 }
@@ -131,9 +154,11 @@ func (d *gLDriver) runGL() {
 	}
 
 	eventTick := time.NewTicker(time.Second / 60)
+	ticks := mainLoopTickEvents(eventTick.C, d.done)
 	for {
-		select {
-		case <-d.done:
+		event, f := nextMainLoopEvent(d.done, funcQueue.Out(), ticks)
+		switch event {
+		case mainLoopStop:
 			eventTick.Stop()
 			d.Terminate()
 			l, _ := fyne.CurrentApp().Lifecycle().(*app.Lifecycle)
@@ -151,12 +176,12 @@ func (d *gLDriver) runGL() {
 			drained.Store(true)
 			funcQueue.Close()
 			return
-		case f := <-funcQueue.Out():
+		case mainLoopWork:
 			f.f()
 			if f.done != nil {
 				f.done <- struct{}{}
 			}
-		case <-eventTick.C:
+		case mainLoopFrame:
 			d.pollEvents()
 			for i := 0; i < len(d.windows); i++ {
 				w, _ := d.windows[i].(*window)

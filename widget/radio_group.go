@@ -22,6 +22,7 @@ type RadioGroup struct {
 	// use r.selectedIndex(), r.setSelectedIndex(int) to maniupulate this field
 	// as if it were a zero-based index (with -1 == nothing selected)
 	_selIdx int
+	items   []fyne.CanvasObject
 }
 
 var _ fyne.Widget = (*RadioGroup)(nil)
@@ -49,13 +50,8 @@ func (r *RadioGroup) Append(option string) {
 func (r *RadioGroup) CreateRenderer() fyne.WidgetRenderer {
 	r.ExtendBaseWidget(r)
 
-	items := make([]fyne.CanvasObject, len(r.Options))
-	for i, option := range r.Options {
-		idx := i
-		items[idx] = newRadioItem(option, func(item *radioItem) {
-			r.itemTapped(item, idx)
-		})
-	}
+	r.syncItems()
+	items := r.items
 
 	render := &radioGroupRenderer{widget.NewBaseRenderer(items), items, r}
 	r.updateSelectedIndex()
@@ -86,7 +82,7 @@ func (r *RadioGroup) SetSelected(option string) {
 }
 
 func (r *RadioGroup) itemTapped(item *radioItem, idx int) {
-	if r.Disabled() {
+	if r.Disabled() || idx < 0 || idx >= len(r.items) || r.items[idx] != item {
 		return
 	}
 
@@ -211,19 +207,8 @@ func (r *radioGroupRenderer) Refresh() {
 }
 
 func (r *radioGroupRenderer) updateItems(refresh bool) {
-	if len(r.items) < len(r.radio.Options) {
-		for i := len(r.items); i < len(r.radio.Options); i++ {
-			idx := i
-			item := newRadioItem(r.radio.Options[idx], func(item *radioItem) {
-				r.radio.itemTapped(item, idx)
-			})
-			r.items = append(r.items, item)
-		}
-		r.Layout(r.radio.Size())
-	} else if len(r.items) > len(r.radio.Options) {
-		total := len(r.radio.Options)
-		r.items = r.items[:total]
-	}
+	r.radio.syncItems()
+	r.items = r.radio.items
 	r.SetObjects(r.items)
 
 	for i, item := range r.items {
@@ -245,5 +230,8 @@ func (r *radioGroupRenderer) updateItems(refresh bool) {
 		if refresh || changed {
 			item.Refresh()
 		}
+	}
+	if refresh {
+		r.Layout(r.radio.Size())
 	}
 }

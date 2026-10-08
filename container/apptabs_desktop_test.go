@@ -300,7 +300,7 @@ func TestAppTabs_Tapped(t *testing.T) {
 
 	test.TapCanvas(c, fyne.NewPos(10, 10))
 	require.Equal(t, 0, tabs.SelectedIndex())
-	test.AssertRendersToMarkup(t, "apptabs/desktop/tapped_first_selected.xml", c)
+	test.AssertRendersToMarkup(t, "apptabs/desktop/tapped_first_focused.xml", c)
 
 	tabs.Append(&container.TabItem{Text: "Test4", Content: widget.NewLabel("Text 4")})
 

@@ -53,6 +53,10 @@ type MenuItem struct {
 	Disabled bool
 	// Since: 2.1
 	Checked bool
+	// Checkable identifies a two-state command even when it is unchecked.
+	// The Action callback remains responsible for changing Checked.
+	// Since: 2.9
+	Checkable bool
 	// Since: 2.2
 	Icon Resource
 	// Since: 2.2

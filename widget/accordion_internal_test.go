@@ -297,13 +297,16 @@ func TestAccordionRenderer_AddRemove(t *testing.T) {
 	assert.True(t, ar.headers[2].Visible())
 	assert.True(t, ar.dividers[1].Visible())
 
+	removed := ar.headers[2]
 	ac.RemoveIndex(2)
 	assert.Len(t, ac.Items, 2)
-	assert.False(t, ar.headers[2].Visible())
+	assert.Len(t, ar.headers, 2)
+	assert.False(t, removed.Visible())
 	assert.False(t, ar.dividers[1].Visible())
 
 	ac.Append(NewAccordionItem("foo3", NewLabel("foobar3")))
 	assert.Len(t, ac.Items, 3)
 	assert.True(t, ar.headers[2].Visible())
+	assert.NotSame(t, removed, ar.headers[2], "new item must not reuse a retired provider")
 	assert.True(t, ar.dividers[1].Visible())
 }

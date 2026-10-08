@@ -32,6 +32,12 @@ type GridWrapItemID = int
 //
 // Since: 2.4
 type GridWrap struct {
+	// ItemElements supplies model-backed child controls, independently of recycled renderers.
+	// Keys and generations follow fyne.AccessibilityElement. Positions are relative to the item.
+	// Call Refresh after changing the model.
+	// Since: 2.9
+	ItemElements          func(GridWrapItemID) []fyne.AccessibilityElement `json:"-"`
+	accessibilityChildIDs collectionChildIDs
 	BaseWidget
 
 	// Length is a callback for returning the number of items in the GridWrap.
@@ -60,6 +66,19 @@ type GridWrap struct {
 	//
 	// Since: 2.8
 	OnHighlighted func(id GridWrapItemID) `json:"-"`
+
+	// ItemKey provides stable model identity across reorder. Keys must be unique.
+	// Since: 2.9
+	ItemKey func(GridWrapItemID) string `json:"-"`
+	// DescribeItem supplies model metadata without creating renderer cells.
+	// Since: 2.9
+	DescribeItem func(GridWrapItemID) fyne.AccessibilityInfo `json:"-"`
+
+	itemKeys              []string
+	keyed                 bool
+	lifetimes             collectionLifetimes
+	accessibilityCache    *gridWrapAccessibilitySource
+	accessibilityRevision uint64
 
 	currentHighlight ListItemID
 	focused          bool
@@ -106,6 +125,7 @@ func NewGridWrapWithData(data binding.DataList, createItem func() fyne.CanvasObj
 // CreateRenderer is a private method to Fyne which links this widget to its renderer.
 func (l *GridWrap) CreateRenderer() fyne.WidgetRenderer {
 	l.ExtendBaseWidget(l)
+	l.ensureItemKeys()
 
 	if f := l.CreateItem; f != nil && l.itemMin.IsZero() {
 		item := createItemAndApplyThemeScope(f, l)
@@ -196,7 +216,8 @@ func (l *GridWrap) Resize(s fyne.Size) {
 //
 // Since: 2.8
 func (l *GridWrap) Highlight(id GridWrapItemID) {
-	if l.Length() == 0 {
+	l.ensureItemKeys()
+	if l.Length == nil || l.Length() == 0 {
 		return
 	}
 
@@ -205,7 +226,7 @@ func (l *GridWrap) Highlight(id GridWrapItemID) {
 		newID = 0
 	}
 
-	if id > l.Length() {
+	if id >= l.Length() {
 		newID = l.Length() - 1
 	}
 
@@ -219,6 +240,7 @@ func (l *GridWrap) Highlight(id GridWrapItemID) {
 
 // Select adds the item identified by the given ID to the selection.
 func (l *GridWrap) Select(id GridWrapItemID) {
+	l.ensureItemKeys()
 	if len(l.selected) > 0 && id == l.selected[0] {
 		return
 	}
@@ -292,7 +314,7 @@ func (l *GridWrap) TypedKey(event *fyne.KeyEvent) {
 	oldHighlight := l.currentHighlight
 
 	switch event.Name {
-	case fyne.KeySpace:
+	case fyne.KeySpace, fyne.KeyReturn, fyne.KeyEnter:
 		l.Select(l.currentHighlight)
 	case fyne.KeyDown:
 		count := 0
@@ -385,6 +407,8 @@ func (l *GridWrap) UnselectAll() {
 
 // Refresh causes this GridWrap to be redrawn in its current state.
 func (l *GridWrap) Refresh() {
+	l.reconcileItems()
+	l.accessibilityCache = nil
 	l.minSizeCache = fyne.Size{}
 	l.BaseWidget.Refresh()
 }

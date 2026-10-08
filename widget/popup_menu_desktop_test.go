@@ -73,10 +73,12 @@ func TestPopUpMenu_KeyboardControl(t *testing.T) {
 	assert.Same(t, focused, c.Focused())
 	test.AssertRendersToMarkup(t, "popup_menu/desktop/kbd_ctrl_second_active.xml", c, "nothing happens when no sub-menus are open")
 
-	// trigger actions
+	// Enter first opens a submenu; the next Enter invokes its first command.
+	c.Focused().TypedKey(&fyne.KeyEvent{Name: fyne.KeyEnter})
+	assert.Same(t, focused, c.Focused())
 	c.Focused().TypedKey(&fyne.KeyEvent{Name: fyne.KeyEnter})
 	assert.Nil(t, c.Focused())
-	assert.Equal(t, "Option B", lastTriggered)
+	assert.Equal(t, "Sub Option A", lastTriggered)
 	test.AssertRendersToMarkup(t, "popup_menu/desktop/kbd_ctrl_dismissed.xml", c)
 
 	m.Show()

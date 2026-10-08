@@ -188,6 +188,10 @@ func TestTree_Focus(t *testing.T) {
 	assert.Equal(t, "foo", c.Focused().(*Tree).currentHighlight)
 
 	tree.TypedKey(&fyne.KeyEvent{Name: fyne.KeyRight})
+	assert.Equal(t, "foo", c.Focused().(*Tree).currentHighlight)
+	assert.True(t, tree.IsBranchOpen("foo"))
+
+	tree.TypedKey(&fyne.KeyEvent{Name: fyne.KeyRight})
 	assert.Equal(t, "foobar", c.Focused().(*Tree).currentHighlight)
 
 	tree.TypedKey(&fyne.KeyEvent{Name: fyne.KeyLeft})
@@ -243,6 +247,11 @@ func TestTree_Keyboard(t *testing.T) {
 
 	// Open the node "item_1"
 	tree.TypedKey(&fyne.KeyEvent{Name: fyne.KeyRight})
+	assert.Equal(t, "item_1", tree.currentHighlight)
+	assert.True(t, tree.IsBranchOpen("item_1"))
+
+	// Enter the already open node "item_1"
+	tree.TypedKey(&fyne.KeyEvent{Name: fyne.KeyRight})
 	// Validate the state
 	assert.NotNil(t, c.Focused())
 	assert.Equal(t, "item_1_1", c.Focused().(*Tree).currentHighlight)
@@ -262,6 +271,11 @@ func TestTree_Keyboard(t *testing.T) {
 	assert.False(t, tree.IsBranchOpen("item_1_2"))
 
 	// Open the node "item_1_2"
+	tree.TypedKey(&fyne.KeyEvent{Name: fyne.KeyRight})
+	assert.Equal(t, "item_1_2", tree.currentHighlight)
+	assert.True(t, tree.IsBranchOpen("item_1_2"))
+
+	// Enter the already open node "item_1_2"
 	tree.TypedKey(&fyne.KeyEvent{Name: fyne.KeyRight})
 	// Validate the state
 	assert.NotNil(t, c.Focused())

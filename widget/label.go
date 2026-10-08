@@ -39,9 +39,11 @@ type Label struct {
 	// Since: 2.6
 	Selectable bool
 
-	provider  *RichText
-	binder    basicBinder
-	selection *focusSelectable
+	provider     *RichText
+	binder       basicBinder
+	selection    *focusSelectable
+	liveSetting  fyne.AccessibilityLiveSetting
+	liveRevision uint64
 }
 
 // NewLabel creates a new label widget with the set text content
@@ -101,6 +103,7 @@ func (l *Label) CreateRenderer() fyne.WidgetRenderer {
 	l.syncSegments()
 
 	l.selection = &focusSelectable{}
+	l.selection.accessibilityOwner = l.super()
 	l.selection.ExtendBaseWidget(l.selection)
 	l.selection.focus = l.selection
 	l.selection.style = l.TextStyle
@@ -154,6 +157,9 @@ func (l *Label) ClearSelection() {
 // SetText sets the text of the label
 func (l *Label) SetText(text string) {
 	l.Text = text
+	if l.liveSetting != fyne.AccessibilityLiveOff {
+		l.liveRevision++
+	}
 	if l.Selectable && l.selection != nil {
 		l.selection.cursorRow = 0
 		l.selection.cursorColumn = 0
@@ -261,6 +267,8 @@ func (r *labelRenderer) Refresh() {
 
 type focusSelectable struct {
 	selectable
+	accessibilityOwner fyne.CanvasObject
+	navigation         textNavigation
 }
 
 func (f *focusSelectable) FocusGained() {
@@ -270,11 +278,27 @@ func (f *focusSelectable) FocusGained() {
 
 func (f *focusSelectable) FocusLost() {
 	f.focused = false
+	f.navigation.shift = false
 	f.Refresh()
 }
 
-func (*focusSelectable) TypedKey(*fyne.KeyEvent) {
+func (f *focusSelectable) TypedKey(key *fyne.KeyEvent) {
+	if f.provider.Selectable {
+		f.navigation.move(f.provider, key.Name, 0)
+	}
 }
 
 func (*focusSelectable) TypedRune(rune) {
+}
+
+func (f *focusSelectable) KeyDown(key *fyne.KeyEvent) { f.navigation.keyDown(key) }
+
+func (f *focusSelectable) KeyUp(key *fyne.KeyEvent) { f.navigation.keyUp(key) }
+
+func (f *focusSelectable) TypedShortcut(shortcut fyne.Shortcut) {
+	if f.provider.Selectable {
+		f.navigation.shortcut(f.provider, shortcut)
+	} else {
+		f.selectable.TypedShortcut(shortcut)
+	}
 }

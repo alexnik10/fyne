@@ -184,7 +184,7 @@ func TestShowFileOpen(t *testing.T) {
 	createNewFolderButton := ui.Objects[1].(*fyne.Container).Objects[1].(*fyne.Container).Objects[0].(*widget.Button)
 	assert.Equal(t, "", createNewFolderButton.Text)
 	assert.Equal(t, theme.FolderNewIcon().Name(), createNewFolderButton.Icon.Name())
-	toggleViewButton := ui.Objects[1].(*fyne.Container).Objects[1].(*fyne.Container).Objects[1].(*widget.Button)
+	toggleViewButton := ui.Objects[1].(*fyne.Container).Objects[1].(*fyne.Container).Objects[1].(*fileViewButton)
 	assert.Equal(t, "", toggleViewButton.Text)
 	assert.Equal(t, theme.ListIcon().Name(), toggleViewButton.Icon.Name())
 	optionsButton := ui.Objects[1].(*fyne.Container).Objects[1].(*fyne.Container).Objects[2].(*widget.Button)
@@ -272,7 +272,7 @@ func TestHiddenFiles(t *testing.T) {
 	createNewFolderButton := ui.Objects[1].(*fyne.Container).Objects[1].(*fyne.Container).Objects[0].(*widget.Button)
 	assert.Equal(t, "", createNewFolderButton.Text)
 	assert.Equal(t, theme.FolderNewIcon().Name(), createNewFolderButton.Icon.Name())
-	toggleViewButton := ui.Objects[1].(*fyne.Container).Objects[1].(*fyne.Container).Objects[1].(*widget.Button)
+	toggleViewButton := ui.Objects[1].(*fyne.Container).Objects[1].(*fyne.Container).Objects[1].(*fileViewButton)
 	assert.Equal(t, "", toggleViewButton.Text)
 	assert.Equal(t, theme.ListIcon().Name(), toggleViewButton.Icon.Name())
 	optionsButton := ui.Objects[1].(*fyne.Container).Objects[1].(*fyne.Container).Objects[2].(*widget.Button)
@@ -504,13 +504,13 @@ func TestView(t *testing.T) {
 
 	// padded container -> content container
 	ui := popup.Content.(*fyne.Container).Objects[0].(*fyne.Container)
-	toggleViewButton := ui.Objects[1].(*fyne.Container).Objects[1].(*fyne.Container).Objects[1].(*widget.Button)
+	toggleViewButton := ui.Objects[1].(*fyne.Container).Objects[1].(*fyne.Container).Objects[1].(*fileViewButton)
 	panel := ui.Objects[0].(*container.Split).Trailing.(*fyne.Container).Objects[0].(*container.Scroll).Content.(*fyne.Container).Objects[0]
 
 	// view should be a grid
 	_, isGrid := panel.(*widget.GridWrap)
 	assert.True(t, isGrid)
-	// toggleViewButton should reflect to what it will do (change to a list view).
+	// The list-view toggle is released in grid view.
 	assert.Equal(t, "", toggleViewButton.Text)
 	assert.Equal(t, theme.ListIcon().Name(), toggleViewButton.Icon.Name())
 
@@ -522,9 +522,9 @@ func TestView(t *testing.T) {
 	// view should be a list
 	_, isList := panel.(*widget.List)
 	assert.True(t, isList)
-	// toggleViewButton should reflect to what it will do (change to a grid view).
+	// The list-view toggle keeps its icon and is pressed in list view.
 	assert.Equal(t, "", toggleViewButton.Text)
-	assert.Equal(t, theme.GridIcon().Name(), toggleViewButton.Icon.Name())
+	assert.Equal(t, theme.ListIcon().Name(), toggleViewButton.Icon.Name())
 
 	// toggle view
 	test.Tap(toggleViewButton)
@@ -534,7 +534,7 @@ func TestView(t *testing.T) {
 	// view should be a grid again
 	_, isGrid = panel.(*widget.GridWrap)
 	assert.True(t, isGrid)
-	// toggleViewButton should reflect to what it will do (change to a list view).
+	// The list-view toggle is released in grid view.
 	assert.Equal(t, "", toggleViewButton.Text)
 	assert.Equal(t, theme.ListIcon().Name(), toggleViewButton.Icon.Name())
 
@@ -571,15 +571,15 @@ func TestSetView(t *testing.T) {
 
 	// padded container -> content container
 	ui := popup.Content.(*fyne.Container).Objects[0].(*fyne.Container)
-	toggleViewButton := ui.Objects[1].(*fyne.Container).Objects[1].(*fyne.Container).Objects[1].(*widget.Button)
+	toggleViewButton := ui.Objects[1].(*fyne.Container).Objects[1].(*fyne.Container).Objects[1].(*fileViewButton)
 	panel := ui.Objects[0].(*container.Split).Trailing.(*fyne.Container).Objects[0].(*container.Scroll).Content.(*fyne.Container).Objects[0]
 
 	// view should be a list
 	_, isList := panel.(*widget.List)
 	assert.True(t, isList)
-	// toggleViewButton should reflect to what it will do (change to a grid view).
+	// The list-view toggle keeps its icon and is pressed in list view.
 	assert.Equal(t, "", toggleViewButton.Text)
-	assert.Equal(t, theme.GridIcon(), toggleViewButton.Icon)
+	assert.Equal(t, theme.ListIcon(), toggleViewButton.Icon)
 
 	title := ui.Objects[1].(*fyne.Container).Objects[0].(*widget.Label)
 	assert.Equal(t, "File Selection", title.Text)
@@ -595,7 +595,7 @@ func TestSetView(t *testing.T) {
 	panel = ui.Objects[0].(*container.Split).Trailing.(*fyne.Container).Objects[0].(*container.Scroll).Content.(*fyne.Container).Objects[0]
 	_, isGrid := panel.(*widget.GridWrap)
 	assert.True(t, isGrid)
-	// toggleViewButton should reflect to what it will do (change to a list view).
+	// The list-view toggle is released in grid view.
 	assert.Equal(t, "", toggleViewButton.Text)
 	assert.Equal(t, theme.ListIcon(), toggleViewButton.Icon)
 }
@@ -624,13 +624,13 @@ func TestSetViewPreferences(t *testing.T) {
 
 	// padded container -> content container
 	ui := popup.Content.(*fyne.Container).Objects[0].(*fyne.Container)
-	toggleViewButton := ui.Objects[1].(*fyne.Container).Objects[1].(*fyne.Container).Objects[1].(*widget.Button)
+	toggleViewButton := ui.Objects[1].(*fyne.Container).Objects[1].(*fyne.Container).Objects[1].(*fileViewButton)
 	panel := ui.Objects[0].(*container.Split).Trailing.(*fyne.Container).Objects[0].(*container.Scroll).Content.(*fyne.Container).Objects[0]
 
 	// check that preference setting overrules configured default view
 	_, isGrid := panel.(*widget.GridWrap)
 	assert.True(t, isGrid)
-	// toggleViewButton should reflect to what it will do (change to a list view).
+	// The list-view toggle is released in grid view.
 	assert.Equal(t, "", toggleViewButton.Text)
 	assert.Equal(t, theme.ListIcon(), toggleViewButton.Icon)
 }
@@ -656,7 +656,7 @@ func TestViewPreferences(t *testing.T) {
 
 	// padded container -> content container
 	ui := popup.Content.(*fyne.Container).Objects[0].(*fyne.Container)
-	toggleViewButton := ui.Objects[1].(*fyne.Container).Objects[1].(*fyne.Container).Objects[1].(*widget.Button)
+	toggleViewButton := ui.Objects[1].(*fyne.Container).Objects[1].(*fyne.Container).Objects[1].(*fileViewButton)
 
 	// default viewLayout preference should be 'grid'
 	view := ViewLayout(prefs.Int(viewLayoutKey))

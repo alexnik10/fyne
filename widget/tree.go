@@ -34,6 +34,12 @@ var (
 //
 // Since: 1.4
 type Tree struct {
+	// NodeElements supplies model-backed child controls, independently of recycled renderers.
+	// Keys and generations follow fyne.AccessibilityElement. Positions are relative to the item.
+	// Call Refresh after changing the model.
+	// Since: 2.9
+	NodeElements          func(TreeNodeID) []fyne.AccessibilityElement `json:"-"`
+	accessibilityChildIDs collectionChildIDs
 	BaseWidget
 	Root TreeNodeID
 
@@ -57,14 +63,25 @@ type Tree struct {
 	// Since: 2.8
 	OnHighlighted func(id TreeNodeID) `json:"-"`
 
-	branchMinSize    fyne.Size
-	currentHighlight TreeNodeID
-	focused          bool
-	leafMinSize      fyne.Size
-	offset           fyne.Position
-	open             map[TreeNodeID]bool
-	scroller         *widget.Scroll
-	selected         []TreeNodeID
+	// DescribeNode supplies accessible names and descriptions directly from the
+	// model, including offscreen nodes. It must not create or update renderer cells.
+	// The default name is the TreeNodeID, as in NewTreeWithStrings. Use NameSet to
+	// explicitly provide an empty name. Keys must identify model items, not rows.
+	//
+	// Since: 2.9
+	DescribeNode func(id TreeNodeID) fyne.AccessibilityInfo `json:"-"`
+
+	lifetimes             collectionLifetimes
+	accessibilityCache    *treeAccessibilitySource
+	accessibilityRevision uint64
+	branchMinSize         fyne.Size
+	currentHighlight      TreeNodeID
+	focused               bool
+	leafMinSize           fyne.Size
+	offset                fyne.Position
+	open                  map[TreeNodeID]bool
+	scroller              *widget.Scroll
+	selected              []TreeNodeID
 }
 
 // NewTree returns a new performant tree widget defined by the passed functions.
@@ -176,8 +193,10 @@ func (t *Tree) IsBranchOpen(uid TreeNodeID) bool {
 // FocusGained is called after this Tree has gained focus.
 func (t *Tree) FocusGained() {
 	if t.currentHighlight == "" {
-		if childUIDs := t.ChildUIDs; childUIDs != nil {
-			if ids := childUIDs(""); len(ids) > 0 {
+		if t.Root != "" {
+			t.setItemFocus(t.Root)
+		} else if childUIDs := t.ChildUIDs; childUIDs != nil {
+			if ids := childUIDs(t.Root); len(ids) > 0 {
 				t.setItemFocus(ids[0])
 			}
 		}
@@ -190,10 +209,21 @@ func (t *Tree) FocusGained() {
 	}
 }
 
+// Refresh updates the tree and reconciles keyboard highlight and selection with
+// the current model, including removal and collapsed ancestors.
+func (t *Tree) Refresh() {
+	t.accessibilityCache = nil
+	if t.lifetimes.generations != nil {
+		t.AccessibilityCollection() // Retire published identities between adapter snapshots.
+	}
+	t.reconcileAccessibilityState()
+	t.BaseWidget.Refresh()
+}
+
 // FocusLost is called after this Tree has lost focus.
 func (t *Tree) FocusLost() {
 	t.focused = false
-	t.Refresh() // Item(t.currentHighlight)
+	t.RefreshItem(t.currentHighlight)
 }
 
 // MinSize returns the size that this widget should not shrink below.
@@ -367,7 +397,7 @@ func (t *Tree) Select(uid TreeNodeID) {
 		}
 	}
 	t.selected = []TreeNodeID{uid}
-	t.Refresh()
+	t.BaseWidget.Refresh()
 	t.ScrollTo(uid)
 	if f := t.OnSelected; f != nil {
 		f(uid)
@@ -425,8 +455,12 @@ func (t *Tree) TypedKey(event *fyne.KeyEvent) {
 			})
 		}
 	case fyne.KeyRight:
-		if t.IsBranch(t.currentHighlight) {
+		if !t.IsBranch(t.currentHighlight) {
+			break
+		}
+		if !t.IsBranchOpen(t.currentHighlight) {
 			t.OpenBranch(t.currentHighlight)
+			break // Expanding preserves focus; a second Right enters the branch.
 		}
 		children := []TreeNodeID{}
 		if childUIDs := t.ChildUIDs; childUIDs != nil {
@@ -465,7 +499,7 @@ func (t *Tree) Unselect(uid TreeNodeID) {
 	}
 
 	t.selected = nil
-	t.Refresh()
+	t.BaseWidget.Refresh()
 	if f := t.OnUnselected; f != nil {
 		f(uid)
 	}
@@ -481,7 +515,7 @@ func (t *Tree) UnselectAll() {
 
 	selected := t.selected
 	t.selected = nil
-	t.Refresh()
+	t.BaseWidget.Refresh()
 	if f := t.OnUnselected; f != nil {
 		for _, uid := range selected {
 			f(uid)

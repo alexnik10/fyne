@@ -91,6 +91,18 @@ type Shortcutable interface {
 	TypedShortcut(Shortcut)
 }
 
+// TabStop optionally controls whether a [Focusable] participates in sequential
+// Tab and Shift+Tab navigation. Returning false does not prevent explicit focus,
+// for example through arrow keys within a composite widget or accessibility APIs.
+// Focusable objects that do not implement TabStop participate by default.
+//
+// Since: 2.9
+type TabStop interface {
+	// TabStop reports whether this object is currently a sequential focus stop.
+	// It must not change canvas state, focus, or layout.
+	TabStop() bool
+}
+
 // Tabbable describes any object that needs to accept the Tab key presses.
 //
 // Since: 2.1

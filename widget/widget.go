@@ -17,8 +17,45 @@ type BaseWidget struct {
 	position fyne.Position
 	Hidden   bool
 
-	impl       fyne.Widget
-	themeCache fyne.Theme
+	impl              fyne.Widget
+	themeCache        fyne.Theme
+	accessibilityInfo fyne.AccessibilityInfo
+	accessibilityMode fyne.AccessibilityMode
+}
+
+// AccessibilityMode returns this widget's semantic composition mode.
+//
+// Since: 2.9
+func (w *BaseWidget) AccessibilityMode() fyne.AccessibilityMode {
+	return w.accessibilityMode
+}
+
+// SetAccessibilityMode controls whether accessibility exposes this widget,
+// its children, or both. It does not change keyboard or pointer interaction.
+// Call on the Fyne event thread, like other widget setters.
+//
+// Since: 2.9
+func (w *BaseWidget) SetAccessibilityMode(mode fyne.AccessibilityMode) {
+	w.accessibilityMode = mode
+	w.Refresh()
+}
+
+// AccessibilityInfo returns the optional semantic metadata for this widget.
+//
+// Since: 2.9
+func (w *BaseWidget) AccessibilityInfo() fyne.AccessibilityInfo {
+	return w.accessibilityInfo
+}
+
+// SetAccessibilityInfo sets optional names, descriptions and validation metadata.
+// Use the Set flags to override inherited metadata with empty strings or false.
+// A zero struct restores inherited/default metadata. Validation itself is unchanged.
+// Call on the Fyne event thread, like other widget setters.
+//
+// Since: 2.9
+func (w *BaseWidget) SetAccessibilityInfo(info fyne.AccessibilityInfo) {
+	w.accessibilityInfo = info
+	w.Refresh()
 }
 
 // ExtendBaseWidget is used by an extending widget to make use of BaseWidget functionality.

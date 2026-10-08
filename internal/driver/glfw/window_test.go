@@ -36,6 +36,12 @@ func init() {
 // TestMain makes sure that our driver is running on the main thread.
 // This must be done for some of our tests to function correctly.
 func TestMain(m *testing.M) {
+	// The native wait regression uses a subprocess with no GLFW loop or frame
+	// ticker, so periodic wakes cannot hide a missing work-ready notification.
+	if os.Getenv("FYNE_TEST_NATIVE_WAIT_ONLY") == "1" {
+		m.Run()
+		return
+	}
 	d.init()
 
 	waitForStart := make(chan struct{})
@@ -225,6 +231,32 @@ func TestWindow_ToggleMainMenuByKeyboard(t *testing.T) {
 		assert.True(t, menuBar.IsActive())
 		w.keyPressed(w.viewport, glfw.KeyEscape, 0, glfw.Release, 0)
 		assert.False(t, menuBar.IsActive())
+	})
+
+	t.Run("Escape closes only the innermost submenu", func(t *testing.T) {
+		more := fyne.NewMenuItem("More", nil)
+		more.ChildMenu = fyne.NewMenu("Nested", fyne.NewMenuItem("Command", func() {}))
+		bar := NewMenuBar(fyne.NewMainMenu(fyne.NewMenu("File", more)), w.canvas)
+		c.setMenuOverlay(bar)
+		c.ToggleMenu()
+		child := bar.activeItem.Child()
+		var activated bool
+		runOnMain(func() {
+			child.ActivateNext()
+			activated = child.ActivateLastSubmenu()
+		})
+		require.True(t, activated)
+		opener := child.Items[0].(fyne.AccessibleExpandable)
+		require.True(t, opener.AccessibilityExpanded())
+
+		w.keyPressed(w.viewport, glfw.KeyEscape, 0, glfw.Press, 0)
+		assert.True(t, opener.AccessibilityExpanded())
+		w.keyPressed(w.viewport, glfw.KeyEscape, 0, glfw.Release, 0)
+		assert.False(t, opener.AccessibilityExpanded())
+		assert.True(t, bar.IsActive())
+		w.keyPressed(w.viewport, glfw.KeyEscape, 0, glfw.Press, 0)
+		w.keyPressed(w.viewport, glfw.KeyEscape, 0, glfw.Release, 0)
+		assert.False(t, bar.IsActive())
 	})
 
 	t.Run("when canvas has no menu", func(*testing.T) {
@@ -1756,6 +1788,36 @@ func TestWindow_CaptureTypedShortcutClipboard(t *testing.T) {
 	if assert.True(t, ok) {
 		assert.True(t, paste.Secondary)
 	}
+}
+
+func TestWindow_PasswordEntryTabOrder(t *testing.T) {
+	w := createWindow("Password focus order")
+	defer w.Close()
+	var before, after *widget.Button
+	var entry *widget.Entry
+	var revealer fyne.Focusable
+	runOnMain(func() {
+		before = widget.NewButton("Before", nil)
+		entry = widget.NewPasswordEntry()
+		after = widget.NewButton("After", nil)
+		w.window.SetContent(container.NewVBox(before, entry, after))
+		revealer = entry.ActionItem.(fyne.Focusable)
+	})
+	w.Canvas().Unfocus()
+	order := []fyne.Focusable{before, entry, revealer, after}
+	for _, expected := range order {
+		w.keyPressed(nil, glfw.KeyTab, 0, glfw.Press, 0)
+		w.keyPressed(nil, glfw.KeyTab, 0, glfw.Release, 0)
+		require.Same(t, expected, w.Canvas().Focused())
+	}
+	for i := len(order) - 2; i >= 0; i-- {
+		w.keyPressed(nil, glfw.KeyTab, 0, glfw.Press, glfw.ModShift)
+		w.keyPressed(nil, glfw.KeyTab, 0, glfw.Release, glfw.ModShift)
+		require.Same(t, order[i], w.Canvas().Focused())
+	}
+	w.keyPressed(nil, glfw.KeyTab, 0, glfw.Press, glfw.ModShift)
+	w.keyPressed(nil, glfw.KeyTab, 0, glfw.Release, glfw.ModShift)
+	require.Same(t, after, w.Canvas().Focused(), "Shift+Tab wraps")
 }
 
 func TestWindow_OnlyTabAndShiftTabToCapturesTab(t *testing.T) {

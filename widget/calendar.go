@@ -27,14 +27,19 @@ var minCellContent = NewLabel("22")
 // Since: 2.6
 type Calendar struct {
 	BaseWidget
-	currentTime time.Time
+	currentTime            time.Time
+	selectedDate           time.Time
+	focusedDay             int
+	accessibilityRevision  uint64
+	accessibilityLifetimes collectionLifetimes
 
-	monthPrevious *Button
-	monthNext     *Button
+	monthPrevious *calendarNavigation
+	monthNext     *calendarNavigation
 	monthLabel    *Label
 
 	dates *fyne.Container
 
+	dismiss   func()
 	OnChanged func(time.Time) `json:"-"`
 }
 
@@ -43,8 +48,10 @@ type Calendar struct {
 // Since: 2.6
 func NewCalendar(cT time.Time, changed func(time.Time)) *Calendar {
 	c := &Calendar{
-		currentTime: cT,
-		OnChanged:   changed,
+		currentTime:  cT,
+		selectedDate: cT,
+		focusedDay:   cT.Day(),
+		OnChanged:    changed,
 	}
 
 	c.ExtendBaseWidget(c)
@@ -54,20 +61,30 @@ func NewCalendar(cT time.Time, changed func(time.Time)) *Calendar {
 // CreateRenderer returns a new WidgetRenderer for this widget.
 // This should not be called by regular code, it is used internally to render a widget.
 func (c *Calendar) CreateRenderer() fyne.WidgetRenderer {
-	c.monthPrevious = NewButtonWithIcon("", theme.NavigateBackIcon(), func() {
-		c.currentTime = c.currentTime.AddDate(0, -1, 0)
+	c.monthPrevious = &calendarNavigation{owner: c}
+	c.monthPrevious.ExtendBaseWidget(c.monthPrevious)
+	c.monthPrevious.Icon = theme.NavigateBackIcon()
+	c.monthPrevious.OnTapped = func() {
+		c.currentTime = time.Date(c.currentTime.Year(), c.currentTime.Month()-1, 1, 0, 0, 0, 0, c.currentTime.Location())
 		// Dates are 'normalised', forcing date to start from the start of the month ensures move from March to February
 		c.currentTime = time.Date(c.currentTime.Year(), c.currentTime.Month(), 1, 0, 0, 0, 0, c.currentTime.Location())
 		c.monthLabel.SetText(c.monthYear())
 		c.dates.Objects = c.calendarObjects()
-	})
+		c.dates.Refresh()
+	}
+	c.monthPrevious.SetAccessibilityInfo(fyne.AccessibilityInfo{Name: lang.X("accessibility.calendar.previous", "Previous month")})
 	c.monthPrevious.Importance = LowImportance
 
-	c.monthNext = NewButtonWithIcon("", theme.NavigateNextIcon(), func() {
-		c.currentTime = c.currentTime.AddDate(0, 1, 0)
+	c.monthNext = &calendarNavigation{owner: c}
+	c.monthNext.ExtendBaseWidget(c.monthNext)
+	c.monthNext.Icon = theme.NavigateNextIcon()
+	c.monthNext.OnTapped = func() {
+		c.currentTime = time.Date(c.currentTime.Year(), c.currentTime.Month()+1, 1, 0, 0, 0, 0, c.currentTime.Location())
 		c.monthLabel.SetText(c.monthYear())
 		c.dates.Objects = c.calendarObjects()
-	})
+		c.dates.Refresh()
+	}
+	c.monthNext.SetAccessibilityInfo(fyne.AccessibilityInfo{Name: lang.X("accessibility.calendar.next", "Next month")})
 	c.monthNext.Importance = LowImportance
 
 	c.monthLabel = NewLabel(c.monthYear())
@@ -106,7 +123,15 @@ func (c *Calendar) calendarObjects() []fyne.CanvasObject {
 		t.Alignment = fyne.TextAlignCenter
 		columnHeadings = append(columnHeadings, t)
 	}
-	return append(columnHeadings, c.daysOfMonth()...)
+	objects := append(columnHeadings, c.daysOfMonth()...)
+	c.accessibilityRevision++
+	keys := []string{"previous", "next", "title"}
+	for i := 0; i < ((len(objects)+daysPerWeek-1)/daysPerWeek)*daysPerWeek; i++ {
+		keys = append(keys, c.calendarKey(objects, i))
+	}
+	keys = append(keys, c.selectedDate.Format(calendarDateKeyFormat))
+	c.accessibilityLifetimes.update(keys)
+	return objects
 }
 
 func (c *Calendar) dateForButton(dayNum int) time.Time {
@@ -144,11 +169,10 @@ func (c *Calendar) daysOfMonth() []fyne.CanvasObject {
 	for d := start; d.Month() == start.Month(); d = d.AddDate(0, 0, 1) {
 		dayNum := d.Day()
 		s := strconv.Itoa(dayNum)
-		b := NewButton(s, func() {
-			selectedDate := c.dateForButton(dayNum)
-
-			c.OnChanged(selectedDate)
-		})
+		b := &calendarDay{owner: c, date: c.dateForButton(dayNum)}
+		b.ExtendBaseWidget(b)
+		b.Text = s
+		b.OnTapped = func() { b.choose() }
 		b.Importance = LowImportance
 
 		buttons = append(buttons, b)

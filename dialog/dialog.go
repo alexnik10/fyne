@@ -83,6 +83,7 @@ func (d *dialog) Show() {
 		d.win.Resize(d.desiredSize)
 	}
 	d.win.Show()
+	d.win.SetAccessibilityInfo(fyne.AccessibilityInfo{Name: d.title})
 }
 
 func (d *dialog) Refresh() {

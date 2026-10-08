@@ -146,6 +146,87 @@ func TestFocusManager_FocusPrevious(t *testing.T) {
 	assert.False(t, entry1.focused)
 }
 
+func TestFocusManager_NestedFocusOrder(t *testing.T) {
+	grandchild := &focusable{}
+	child := &focusable{child: grandchild}
+	sibling := &focusable{}
+	hidden := &focusable{child: &focusable{}}
+	hidden.Hide()
+	disabled := &focusable{}
+	disabled.Disable()
+	root := &focusable{child: container.NewVBox(child, hidden, disabled, sibling)}
+	manager := app.NewFocusManager(root)
+	order := []fyne.Focusable{root, child, grandchild, sibling}
+
+	for _, expected := range order {
+		manager.FocusNext()
+		require.Same(t, expected, manager.Focused())
+	}
+	manager.FocusNext()
+	require.Same(t, root, manager.Focused(), "forward traversal wraps")
+
+	manager.Focus(nil)
+	for i := len(order) - 1; i >= 0; i-- {
+		manager.FocusPrevious()
+		require.Same(t, order[i], manager.Focused())
+	}
+	manager.FocusPrevious()
+	require.Same(t, sibling, manager.Focused(), "reverse traversal wraps to the last descendant")
+
+	for _, current := range order {
+		manager.Focus(current)
+		manager.FocusNext()
+		manager.FocusPrevious()
+		require.Same(t, current, manager.Focused(), "changing direction retraces the focus chain")
+		manager.FocusPrevious()
+		manager.FocusNext()
+		require.Same(t, current, manager.Focused())
+	}
+}
+
+func TestFocusManager_TabStop(t *testing.T) {
+	before, after := &focusable{}, &focusable{}
+	optional := &optionalTabStop{}
+	manager := app.NewFocusManager(container.NewVBox(before, optional, after))
+	for _, expected := range []fyne.Focusable{before, after, before} {
+		manager.FocusNext()
+		require.Same(t, expected, manager.Focused())
+	}
+	manager.FocusPrevious()
+	require.Same(t, after, manager.Focused())
+	manager.FocusPrevious()
+	require.Same(t, before, manager.Focused())
+
+	// Opting out of Tab must not prevent explicit focus or lose our position.
+	require.True(t, manager.Focus(optional))
+	require.Same(t, optional, manager.Focused())
+	manager.FocusNext()
+	require.Same(t, after, manager.Focused())
+	manager.Focus(optional)
+	manager.FocusPrevious()
+	require.Same(t, before, manager.Focused())
+
+	optional.stop = true
+	manager.FocusNext()
+	require.Same(t, optional, manager.Focused())
+	optional.stop = false
+	manager.FocusNext()
+	require.Same(t, after, manager.Focused())
+	before.Hide()
+	after.Disable()
+	manager.FocusNext()
+	require.Nil(t, manager.Focused())
+	manager.FocusPrevious()
+	require.Nil(t, manager.Focused())
+}
+
+type optionalTabStop struct {
+	focusable
+	stop bool
+}
+
+func (f *optionalTabStop) TabStop() bool { return f.stop }
+
 var (
 	_ fyne.Widget      = (*focusable)(nil)
 	_ fyne.Focusable   = (*focusable)(nil)

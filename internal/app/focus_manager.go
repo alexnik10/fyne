@@ -90,24 +90,11 @@ func (f *FocusManager) FocusPrevious() {
 }
 
 func (f *FocusManager) nextInChain(current fyne.Focusable) fyne.Focusable {
-	return f.nextWithWalker(current, driver.WalkVisibleObjectTree)
-}
-
-func (f *FocusManager) nextWithWalker(current fyne.Focusable, walker walkerFunc) fyne.Focusable {
 	var next fyne.Focusable
 	found := current == nil // if we have no starting point then pretend we matched already
-	walker(f.content, func(obj fyne.CanvasObject, _ fyne.Position, _ fyne.Position, _ fyne.Size) bool {
-		if w, ok := obj.(fyne.Disableable); ok && w.Disabled() {
-			// disabled widget cannot receive focus
-			return false
-		}
-
-		focus, ok := obj.(fyne.Focusable)
-		if !ok {
-			return false
-		}
-
-		if found {
+	driver.WalkVisibleObjectTree(f.content, func(obj fyne.CanvasObject, _ fyne.Position, _ fyne.Position, _ fyne.Size) bool {
+		focus := tabFocus(obj)
+		if found && focus != nil {
 			next = focus
 			return true
 		}
@@ -126,7 +113,32 @@ func (f *FocusManager) nextWithWalker(current fyne.Focusable, walker walkerFunc)
 }
 
 func (f *FocusManager) previousInChain(current fyne.Focusable) fyne.Focusable {
-	return f.nextWithWalker(current, driver.ReverseWalkVisibleObjectTree)
+	// Find the predecessor in the forward chain. Reversing sibling order still
+	// visits a focusable parent before its children, so it cannot reverse Tab.
+	var previous fyne.Focusable
+	driver.WalkVisibleObjectTree(f.content, func(obj fyne.CanvasObject, _ fyne.Position, _ fyne.Position, _ fyne.Size) bool {
+		if co, _ := current.(fyne.CanvasObject); obj == co && previous != nil {
+			return true
+		}
+		if focus := tabFocus(obj); focus != nil {
+			previous = focus
+		}
+		return false
+	}, nil)
+
+	// With no predecessor (or no current focus), wrap to the last item.
+	return previous
+}
+
+func tabFocus(obj fyne.CanvasObject) fyne.Focusable {
+	if disabled, ok := obj.(fyne.Disableable); ok && disabled.Disabled() {
+		return nil
+	}
+	if stop, ok := obj.(fyne.TabStop); ok && !stop.TabStop() {
+		return nil
+	}
+	focus, _ := obj.(fyne.Focusable)
+	return focus
 }
 
 func (f *FocusManager) switchFocusTo(obj fyne.Focusable) {
@@ -142,9 +154,3 @@ func (f *FocusManager) switchFocusTo(obj fyne.Focusable) {
 		obj.FocusGained()
 	}
 }
-
-type walkerFunc func(
-	fyne.CanvasObject,
-	func(fyne.CanvasObject, fyne.Position, fyne.Position, fyne.Size) bool,
-	func(fyne.CanvasObject, fyne.Position, fyne.CanvasObject),
-) bool
