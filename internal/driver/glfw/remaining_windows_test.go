@@ -53,6 +53,16 @@ func TestMainLoopNativeRemainingControls(t *testing.T) {
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "powershell.exe", "-NoProfile", "-NonInteractive", "-File", "testdata/accessibility/remaining_windows.ps1", "-WindowHandle", strconv.FormatUint(uint64(hwnd), 10))
 	output, err := cmd.CombinedOutput()
+	if err != nil {
+		runOnMain(func() {
+			t.Logf("Canvas focus after UIA failure: %T", w.canvas.Focused())
+			for _, node := range test.NewAccessibilityTree(w.canvas).Snapshot() {
+				if node.Focused || node.Name == "Enable Record 499" || node.Name == "Keyed wrapping grid" {
+					t.Logf("Semantic state: %+v", node)
+				}
+			}
+		})
+	}
 	require.NoError(t, err, "%s", output)
 	checkNativeGridKeyboard(t, w)
 	client := exec.CommandContext(ctx, "testdata/accessibility/live-client.exe", strconv.FormatUint(uint64(hwnd), 10))

@@ -80,8 +80,11 @@ $toggle.Toggle()
 Assert ($toggle.Current.ToggleState -eq [System.Windows.Automation.ToggleState]::On) 'Nested command did not update model'
 Assert $flag.Current.HasKeyboardFocus 'Toggling the nested checkbox moved focus'
 (Named 'Swap first and last').GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+WaitFor { $items.FindItemByProperty($null, $null, $null).Current.Name -eq 'Record 499' } 'Asynchronous reorder did not move Record 499 to the first position'
 Assert (($flag.GetRuntimeId() -join ',') -eq $identity) 'Reorder replaced the checkbox identity'
-WaitFor { $flag.Current.HasKeyboardFocus -and -not $flag.Current.IsOffscreen } 'Reorder lost or hid the active checkbox'
+Write-Output ("After reorder: focus={0}, offscreen={1}, bounds={2}, focused name={3}" -f $flag.Current.HasKeyboardFocus, $flag.Current.IsOffscreen, $flag.Current.BoundingRectangle, [System.Windows.Automation.AutomationElement]::FocusedElement.Current.Name)
+Assert $flag.Current.HasKeyboardFocus 'Reorder lost the active checkbox focus'
+Assert (-not $flag.Current.IsOffscreen) 'Reorder hid the active checkbox'
 $toggle.Toggle()
 Assert ($toggle.Current.ToggleState -eq [System.Windows.Automation.ToggleState]::Off) 'Old provider did not target the reordered record'
 Assert $flag.Current.HasKeyboardFocus 'Second toggle moved focus'
