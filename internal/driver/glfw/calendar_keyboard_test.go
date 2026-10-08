@@ -15,6 +15,9 @@ import (
 )
 
 func TestWindow_CalendarKeyboardNavigation(t *testing.T) {
+	previousApp := fyne.CurrentApp()
+	runOnMain(func() { fyne.SetCurrentApp(&calendarKeyboardApp{App: previousApp}) })
+	defer runOnMain(func() { fyne.SetCurrentApp(previousApp) })
 	w := createWindow("Calendar keyboard navigation")
 	defer w.Close()
 	var before, after *widget.Button
@@ -52,3 +55,7 @@ func TestWindow_CalendarKeyboardNavigation(t *testing.T) {
 	press(glfw.KeyTab, glfw.ModShift)
 	require.Same(t, day, w.Canvas().Focused())
 }
+
+type calendarKeyboardApp struct{ fyne.App }
+
+func (*calendarKeyboardApp) Driver() fyne.Driver { return d }

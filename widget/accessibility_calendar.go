@@ -215,7 +215,7 @@ func (d *calendarDay) FocusGained() {
 }
 
 func (d *calendarDay) TabStop() bool {
-	last := time.Date(d.owner.currentTime.Year(), d.owner.currentTime.Month()+1, 0, 0, 0, 0, 0, d.owner.currentTime.Location()).Day()
+	last := time.Date(d.owner.currentTime.Year(), d.owner.currentTime.Month()+1, 1, 0, 0, 0, 0, d.owner.currentTime.Location()).AddDate(0, 0, -1).Day()
 	return d.date.Day() == max(1, min(d.owner.focusedDay, last))
 }
 

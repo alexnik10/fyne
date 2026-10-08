@@ -66,23 +66,23 @@ func TestNewCalendar_Resize(t *testing.T) {
 	date := time.Now()
 	c := NewCalendar(date, func(time.Time) {})
 	r := test.WidgetRenderer(c) // and render
-	layout := c.dates.Layout.(*calendarLayout)
+	gridLayout := c.dates.Layout.(*calendarLayout)
 
 	baseSize := c.MinSize()
 	r.Layout(baseSize)
-	minSize := layout.cellSize
+	minSize := gridLayout.cellSize
 
 	r.Layout(baseSize.AddWidthHeight(100, 0))
-	assert.Greater(t, layout.cellSize.Width, minSize.Width)
-	assert.Equal(t, layout.cellSize.Height, minSize.Height)
+	assert.Greater(t, gridLayout.cellSize.Width, minSize.Width)
+	assert.Equal(t, gridLayout.cellSize.Height, minSize.Height)
 
 	r.Layout(baseSize.AddWidthHeight(0, 100))
-	assert.Equal(t, layout.cellSize.Width, minSize.Width)
-	assert.Greater(t, layout.cellSize.Height, minSize.Height)
+	assert.Equal(t, gridLayout.cellSize.Width, minSize.Width)
+	assert.Greater(t, gridLayout.cellSize.Height, minSize.Height)
 
 	r.Layout(baseSize.AddWidthHeight(100, 100))
-	assert.Greater(t, layout.cellSize.Width, minSize.Width)
-	assert.Greater(t, layout.cellSize.Height, minSize.Height)
+	assert.Greater(t, gridLayout.cellSize.Width, minSize.Width)
+	assert.Greater(t, gridLayout.cellSize.Height, minSize.Height)
 }
 
 func TestCalendar_KeyboardNavigation(t *testing.T) {
