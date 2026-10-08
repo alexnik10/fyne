@@ -39,8 +39,8 @@ func TestAccessibilityDialogKeyboard(t *testing.T) {
 		t.Skip("desktop keyboard menus take focus automatically; mobile popups do not")
 	}
 	dir := t.TempDir()
-	require.NoError(t, os.Mkdir(filepath.Join(dir, "folder"), 0700))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "report.txt"), []byte("example"), 0600))
+	require.NoError(t, os.Mkdir(filepath.Join(dir, "folder"), 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "report.txt"), []byte("example"), 0o600))
 	location, err := storage.ListerForURI(storage.NewFileURI(dir))
 	require.NoError(t, err)
 	launch := widget.NewButton("Open file", nil)

@@ -15,7 +15,7 @@ import (
 func TestDialogsSelectedFileAndCancellation(t *testing.T) {
 	a := test.NewTempApp(t)
 	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "report.txt"), []byte("example"), 0600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "report.txt"), []byte("example"), 0o600))
 	a.Preferences().SetString("fyne:fileDialogLastFolder", storage.NewFileURI(dir).String())
 	w := test.NewWindow(nil)
 	defer w.Close()

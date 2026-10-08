@@ -25,7 +25,7 @@ import (
 func TestMainLoopNativeDialogs(t *testing.T) {
 	previous := fyne.CurrentApp()
 	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "report.txt"), []byte("example"), 0600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "report.txt"), []byte("example"), 0o600))
 	runOnMain(func() { fyne.SetCurrentApp(&nativeDriverApp{App: previous}) })
 	defer runOnMain(func() { fyne.SetCurrentApp(previous) })
 	w := createWindow("UIA dialogs")
