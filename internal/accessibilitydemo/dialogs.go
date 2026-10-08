@@ -13,10 +13,6 @@ import (
 
 // NewDialogs is shared by the manual demo and native keyboard/UIA tests.
 func NewDialogs(window fyne.Window, status *widget.Label) fyne.CanvasObject {
-	selected := widget.NewRichTextWithText("No file selected")
-	selected.Selectable = true
-	selected.Wrapping = fyne.TextWrapWord
-	selected.SetAccessibilityInfo(fyne.AccessibilityInfo{Name: "Selected file"})
 	open := widget.NewButton("Open file", nil)
 	open.SetAccessibilityInfo(fyne.AccessibilityInfo{Description: "No file selected"})
 	open.OnTapped = func() {
@@ -30,8 +26,6 @@ func NewDialogs(window fyne.Window, status *widget.Label) fyne.CanvasObject {
 			}
 			defer reader.Close()
 			message := "Selected file: " + reader.URI().Name()
-			selected.Segments = []widget.RichTextSegment{&widget.TextSegment{Text: message, Style: widget.RichTextStyleInline}}
-			selected.Refresh()
 			open.SetAccessibilityInfo(fyne.AccessibilityInfo{Description: message})
 			status.SetText(message)
 		}, window)
@@ -49,5 +43,5 @@ func NewDialogs(window fyne.Window, status *widget.Label) fyne.CanvasObject {
 	example := widget.NewRichTextWithText("Example file icon: report.txt")
 	example.Selectable = true
 	example.SetAccessibilityInfo(fyne.AccessibilityInfo{Name: "Example file icon: report.txt"})
-	return container.NewVBox(choose, open, selected, container.NewBorder(nil, nil, icon, nil, example))
+	return container.NewVBox(choose, open, container.NewBorder(nil, nil, icon, nil, example))
 }

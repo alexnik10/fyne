@@ -115,8 +115,6 @@ func TestMainLoopNativeDialogs(t *testing.T) {
 	checkFocus("Open file")
 	require.Equal(t, "Selected file: report.txt", named("Open file", false).Description)
 	press(glfw.KeyTab, 0)
-	checkFocus("Selected file")
-	press(glfw.KeyTab, 0)
 	checkFocus("Example file icon: report.txt")
 	named("Choose colour", true)
 	press(glfw.KeyEnter, 0)
