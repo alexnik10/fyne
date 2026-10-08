@@ -69,6 +69,12 @@ jobs:
           # Go's build cache tracks source and build flags itself. Keep native
           # dependencies reusable when tests or provider code change.
           cache-dependency-path: go.sum
+      - name: Build native live-region UIA client
+        shell: pwsh
+        run: |
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+          & cmd /c "`"$vs\Common7\Tools\VsDevCmd.bat`" -arch=x64 && cl /nologo /EHsc /std:c++17 internal\driver\glfw\testdata\accessibility\live_client_windows.cpp /Fe:internal\driver\glfw\testdata\accessibility\live-client.exe /link ole32.lib oleaut32.lib uiautomationcore.lib"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Native main-loop wake and work-order tests
         run: go test -race -tags accessibility ./internal/driver/glfw -run 'TestMainLoopNative|TestWindow_SetTitle|TestWindow_PasswordEntryTabOrder' -timeout 2m
       - name: Repeat collection discovery and asynchronous model updates

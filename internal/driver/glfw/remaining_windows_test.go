@@ -59,4 +59,7 @@ func TestMainLoopNativeRemainingControls(t *testing.T) {
 	cmd := exec.CommandContext(ctx, "powershell.exe", "-NoProfile", "-NonInteractive", "-File", "testdata/accessibility/remaining_windows.ps1", "-WindowHandle", strconv.FormatUint(uint64(hwnd), 10))
 	output, err := cmd.CombinedOutput()
 	require.NoError(t, err, "%s", output)
+	client := exec.CommandContext(ctx, "testdata/accessibility/live-client.exe", strconv.FormatUint(uint64(hwnd), 10))
+	output, err = client.CombinedOutput()
+	require.NoError(t, err, "%s", output)
 }
