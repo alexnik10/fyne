@@ -35,6 +35,9 @@ func TestAccessibilityColorValueUpdatesModel(t *testing.T) {
 
 func TestAccessibilityDialogKeyboard(t *testing.T) {
 	test.NewTempApp(t)
+	if fyne.CurrentDevice().IsMobile() {
+		t.Skip("desktop keyboard menus take focus automatically; mobile popups do not")
+	}
 	dir := t.TempDir()
 	require.NoError(t, os.Mkdir(filepath.Join(dir, "folder"), 0700))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "report.txt"), []byte("example"), 0600))

@@ -1,6 +1,8 @@
 package widget
 
 import (
+	"math"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/theme"
@@ -55,7 +57,7 @@ func (t *TextGrid) Tapped(event *fyne.PointEvent) {
 		return
 	}
 	info := t.AccessibilityText()
-	best, distance := 0, float32(1e30)
+	best, distance := 0, float32(math.MaxFloat32)
 	for i, p := range info.Positions {
 		x, y := p.Position.X-event.Position.X, p.Position.Y+p.Height/2-event.Position.Y
 		d := x*x + y*y*100
@@ -90,24 +92,24 @@ func (t *TextGrid) cellSelected(row, column int) bool {
 	return row >= start.Line && row <= end.Line && (row != start.Line || x >= start.Position.X) && (row != end.Line || x < end.Position.X)
 }
 
-func (r *textGridRenderer) refreshCaret() {
-	t := r.text.text
-	if !t.Selectable {
+func (t *textGridRenderer) refreshCaret() {
+	grid := t.text.text
+	if !grid.Selectable {
 		return
 	}
-	if r.caret == nil {
-		r.caret = canvas.NewRectangle(t.Theme().Color(theme.ColorNameForeground, fyne.CurrentApp().Settings().ThemeVariant()))
+	if t.caret == nil {
+		t.caret = canvas.NewRectangle(grid.Theme().Color(theme.ColorNameForeground, fyne.CurrentApp().Settings().ThemeVariant()))
 	}
-	info := t.AccessibilityText()
+	info := grid.AccessibilityText()
 	p := info.Positions[info.Caret]
 	v, size := info.ViewportPosition, info.ViewportSize
-	if !t.focused || t.anchor != t.caret || p.Position.X < v.X || p.Position.X > v.X+size.Width || p.Position.Y < v.Y || p.Position.Y >= v.Y+size.Height {
-		r.caret.Hide()
+	if !grid.focused || grid.anchor != grid.caret || p.Position.X < v.X || p.Position.X > v.X+size.Width || p.Position.Y < v.Y || p.Position.Y >= v.Y+size.Height {
+		t.caret.Hide()
 		return
 	}
-	r.caret.FillColor = t.Theme().Color(theme.ColorNameForeground, fyne.CurrentApp().Settings().ThemeVariant())
-	r.caret.Move(fyne.NewPos(min(p.Position.X, v.X+size.Width-1), p.Position.Y))
-	r.caret.Resize(fyne.NewSize(1, min(p.Height, v.Y+size.Height-p.Position.Y)))
-	r.caret.Show()
-	r.caret.Refresh()
+	t.caret.FillColor = grid.Theme().Color(theme.ColorNameForeground, fyne.CurrentApp().Settings().ThemeVariant())
+	t.caret.Move(fyne.NewPos(min(p.Position.X, v.X+size.Width-1), p.Position.Y))
+	t.caret.Resize(fyne.NewSize(1, min(p.Height, v.Y+size.Height-p.Position.Y)))
+	t.caret.Show()
+	t.caret.Refresh()
 }

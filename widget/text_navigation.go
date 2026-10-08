@@ -54,18 +54,7 @@ func (n *textNavigation) move(doc readOnlyDocument, key fyne.KeyName, modifiers 
 				next = info.SelectionStart
 			}
 		} else if control {
-			next = 0
-			if direction > 0 {
-				next = last
-			}
-			for _, boundary := range info.WordBoundaries {
-				if direction < 0 && boundary < caret {
-					next = boundary
-				} else if direction > 0 && boundary > caret {
-					next = boundary
-					break
-				}
-			}
+			next = readOnlyWordBoundary(info, caret, direction)
 		}
 	case fyne.KeyHome, fyne.KeyEnd:
 		if control {
@@ -115,6 +104,21 @@ func (n *textNavigation) move(doc readOnlyDocument, key fyne.KeyName, modifiers 
 	}
 	doc.AccessibilitySelectText(anchor, next)
 	revealTextCaret(doc)
+}
+
+func readOnlyWordBoundary(info fyne.AccessibilityTextInfo, caret, direction int) int {
+	next := 0
+	if direction > 0 {
+		next = len(info.Positions) - 1
+	}
+	for _, boundary := range info.WordBoundaries {
+		if direction < 0 && boundary < caret {
+			next = boundary
+		} else if direction > 0 && boundary > caret {
+			return boundary
+		}
+	}
+	return next
 }
 
 func (n *textNavigation) shortcut(doc readOnlyDocument, shortcut fyne.Shortcut) {

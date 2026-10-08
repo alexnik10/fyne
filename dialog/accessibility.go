@@ -2,6 +2,7 @@ package dialog
 
 import (
 	"image/color"
+	"math"
 
 	"fyne.io/fyne/v2"
 	col "fyne.io/fyne/v2/internal/color"
@@ -75,8 +76,8 @@ func accessibleColorName(c color.Color) string {
 	if name == "" {
 		name = lang.X("accessibility.color.rgb", "Red {{.Red}}, green {{.Green}}, blue {{.Blue}}", map[string]any{"Red": r, "Green": g, "Blue": b})
 	}
-	if a != 255 {
-		name = lang.X("accessibility.color.withOpacity", "{{.Colour}}, opacity {{.Opacity}}%", map[string]any{"Colour": name, "Opacity": (int(a)*100 + 127) / 255})
+	if a != math.MaxUint8 {
+		name = lang.X("accessibility.color.withOpacity", "{{.Colour}}, opacity {{.Opacity}}%", map[string]any{"Colour": name, "Opacity": (int(a)*100 + math.MaxUint8/2) / math.MaxUint8})
 	}
 	return lang.X("accessibility.color.namedHex", "{{.Colour}}, {{.Hex}}", map[string]any{"Colour": name, "Hex": hex})
 }

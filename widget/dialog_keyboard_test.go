@@ -29,7 +29,8 @@ func TestPopUpMenuTabReturnsToUnderlyingDialog(t *testing.T) {
 	w := test.NewWindow(NewButton("Background", nil))
 	defer w.Close()
 	before, owner, after := NewButton("Before", nil), NewButton("Options", nil), NewButton("After", nil)
-	popup := NewModalPopUp(fyne.NewContainerWithLayout(layout.NewVBoxLayout(), before, owner, after), w.Canvas())
+	content := &fyne.Container{Layout: layout.NewVBoxLayout(), Objects: []fyne.CanvasObject{before, owner, after}}
+	popup := NewModalPopUp(content, w.Canvas())
 	popup.Show()
 	w.Canvas().Focus(owner)
 	for _, backwards := range []bool{false, true} {
