@@ -85,6 +85,17 @@ type TextGrid struct {
 	ShowWhitespace  bool
 	TabWidth        int // If set to 0 the fyne.DefaultTabWidth is used
 
+	// Selectable enables keyboard reading, selection and copying without editing.
+	// Tab enters or leaves the document; arrows move the reading caret.
+	//
+	// Since: 2.9
+	Selectable bool
+
+	caret, anchor                int
+	focused                      bool
+	navigation                   textNavigation
+	selectionStart, selectionEnd fyne.AccessibilityTextPosition
+
 	// Scroll can be used to turn off the scrolling of our TextGrid.
 	//
 	// Since: 2.6
@@ -384,6 +395,11 @@ func (t *TextGrid) CreateRenderer() fyne.WidgetRenderer {
 	t.scroller = scroll
 	t.content = content
 	r := &textGridRenderer{text: content, scroll: scroll}
+	if t.Selectable {
+		r.caret = canvas.NewRectangle(color.Transparent)
+		r.caret.Hide()
+		objs = append(objs, r.caret)
+	}
 	r.SetObjects(objs)
 	return r
 }
@@ -456,10 +472,12 @@ type textGridRenderer struct {
 
 	text   *textGridContent
 	scroll *widget.Scroll
+	caret  *canvas.Rectangle
 }
 
 func (t *textGridRenderer) Layout(s fyne.Size) {
 	t.Objects()[0].Resize(s)
+	t.refreshCaret()
 }
 
 func (t *textGridRenderer) MinSize() fyne.Size {
@@ -491,6 +509,16 @@ func (t *textGridRenderer) Refresh() {
 
 	canvas.Refresh(t.text.text.super())
 	t.text.Refresh()
+	t.refreshCaret()
+	root := fyne.CanvasObject(t.text)
+	if t.text.text.Scroll != widget.ScrollNone {
+		root = t.scroll
+	}
+	objects := []fyne.CanvasObject{root}
+	if t.text.text.Selectable {
+		objects = append(objects, t.caret)
+	}
+	t.SetObjects(objects)
 }
 
 type textGridContent struct {
@@ -521,6 +549,9 @@ func (t *textGridContent) CreateRenderer() fyne.WidgetRenderer {
 	t.text.scroller.OnScrolled = func(_ fyne.Position) {
 		r.addRowsIfRequired()
 		r.Layout(t.Size())
+		if t.text.Selectable {
+			t.text.Refresh()
+		}
 	}
 	return r
 }
@@ -585,6 +616,7 @@ func (t *textGridContentRenderer) Objects() []fyne.CanvasObject {
 func (t *textGridContentRenderer) Refresh() {
 	// theme could change text size
 	t.updateCellSize()
+	t.text.text.updateSelectionGeometry()
 	t.updateGridSize(t.text.text.Size())
 
 	for _, o := range t.text.visible {
@@ -748,6 +780,9 @@ func (t *textGridRow) setCellRune(str rune, pos int, style, rowStyle TextGridSty
 		bg = style.BackgroundColor()
 	} else if rowStyle != nil && rowStyle.BackgroundColor() != nil {
 		bg = rowStyle.BackgroundColor()
+	}
+	if t.text.text.cellSelected(t.row, pos) {
+		bg = t.text.text.Theme().Color(theme.ColorNameSelection, fyne.CurrentApp().Settings().ThemeVariant())
 	}
 	if rect.FillColor != bg {
 		rect.FillColor = bg

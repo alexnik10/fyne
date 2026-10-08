@@ -167,6 +167,15 @@ func (t *RichText) Resize(size fyne.Size) {
 	if size == t.Size() {
 		return
 	}
+	if t.Selectable && t.selection != nil && len(t.rowBounds) > 0 {
+		info := t.AccessibilityText()
+		anchor := info.SelectionStart
+		if info.Caret == info.SelectionStart {
+			anchor = info.SelectionEnd
+		}
+		// Wrapping changes rendered rows, not the reader's logical position.
+		defer t.AccessibilitySelectText(anchor, info.Caret)
+	}
 
 	t.size = size
 
@@ -975,7 +984,7 @@ func (t *RichText) checkSelection() {
 
 // highlightObjects returns the selection rectangles to draw over this content.
 func (t *RichText) highlightObjects() []fyne.CanvasObject {
-	if t.highlight == nil || !t.highlight.selecting {
+	if t.highlight == nil || (!t.highlight.selecting && !t.Selectable) {
 		return nil
 	}
 

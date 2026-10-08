@@ -10,7 +10,7 @@ NVDA/Narrator speech acceptance. It does not enable the other platform adapters.
 | Label, canvas.Text | Readable static text; `Decorative` omits canvas text already represented by its owner |
 | Status labels | Opt-in `Label.SetAccessibilityLiveSetting` and `AccessibleLiveRegion`; Windows LiveSetting/LiveRegionChanged announce the current name without moving focus |
 | Entry, PasswordEntry, RichTextEntry | Value and Text/Text2, actual editing/selection/focus; password redaction; formatting for rich text |
-| RichText, TextGrid | Read-only text with ranges, formatting, geometry and scrolling; TextGrid exposes no unsupported selection |
+| RichText, TextGrid | Read-only text with ranges, formatting, geometry and scrolling; `Selectable` opts into keyboard reading, selection and copying |
 | Check, CheckGroup | Toggle, checked state, named group, real checkbox focus |
 | RadioGroup, Select | Single selection, stable options, keyboard focus; Select disclosure and popup scope |
 | SelectEntry | Editable ComboBox with Value/Text, option selection, disclosure, Alt+Up/Down and popup keyboard navigation |
@@ -101,6 +101,17 @@ they have empty bounds (Windows `IsOffscreen`) and cannot receive keyboard focus
 Their presence in object navigation does not mean that the popup is open. These
 model children retain their identities across opening and closing.
 
+On **Text and split**, Tab visits **Text grid document**, **Resize panes**, then
+**Pane two document**; Shift+Tab reverses that order. Both documents are read-only
+and selectable. Arrows move the reading caret, Home/End reach line boundaries,
+Control+Home/End reach document boundaries, Shift extends the selection, and
+Control+A/Control+C select/copy text. Ordinary Tab leaves a document. TextGrid
+retains model tabs and Unicode, excluding line numbers and whitespace decorations.
+Its default remains nonselectable; set `Selectable = true` for a keyboard reading
+surface. The split demo also enables scrolling so narrow panes remain readable.
+After Home/End on the divider, check both documents again with Tab/Shift+Tab and
+verify their text, read-only state and reading positions.
+
 On **Grid and nested controls**, entering the grid or using its arrow keys should
 announce **Enable Record NNN**, the checkbox role and its checked state. Space
 (also either Enter key) toggles that checkbox; it no longer selects a separate
@@ -124,8 +135,10 @@ commit.
    Check checkbox state speech, the live status and stable focus. Tab to **Swap
    first and last**, activate it, then Shift+Tab and toggle the same record again.
    Also check UIA focus/Toggle and pointer activation of the nested checkbox.
-4. Read TextGrid text, including tabs/Cyrillic/emoji. Tab to the divider and resize
-   the panes. Move/resize an inner window with the arrows and invoke its buttons.
+4. Tab into TextGrid, read with arrows and select/copy its tabs/Cyrillic/emoji.
+   Verify that typing, Delete, Cut and Paste cannot change either document.
+   Tab to the divider, resize with Home/End, and read both panes again. Tab must
+   leave each document directly. Move/resize an inner window with the arrows.
 5. In file/colour dialogs, check names, actual chosen file/colour, disabled controls,
    focus restoration and both light/dark themes.
 

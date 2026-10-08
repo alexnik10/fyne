@@ -268,6 +268,7 @@ func (r *labelRenderer) Refresh() {
 type focusSelectable struct {
 	selectable
 	accessibilityOwner fyne.CanvasObject
+	navigation         textNavigation
 }
 
 func (f *focusSelectable) FocusGained() {
@@ -277,11 +278,27 @@ func (f *focusSelectable) FocusGained() {
 
 func (f *focusSelectable) FocusLost() {
 	f.focused = false
+	f.navigation.shift = false
 	f.Refresh()
 }
 
-func (*focusSelectable) TypedKey(*fyne.KeyEvent) {
+func (f *focusSelectable) TypedKey(key *fyne.KeyEvent) {
+	if f.provider.Selectable {
+		f.navigation.move(f.provider, key.Name, 0)
+	}
 }
 
 func (*focusSelectable) TypedRune(rune) {
+}
+
+func (f *focusSelectable) KeyDown(key *fyne.KeyEvent) { f.navigation.keyDown(key) }
+
+func (f *focusSelectable) KeyUp(key *fyne.KeyEvent) { f.navigation.keyUp(key) }
+
+func (f *focusSelectable) TypedShortcut(shortcut fyne.Shortcut) {
+	if f.provider.Selectable {
+		f.navigation.shortcut(f.provider, shortcut)
+	} else {
+		f.selectable.TypedShortcut(shortcut)
+	}
 }

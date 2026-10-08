@@ -16,12 +16,31 @@ func (*TextGrid) AccessibilityLabel() string { return "" }
 // Since: 2.9
 func (*TextGrid) AccessibilityRole() fyne.AccessibleRole { return fyne.AccessibleRoleDocument }
 
+// AccessibilityFocusable reports whether keyboard reading is enabled.
+// Since: 2.9
+func (t *TextGrid) AccessibilityFocusable() bool { return t.Selectable }
+
+// AccessibilityFocus places keyboard focus on the read-only document.
+// Since: 2.9
+func (t *TextGrid) AccessibilityFocus() bool {
+	if !t.Selectable {
+		return false
+	}
+	c := fyne.CurrentApp().Driver().CanvasForObject(t.super())
+	f, ok := t.super().(fyne.Focusable)
+	if c == nil || !ok {
+		return false
+	}
+	c.Focus(f)
+	return c.Focused() == f
+}
+
 // AccessibilityText exposes model text, styles and positions without renderer cells.
 // Line numbers and whitespace decorations are not part of the document.
 // Since: 2.9
 func (t *TextGrid) AccessibilityText() fyne.AccessibilityTextInfo {
-	info := fyne.AccessibilityTextInfo{ReadOnly: true, SelectionDisabled: true, ViewportSize: t.Size()}
-	if t.scroller != nil {
+	info := fyne.AccessibilityTextInfo{ReadOnly: true, SelectionDisabled: !t.Selectable, ViewportSize: t.Size()}
+	if t.Scroll != fyne.ScrollNone && t.scroller != nil {
 		info.ViewportPosition, info.ViewportSize = t.scroller.Position(), t.scroller.Size()
 	}
 	var text []rune
@@ -34,7 +53,7 @@ func (t *TextGrid) AccessibilityText() fyne.AccessibilityTextInfo {
 			column += t.content.lineNumberWidth() + 1
 		}
 		p := fyne.NewPos(float32(column)*cellSize.Width, float32(row)*cellSize.Height)
-		if t.scroller != nil {
+		if t.Scroll != fyne.ScrollNone && t.scroller != nil {
 			p = p.Subtract(t.scroller.Offset).Add(t.scroller.Position())
 		}
 		return fyne.AccessibilityTextPosition{Position: p, Height: cellSize.Height, Line: row}
@@ -72,6 +91,11 @@ func (t *TextGrid) AccessibilityText() fyne.AccessibilityTextInfo {
 	info.Positions = append(info.Positions, position(row, column))
 	info.Text = string(text)
 	info.WordBoundaries = entryWordBoundaries(info.Text)
+	if t.Selectable {
+		info.Caret = min(max(t.caret, 0), len(text))
+		anchor := min(max(t.anchor, 0), len(text))
+		info.SelectionStart, info.SelectionEnd = min(anchor, info.Caret), max(anchor, info.Caret)
+	}
 	return info
 }
 
@@ -90,14 +114,22 @@ func (t *TextGrid) accessibilityTextGridRun(style TextGridStyle, start int) fyne
 	return run
 }
 
-// AccessibilitySelectText does not create editing or selection behavior in TextGrid.
+// AccessibilitySelectText updates the same selection used by keyboard reading.
+// It is a no-op unless Selectable is enabled and never changes the text.
 // Since: 2.9
-func (*TextGrid) AccessibilitySelectText(int, int) {}
+func (t *TextGrid) AccessibilitySelectText(start, end int) {
+	if !t.Selectable {
+		return
+	}
+	length := len([]rune(t.Text()))
+	t.anchor, t.caret = min(max(start, 0), length), min(max(end, 0), length)
+	t.Refresh()
+}
 
 // AccessibilityScrollText reveals a range without creating a keyboard caret.
 // Since: 2.9
 func (t *TextGrid) AccessibilityScrollText(start, end int, alignTop bool) {
-	if t.scroller == nil {
+	if t.Scroll == fyne.ScrollNone || t.scroller == nil {
 		return
 	}
 	info := t.AccessibilityText()
@@ -116,7 +148,7 @@ func (t *TextGrid) AccessibilityScrollText(start, end int, alignTop bool) {
 // AccessibilityScroll describes the text viewport.
 // Since: 2.9
 func (t *TextGrid) AccessibilityScroll() fyne.AccessibilityScrollInfo {
-	if t.scroller == nil {
+	if t.Scroll == fyne.ScrollNone || t.scroller == nil {
 		return fyne.AccessibilityScrollInfo{}
 	}
 	return t.scroller.AccessibilityScroll()
@@ -125,7 +157,7 @@ func (t *TextGrid) AccessibilityScroll() fyne.AccessibilityScrollInfo {
 // AccessibilityScrollTo scrolls without changing the text.
 // Since: 2.9
 func (t *TextGrid) AccessibilityScrollTo(offset fyne.Position) bool {
-	if t.scroller == nil {
+	if t.Scroll == fyne.ScrollNone || t.scroller == nil {
 		return false
 	}
 	return t.scroller.AccessibilityScrollTo(offset)

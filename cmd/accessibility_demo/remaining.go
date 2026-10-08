@@ -60,9 +60,7 @@ func showRemainingDemo(application fyne.App) {
 
 	dates := remainingDates(status)
 
-	text := widget.NewTextGridFromString("Read-only TextGrid\nColumns\tValue\nРусский текст 😀\nUse the screen reader's text navigation.")
-	text.SetAccessibilityInfo(fyne.AccessibilityInfo{Name: "Text grid document"})
-	split := container.NewHSplit(text, widget.NewRichTextFromMarkdown("# Pane two\n\nTab to **Resize panes**, then use the arrow keys."))
+	split := accessibilitydemo.NewTextSplit()
 
 	inner := container.NewInnerWindow("Notes", widget.NewEntry())
 	windows := container.NewMultipleWindows(inner)
