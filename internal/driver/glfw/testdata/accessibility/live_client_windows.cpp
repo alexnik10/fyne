@@ -34,7 +34,7 @@ public:
     HRESULT STDMETHODCALLTYPE QueryInterface(REFIID iid, void **out) override {
         if (!out) return E_POINTER;
         *out = nullptr;
-        if (iid == IID_IUnknown || iid == __uuidof(IUIAutomationEventHandler)) {
+        if (iid == __uuidof(IUnknown) || iid == __uuidof(IUIAutomationEventHandler)) {
             *out = static_cast<IUIAutomationEventHandler *>(this); AddRef(); return S_OK;
         }
         return E_NOINTERFACE;
