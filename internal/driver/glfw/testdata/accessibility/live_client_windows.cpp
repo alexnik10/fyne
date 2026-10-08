@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <wrl/client.h>
 using Microsoft::WRL::ComPtr;
+static constexpr LONG politeLiveSetting = 1; // UIA LiveSetting's documented polite value.
 
 static void check(HRESULT hr) {
     if (FAILED(hr)) { fprintf(stderr, "UIA live-region call failed: 0x%08lx\n", hr); exit(1); }
@@ -64,7 +65,7 @@ int main(int argc, char **argv) {
         auto save = named(uia.Get(), root.Get(), L"Native save");
         VARIANT setting;
         check(status->GetCurrentPropertyValue(UIA_LiveSettingPropertyId, &setting));
-        expect(setting.vt == VT_I4 && setting.lVal == LiveSetting_Polite, "Status is not a polite live region");
+        expect(setting.vt == VT_I4 && setting.lVal == politeLiveSetting, "Status is not a polite live region");
         VariantClear(&setting);
         check(save->SetFocus());
         ComPtr<IUIAutomationInvokePattern> invoke;
