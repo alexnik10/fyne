@@ -64,6 +64,6 @@ func TestDialogsSelectedFileAndCancellation(t *testing.T) {
 	require.Equal(t, "Selected file: report.txt", status.Text)
 	c.FocusNext()
 	require.True(t, named("Choose colour").Focused)
-	require.False(t, named("Example file icon: report.txt").Focusable)
+	require.False(t, named("report.txt").Focusable)
 	require.Equal(t, "Example file icon", named("report.txt").Description)
 }
