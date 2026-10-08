@@ -41,7 +41,6 @@ func NewDialogs(window fyne.Window, status *widget.Label) fyne.CanvasObject {
 	icon := widget.NewFileIcon(storage.NewFileURI("report.txt"))
 	icon.SetAccessibilityInfo(fyne.AccessibilityInfo{Description: "Example file icon"})
 	example := widget.NewRichTextWithText("Example file icon: report.txt")
-	example.Selectable = true
 	example.SetAccessibilityInfo(fyne.AccessibilityInfo{Name: "Example file icon: report.txt"})
 	return container.NewVBox(choose, open, container.NewBorder(nil, nil, icon, nil, example))
 }
