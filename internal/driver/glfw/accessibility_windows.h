@@ -35,6 +35,8 @@ typedef struct {
     uint32_t grid_owner;
     int rows, columns, row, column, row_span, column_span;
     int role, flags;
+    int live_setting;
+    uint64_t live_revision;
     const char *name, *description, *value, *shortcut;
     double x, y, width, height;
     double number, minimum, maximum, step;

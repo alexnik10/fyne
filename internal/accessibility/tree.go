@@ -44,6 +44,8 @@ type Node struct {
 	ID, Parent                                       uint32
 	Name, Description                                string
 	Shortcut                                         string
+	LiveSetting                                      fyne.AccessibilityLiveSetting
+	LiveRevision                                     uint64
 	Role                                             fyne.AccessibleRole
 	Position                                         fyne.Position
 	Size                                             fyne.Size

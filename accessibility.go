@@ -47,6 +47,32 @@ type Accessible interface {
 	AccessibilityRole() AccessibleRole
 }
 
+// AccessibilityLiveSetting controls announcements of changes to an element's name.
+// It does not move keyboard focus. Native adapter support is required.
+//
+// Since: 2.9
+type AccessibilityLiveSetting uint8
+
+const (
+	// AccessibilityLiveOff disables automatic announcements (the default).
+	AccessibilityLiveOff AccessibilityLiveSetting = iota
+	// AccessibilityLivePolite requests an announcement without interrupting speech.
+	AccessibilityLivePolite
+	// AccessibilityLiveAssertive requests an urgent announcement that may interrupt speech.
+	AccessibilityLiveAssertive
+)
+
+// AccessibleLiveRegion marks an element whose accessible name conveys a status.
+// Changes are announced after the element has been exposed with a live setting.
+// Increment revision to request another announcement of an unchanged name.
+// Initial exposure, empty names and protected values are not announced. Changes
+// between adapter snapshots may be coalesced; this is not a message queue.
+//
+// Since: 2.9
+type AccessibleLiveRegion interface {
+	AccessibilityLiveRegion() (setting AccessibilityLiveSetting, revision uint64)
+}
+
 // AccessibilityInfo supplies optional metadata, independently of rendering.
 // Nonzero fields override inherited metadata. Set the corresponding Set flag to
 // override with an empty string or false. A zero struct inherits all fields.

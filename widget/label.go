@@ -39,9 +39,11 @@ type Label struct {
 	// Since: 2.6
 	Selectable bool
 
-	provider  *RichText
-	binder    basicBinder
-	selection *focusSelectable
+	provider     *RichText
+	binder       basicBinder
+	selection    *focusSelectable
+	liveSetting  fyne.AccessibilityLiveSetting
+	liveRevision uint64
 }
 
 // NewLabel creates a new label widget with the set text content
@@ -155,6 +157,9 @@ func (l *Label) ClearSelection() {
 // SetText sets the text of the label
 func (l *Label) SetText(text string) {
 	l.Text = text
+	if l.liveSetting != fyne.AccessibilityLiveOff {
+		l.liveRevision++
+	}
 	if l.Selectable && l.selection != nil {
 		l.selection.cursorRow = 0
 		l.selection.cursorColumn = 0

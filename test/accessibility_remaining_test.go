@@ -28,6 +28,92 @@ func remainingNode(t *testing.T, tree *test.AccessibilityTree, name string) test
 	return test.AccessibilityNode{}
 }
 
+func TestAccessibilityAccordionKeyboardOrder(t *testing.T) {
+	test.NewTempApp(t)
+	checks := widget.NewCheckGroup([]string{"Email", "Desktop"}, nil)
+	second := widget.NewEntry()
+	a := widget.NewAccordion(widget.NewAccordionItem("Notification settings", checks), widget.NewAccordionItem("More details", second))
+	before, after := widget.NewButton("Before", nil), widget.NewButton("After", nil)
+	w := test.NewWindow(container.NewVBox(before, a, after))
+	defer w.Close()
+	headers := a.AccessibilityChildren()
+	firstHeader, secondHeader := headers[0].(fyne.Focusable), headers[1].(fyne.Focusable)
+	a.Open(0)
+	children := checks.AccessibilityChildren()
+	email, desktop := children[0].(*widget.Check), children[1].(*widget.Check)
+	checkOrder := func(order ...fyne.Focusable) {
+		t.Helper()
+		w.Canvas().Unfocus()
+		for _, expected := range order {
+			w.Canvas().FocusNext()
+			require.Same(t, expected, w.Canvas().Focused())
+		}
+		w.Canvas().FocusNext()
+		require.Same(t, order[0], w.Canvas().Focused(), "forward wrap")
+		for i := len(order) - 1; i >= 0; i-- {
+			w.Canvas().FocusPrevious()
+			require.Same(t, order[i], w.Canvas().Focused(), "reverse traversal must be the inverse")
+		}
+	}
+	checkOrder(before, firstHeader, email, desktop, secondHeader, after)
+	email.Disable()
+	checkOrder(before, firstHeader, desktop, secondHeader, after)
+	email.Enable()
+	a.CloseAll()
+	checkOrder(before, firstHeader, secondHeader, after)
+	a.Open(1)
+	checkOrder(before, firstHeader, secondHeader, second, after)
+	a.MultiOpen = true
+	a.Open(0)
+	checkOrder(before, firstHeader, email, desktop, secondHeader, second, after)
+	a.Items[0], a.Items[1] = a.Items[1], a.Items[0]
+	a.Refresh()
+	checkOrder(before, secondHeader, second, firstHeader, email, desktop, after)
+}
+
+func TestAccessibilityLiveLabel(t *testing.T) {
+	test.NewTempApp(t)
+	status := widget.NewLabel("Ready")
+	save := widget.NewButton("Save", func() { status.SetText("Saved") })
+	w := test.NewWindow(container.NewVBox(save, status))
+	defer w.Close()
+	w.Canvas().Focus(save)
+	tree := test.NewAccessibilityTree(w.Canvas())
+	n, ok := tree.Node(status)
+	require.True(t, ok)
+	assert.Equal(t, fyne.AccessibilityLiveOff, n.LiveSetting)
+	status.SetAccessibilityLiveSetting(fyne.AccessibilityLivePolite)
+	n, _ = tree.Node(status)
+	assert.Equal(t, fyne.AccessibilityLivePolite, n.LiveSetting)
+	assert.False(t, n.Focusable)
+	saveNode, ok := tree.Node(save)
+	require.True(t, ok)
+	for range 2 {
+		previous := n
+		require.True(t, tree.Perform(saveNode.ID, test.AccessibilityActivate, "", 0))
+		n, _ = tree.Node(status)
+		assert.Equal(t, "Saved", n.Name)
+		assert.Greater(t, n.LiveRevision, previous.LiveRevision, "equal action results can be announced again")
+		assert.Equal(t, previous.ID, n.ID)
+		assert.Same(t, save, w.Canvas().Focused())
+	}
+	status.Refresh()
+	unchanged, _ := tree.Node(status)
+	assert.Equal(t, n.LiveRevision, unchanged.LiveRevision, "repainting is not an announcement")
+	status.Hide()
+	_, ok = tree.Node(status)
+	assert.False(t, ok)
+	status.Show()
+	status.SetAccessibilityLiveSetting(fyne.AccessibilityLiveAssertive)
+	n, _ = tree.Node(status)
+	assert.Equal(t, fyne.AccessibilityLiveAssertive, n.LiveSetting)
+	status.SetAccessibilityLiveSetting(fyne.AccessibilityLiveOff)
+	status.SetText("Silent")
+	n, _ = tree.Node(status)
+	assert.Equal(t, fyne.AccessibilityLiveOff, n.LiveSetting)
+	assert.Zero(t, n.LiveRevision)
+}
+
 func TestAccessibilityRemainingStatusAndGroups(t *testing.T) {
 	test.NewTempApp(t)
 	progress := widget.NewProgressBar()

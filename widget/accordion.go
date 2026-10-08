@@ -278,12 +278,11 @@ func (r *accordionRenderer) updateObjects() {
 		r.headers[i].Hide()
 	}
 	// Set objects
-	objects := make([]fyne.CanvasObject, hs+is+ds)
-	for i, header := range r.headers {
-		objects[i] = header
-	}
+	objects := make([]fyne.CanvasObject, 0, hs+is+ds)
+	// Keyboard traversal follows renderer order. Keep a section's controls
+	// immediately after its header, matching the visual and semantic order.
 	for i, item := range r.container.Items {
-		objects[hs+i] = item.Detail
+		objects = append(objects, r.headers[i], item.Detail)
 	}
 	// add dividers
 	for i = 0; i < ds; i++ {
@@ -292,7 +291,7 @@ func (r *accordionRenderer) updateObjects() {
 		} else {
 			r.dividers[i].Hide()
 		}
-		objects[hs+is+i] = r.dividers[i]
+		objects = append(objects, r.dividers[i])
 	}
 	// make new dividers
 	for ; i < is-1; i++ {

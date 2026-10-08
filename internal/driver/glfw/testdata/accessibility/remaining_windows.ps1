@@ -75,4 +75,38 @@ Assert (-not $flag.Current.IsKeyboardFocusable) 'Temporary model control adverti
 $toggle = $flag.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern)
 $toggle.Toggle()
 Assert ($toggle.Current.ToggleState -eq [System.Windows.Automation.ToggleState]::On) 'Nested command did not update model'
-Write-Output 'Remaining controls passed through external UIA'
+# C# receives UIA callbacks on client threads without a PowerShell runspace.
+Add-Type -ReferencedAssemblies UIAutomationClient,UIAutomationTypes -TypeDefinition @'
+using System;
+using System.Collections.Concurrent;
+using System.Windows.Automation;
+public static class LiveRegionProbe {
+    public static readonly ConcurrentQueue<string> Messages = new ConcurrentQueue<string>();
+    public static readonly AutomationEventHandler Handler = OnChanged;
+    private static void OnChanged(object sender, AutomationEventArgs args) {
+        try { Messages.Enqueue(((AutomationElement)sender).Current.Name); }
+        catch (Exception e) { Messages.Enqueue("ERROR: " + e.Message); }
+    }
+}
+'@
+$status = Named 'Native ready'
+$liveProperty = [System.Windows.Automation.AutomationProperty]::LookupById(30135)
+$liveEvent = [System.Windows.Automation.AutomationEvent]::LookupById(20024)
+Assert ($null -ne $liveProperty -and $null -ne $liveEvent) 'UIA live-region identifiers unavailable'
+Assert ([int]$status.GetCurrentPropertyValue($liveProperty) -eq 1) 'Status is not polite'
+$save = Named 'Native save'
+$save.SetFocus()
+[System.Windows.Automation.Automation]::AddAutomationEventHandler($liveEvent, $status, [System.Windows.Automation.TreeScope]::Element, [LiveRegionProbe]::Handler)
+try {
+    $invoke = $save.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)
+    $invoke.Invoke()
+    WaitFor { [LiveRegionProbe]::Messages.Count -ge 1 } 'Save did not deliver a live-region event'
+    $invoke.Invoke()
+    WaitFor { [LiveRegionProbe]::Messages.Count -ge 2 } 'Repeated Save did not announce its identical result'
+    $messages = [LiveRegionProbe]::Messages.ToArray()
+    Assert ($messages[0] -eq 'Native saved' -and $messages[1] -eq 'Native saved') 'Live event exposed stale text'
+    Assert $save.Current.HasKeyboardFocus 'Status announcement moved keyboard focus'
+} finally {
+    [System.Windows.Automation.Automation]::RemoveAutomationEventHandler($liveEvent, $status, [LiveRegionProbe]::Handler)
+}
+Write-Output 'Remaining controls and live status passed through external UIA'

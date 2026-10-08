@@ -8,6 +8,7 @@ NVDA/Narrator speech acceptance. It does not enable the other platform adapters.
 | --- | --- |
 | Button, Hyperlink | Named Invoke with the normal application command |
 | Label, canvas.Text | Readable static text; `Decorative` omits canvas text already represented by its owner |
+| Status labels | Opt-in `Label.SetAccessibilityLiveSetting` and `AccessibleLiveRegion`; Windows LiveSetting/LiveRegionChanged announce the current name without moving focus |
 | Entry, PasswordEntry, RichTextEntry | Value and Text/Text2, actual editing/selection/focus; password redaction; formatting for rich text |
 | RichText, TextGrid | Read-only text with ranges, formatting, geometry and scrolling; TextGrid exposes no unsupported selection |
 | Check, CheckGroup | Toggle, checked state, named group, real checkbox focus |
@@ -61,6 +62,20 @@ does not infer a custom cell's tab order or editor lifecycle. Standard Table tex
 editing continues to use the explicit `CellValue`/`OnCellChanged` contract.
 
 ## Manual acceptance
+
+The remaining-widgets demo's bottom status label uses
+`SetAccessibilityLiveSetting(fyne.AccessibilityLivePolite)`. Activate **Save
+document**, wait for speech, then activate it again: both actions should announce
+`Toolbar Save invoked`, with focus remaining on the button. Ordinary labels stay
+silent on refresh. Initial exposure, reappearance after hiding and empty status
+text do not trigger announcements. Multiple changes before one adapter snapshot
+may be coalesced. Other native adapters do not yet implement live-region events.
+
+With **Notification settings** open, Tab order is the section header, **Email**,
+**Desktop**, then **More details**. Shift+Tab reverses that order. Collapsing the
+section removes its controls from the focus chain. Static card/detail text and
+images remain available through screen-reader reading/object navigation without
+adding Tab stops.
 
 Build `go run -tags accessibility ./cmd/accessibility_demo`, then open **Open
 remaining widgets demo**. Repeat with NVDA and Narrator; record versions and the

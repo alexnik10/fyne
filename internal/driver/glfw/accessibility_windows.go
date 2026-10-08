@@ -75,6 +75,7 @@ func (w *window) updateAccessibility() {
 		x := &native[i]
 		x.id, x.parent = C.uint32_t(n.ID), C.uint32_t(n.Parent)
 		x.role = roleToCWin(n.Role)
+		x.live_setting, x.live_revision = C.int(n.LiveSetting), C.uint64_t(n.LiveRevision)
 		x.selection_owner = C.uint32_t(n.SelectionOwner)
 		x.set_position, x.set_size = C.int(n.SetPosition), C.int(n.SetSize)
 		x.level = C.int(n.Level)

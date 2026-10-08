@@ -24,6 +24,7 @@ const (
 func showRemainingDemo(application fyne.App) {
 	window := application.NewWindow("Remaining widget accessibility")
 	status := widget.NewLabel("Ready")
+	status.SetAccessibilityLiveSetting(fyne.AccessibilityLivePolite)
 	progress := widget.NewProgressBar()
 	progress.SetAccessibilityInfo(fyne.AccessibilityInfo{Name: "Download progress"})
 	progress.SetValue(0.25)

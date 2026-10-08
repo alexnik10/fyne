@@ -391,6 +391,7 @@ static void propertyValue(WinAccessibility *c, Record *r, PROPERTYID id, VARIANT
     case UIA_ClassNamePropertyId: variantString(out, n ? L"" : c->windowClass); break;
     case UIA_ControlTypePropertyId: integer(out, n ? controlType(n->role) : UIA_WindowControlTypeId); break;
     case UIA_NamePropertyId: variantString(out, r ? r->name : c->windowName); break;
+    case UIA_LiveSettingPropertyId: integer(out, n && !(f & WinAccProtected) ? n->live_setting : 0); break;
     case UIA_BoundingRectanglePropertyId:
         if (n) {
             POINT origin = {0, 0}; ClientToScreen(c->hwnd, &origin);
@@ -884,7 +885,7 @@ int WinAccessibilityUpdateWithStats(WinAccessibility *c, const WinAccessibilityN
     if (stats) stats->snapshot_ms = diagnosticNow(stats) - snapshotStart;
     // Queries may re-enter during events and see the complete new tree.
     if (structure) diagnosticStructure(stats, root);
-    PROPERTYID properties[] = {UIA_IsScrollPatternAvailablePropertyId,
+    PROPERTYID properties[] = {UIA_LiveSettingPropertyId, UIA_IsScrollPatternAvailablePropertyId,
         UIA_ScrollHorizontallyScrollablePropertyId, UIA_ScrollVerticallyScrollablePropertyId,
         UIA_ScrollHorizontalScrollPercentPropertyId, UIA_ScrollVerticalScrollPercentPropertyId,
         UIA_ScrollHorizontalViewSizePropertyId, UIA_ScrollVerticalViewSizePropertyId, UIA_AcceleratorKeyPropertyId, UIA_GridRowCountPropertyId, UIA_GridColumnCountPropertyId, UIA_GridItemRowPropertyId, UIA_GridItemColumnPropertyId, UIA_NamePropertyId, UIA_HelpTextPropertyId, UIA_IsEnabledPropertyId,
@@ -936,6 +937,15 @@ int WinAccessibilityUpdateWithStats(WinAccessibility *c, const WinAccessibilityN
                     old[j].data.selection_start != next[i].data.selection_start || old[j].data.selection_end != next[i].data.selection_end))
                     diagnosticAutomation(stats, next[i].element, UIA_Text_TextSelectionChangedEventId);
             }
+            // A status is read from the already published snapshot without moving
+            // focus. Ordinary labels, initial exposure and unchanged refreshes
+            // stay silent. A revision permits repeating the same action result.
+            if (next[i].data.live_setting > 0 && next[i].data.live_setting <= 2 &&
+                old[j].data.live_setting > 0 && old[j].data.live_setting <= 2 &&
+                !((old[j].data.flags | next[i].data.flags) & WinAccProtected) && next[i].name[0] &&
+                (old[j].data.live_revision != next[i].data.live_revision || wcscmp(old[j].name, next[i].name)) &&
+                eventsCurrent(c, generation))
+                diagnosticAutomation(stats, next[i].element, UIA_LiveRegionChangedEventId);
         }
     }
     if (focusChanged && foreground && focusElement && eventsCurrent(c, generation)) diagnosticAutomation(stats, focusElement, UIA_AutomationFocusChangedEventId);

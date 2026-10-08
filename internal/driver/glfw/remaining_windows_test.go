@@ -44,7 +44,10 @@ func TestMainLoopNativeRemainingControls(t *testing.T) {
 			return []fyne.AccessibilityElement{{Key: "flag", Object: check}}
 		}
 		accordion := widget.NewAccordion(widget.NewAccordionItem("Native section", widget.NewLabel("Section content")))
-		w.window.SetContent(container.NewGridWithColumns(3, container.NewVBox(progress, combo, accordion, text), calendar, grid))
+		status := widget.NewLabel("Native ready")
+		status.SetAccessibilityLiveSetting(fyne.AccessibilityLivePolite)
+		save := widget.NewButton("Native save", func() { status.SetText("Native saved") })
+		w.window.SetContent(container.NewGridWithColumns(3, container.NewVBox(progress, combo, accordion, text, save, status), calendar, grid))
 		w.window.Resize(fyne.NewSize(1000, 550))
 		w.window.Show()
 		w.window.RequestFocus()

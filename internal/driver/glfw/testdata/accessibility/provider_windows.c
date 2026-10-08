@@ -10,6 +10,8 @@
 static int propertyEvents, structureEvents, focusEvents;
 static int textEvents, selectionEvents, numericEvents, valueEvents;
 static int itemSelectionEvents, itemRemovalEvents, expansionEvents;
+static int liveEvents;
+static void (*observeLive)(IRawElementProviderSimple *);
 static void (*duringProperty)(void);
 static void (*observeProperty)(IRawElementProviderSimple *, PROPERTYID);
 static HRESULT WINAPI propertyEvent(IRawElementProviderSimple *p, PROPERTYID id, VARIANT before, VARIANT after) {
@@ -25,6 +27,7 @@ static HRESULT WINAPI structureEvent(IRawElementProviderSimple *p, enum Structur
     (void)p; (void)type; (void)ids; (void)count; ++structureEvents; return S_OK;
 }
 static HRESULT WINAPI automationEvent(IRawElementProviderSimple *p, EVENTID id) {
+    if (id == UIA_LiveRegionChangedEventId) { ++liveEvents; if (observeLive) observeLive(p); }
     (void)p; if (id == UIA_AutomationFocusChangedEventId) ++focusEvents;
     if (id == UIA_Text_TextChangedEventId) ++textEvents;
     if (id == UIA_Text_TextSelectionChangedEventId) ++selectionEvents;
@@ -495,8 +498,11 @@ static void testRemainingControlRoles(void) {
     release(progress); WinAccessibilityCleanup(c); DestroyWindow(hwnd);
 }
 
+#include "live_windows.h"
+
 int main(void) {
     CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
+    testLiveRegions();
     testRemainingControlRoles();
     testCollectionProviders();
     testNavigationProviders();

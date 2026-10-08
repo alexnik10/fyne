@@ -50,6 +50,7 @@ func populateCapabilities(n *Node, obj fyne.CanvasObject) {
 		n.Level, n.SetPosition, n.SetSize = h.AccessibilityHierarchy()
 	}
 	populateScroll(n, obj)
+	populateLiveRegion(n, obj)
 	if menu, ok := obj.(fyne.AccessibleMenuItem); ok {
 		submenu, checkable := menu.AccessibilityMenuItem()
 		n.Invoke = n.Invoke && !submenu
@@ -71,6 +72,15 @@ func populateCapabilities(n *Node, obj fyne.CanvasObject) {
 	if cell, ok := obj.(fyne.AccessibleGridItem); ok {
 		n.GridItem = true
 		_, n.Row, n.Column, n.RowSpan, n.ColumnSpan = cell.AccessibilityGridItem()
+	}
+}
+
+func populateLiveRegion(n *Node, obj fyne.CanvasObject) {
+	if live, ok := obj.(fyne.AccessibleLiveRegion); ok && !n.Protected {
+		setting, revision := live.AccessibilityLiveRegion()
+		if setting == fyne.AccessibilityLivePolite || setting == fyne.AccessibilityLiveAssertive {
+			n.LiveSetting, n.LiveRevision = setting, revision
+		}
 	}
 }
 
