@@ -91,7 +91,7 @@ func TestCalendar_KeyboardNavigation(t *testing.T) {
 	var chosen time.Time
 	c := NewCalendar(date, func(value time.Time) { chosen = value })
 	before, after := NewButton("Before", nil), NewButton("After", nil)
-	w := test.NewWindow(fyne.NewContainerWithLayout(layout.NewVBoxLayout(), before, c, after))
+	w := test.NewWindow(&fyne.Container{Layout: layout.NewVBoxLayout(), Objects: []fyne.CanvasObject{before, c, after}})
 	defer w.Close()
 	canvas := w.Canvas()
 	canvas.Unfocus()
