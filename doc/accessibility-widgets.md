@@ -14,7 +14,7 @@ NVDA/Narrator speech acceptance. It does not enable the other platform adapters.
 | Check, CheckGroup | Toggle, checked state, named group, real checkbox focus |
 | RadioGroup, Select | Single selection, stable options, keyboard focus; Select disclosure and popup scope |
 | SelectEntry | Editable ComboBox with Value/Text, option selection, disclosure, Alt+Up/Down and popup keyboard navigation |
-| DateEntry, Calendar | Validated date replacement, calendar disclosure, named month controls, date selection, Grid/Table weekday headers; arrows/Home/End and Escape in the date popup |
+| DateEntry, Calendar | Validated date replacement, calendar disclosure, named month controls, Grid/Table weekday headers; one date in the Tab sequence, arrows/Home/End, Enter/Space selection and Escape in the date popup |
 | Slider | RangeValue and string Value with bounds and step |
 | ProgressBar | Read-only RangeValue and displayed Value; indeterminate ProgressBarInfinite/Activity expose activity state without a fictional percentage |
 | Accordion | Stable section headers, Invoke and ExpandCollapse, Left/Right, content exposed only while open |
@@ -76,6 +76,22 @@ With **Notification settings** open, Tab order is the section header, **Email**,
 section removes its controls from the focus chain. Static card/detail text and
 images remain available through screen-reader reading/object navigation without
 adding Tab stops.
+
+On **Dates and choices**, Tab visits **Appointment date**, **Choose date**,
+**Language or custom text**, **Show choices**, then the standalone calendar's
+month buttons and one date. Shift+Tab reverses the order. Arrow keys move the
+active date, including across month boundaries; Tab leaves the standalone date
+grid in one step. Returning to the grid restores the last active day. In the date
+popup, Tab cycles between the two month buttons and the active date. Main Enter,
+keypad Enter and Space select a date; Escape cancels. Closing the keyboard-opened
+popup restores focus to the date field. Check that the standalone calendar changes
+only the bottom status, while the popup fills its date field.
+
+**Choose date** and **Show choices** are accessible children of their compound
+fields. The editable combo also retains model-backed options while collapsed;
+they have empty bounds (Windows `IsOffscreen`) and cannot receive keyboard focus.
+Their presence in object navigation does not mean that the popup is open. These
+model children retain their identities across opening and closing.
 
 Build `go run -tags accessibility ./cmd/accessibility_demo`, then open **Open
 remaining widgets demo**. Repeat with NVDA and Narrator; record versions and the

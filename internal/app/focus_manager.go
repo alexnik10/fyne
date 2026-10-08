@@ -93,17 +93,8 @@ func (f *FocusManager) nextInChain(current fyne.Focusable) fyne.Focusable {
 	var next fyne.Focusable
 	found := current == nil // if we have no starting point then pretend we matched already
 	driver.WalkVisibleObjectTree(f.content, func(obj fyne.CanvasObject, _ fyne.Position, _ fyne.Position, _ fyne.Size) bool {
-		if w, ok := obj.(fyne.Disableable); ok && w.Disabled() {
-			// disabled widget cannot receive focus
-			return false
-		}
-
-		focus, ok := obj.(fyne.Focusable)
-		if !ok {
-			return false
-		}
-
-		if found {
+		focus := tabFocus(obj)
+		if found && focus != nil {
 			next = focus
 			return true
 		}
@@ -126,22 +117,28 @@ func (f *FocusManager) previousInChain(current fyne.Focusable) fyne.Focusable {
 	// visits a focusable parent before its children, so it cannot reverse Tab.
 	var previous fyne.Focusable
 	driver.WalkVisibleObjectTree(f.content, func(obj fyne.CanvasObject, _ fyne.Position, _ fyne.Position, _ fyne.Size) bool {
-		if w, ok := obj.(fyne.Disableable); ok && w.Disabled() {
-			return false
-		}
-		focus, ok := obj.(fyne.Focusable)
-		if !ok {
-			return false
-		}
 		if co, _ := current.(fyne.CanvasObject); obj == co && previous != nil {
 			return true
 		}
-		previous = focus
+		if focus := tabFocus(obj); focus != nil {
+			previous = focus
+		}
 		return false
 	}, nil)
 
 	// With no predecessor (or no current focus), wrap to the last item.
 	return previous
+}
+
+func tabFocus(obj fyne.CanvasObject) fyne.Focusable {
+	if disabled, ok := obj.(fyne.Disableable); ok && disabled.Disabled() {
+		return nil
+	}
+	if stop, ok := obj.(fyne.TabStop); ok && !stop.TabStop() {
+		return nil
+	}
+	focus, _ := obj.(fyne.Focusable)
+	return focus
 }
 
 func (f *FocusManager) switchFocusTo(obj fyne.Focusable) {

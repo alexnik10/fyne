@@ -9,6 +9,7 @@ import (
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/storage"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
@@ -57,13 +58,7 @@ func showRemainingDemo(application fyne.App) {
 	accordion := widget.NewAccordion(widget.NewAccordionItem("Notification settings", checks), widget.NewAccordionItem("More details", widget.NewLabel("Expanded details are available in reading order")))
 	indicators := container.NewVBox(toolbar, card, activity, infinite, start, accordion)
 
-	date := widget.NewDateEntry()
-	date.SetAccessibilityInfo(fyne.AccessibilityInfo{Name: "Appointment date", Description: "Alt+Down opens the calendar; arrows move between dates; Escape closes it"})
-	choice := widget.NewSelectEntry([]string{"English", "Russian", "German", "French"})
-	choice.SetAccessibilityInfo(fyne.AccessibilityInfo{Name: "Language or custom text"})
-	calendar := widget.NewCalendar(time.Now(), func(value time.Time) { status.SetText(value.Format("Monday, 2 January 2006")) })
-	calendar.SetAccessibilityInfo(fyne.AccessibilityInfo{Name: "Appointment calendar"})
-	dates := container.NewBorder(container.NewVBox(date, choice), nil, nil, nil, calendar)
+	dates := remainingDates(status)
 
 	text := widget.NewTextGridFromString("Read-only TextGrid\nColumns\tValue\nРусский текст 😀\nUse the screen reader's text navigation.")
 	text.SetAccessibilityInfo(fyne.AccessibilityInfo{Name: "Text grid document"})
@@ -100,6 +95,17 @@ func showRemainingDemo(application fyne.App) {
 	window.SetContent(container.NewBorder(nil, status, nil, nil, tabs))
 	window.Resize(fyne.NewSize(remainingWidth, remainingHeight))
 	window.Show()
+}
+
+func remainingDates(status *widget.Label) fyne.CanvasObject {
+	date := widget.NewDateEntry()
+	date.SetAccessibilityInfo(fyne.AccessibilityInfo{Name: "Appointment date", Description: "Alt+Down opens the calendar; arrows move between dates; Enter or Space chooses a date; Escape closes it"})
+	choice := widget.NewSelectEntry([]string{"English", "Russian", "German", "French"})
+	choice.SetAccessibilityInfo(fyne.AccessibilityInfo{Name: "Language or custom text"})
+	calendar := widget.NewCalendar(time.Now(), func(value time.Time) { status.SetText(value.Format("Monday, 2 January 2006")) })
+	calendar.SetAccessibilityInfo(fyne.AccessibilityInfo{Name: "Appointment calendar"})
+	fields := container.NewVBox(date, choice)
+	return container.New(layout.NewBorderLayout(fields, nil, nil, nil), fields, calendar)
 }
 
 func remainingGrid(status *widget.Label) fyne.CanvasObject {

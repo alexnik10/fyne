@@ -76,7 +76,7 @@ jobs:
           & cmd /c "`"$vs\Common7\Tools\VsDevCmd.bat`" -arch=x64 && cl /nologo /EHsc /std:c++17 internal\driver\glfw\testdata\accessibility\live_client_windows.cpp /Fe:internal\driver\glfw\testdata\accessibility\live-client.exe /link ole32.lib oleaut32.lib uiautomationcore.lib"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Native main-loop wake and work-order tests
-        run: go test -race -tags accessibility ./internal/driver/glfw -run 'TestMainLoopNative|TestWindow_SetTitle|TestWindow_PasswordEntryTabOrder' -timeout 2m
+        run: go test -race -tags accessibility ./internal/driver/glfw -run 'TestMainLoopNative|TestWindow_SetTitle|TestWindow_PasswordEntryTabOrder|TestWindow_CalendarKeyboardNavigation' -timeout 2m
       - name: Repeat collection discovery and asynchronous model updates
         run: go test -race -tags accessibility ./internal/driver/glfw -run 'TestMainLoopNative(Tree|List)$' -count=3 -timeout 3m
   uia_queries:

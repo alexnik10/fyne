@@ -29,6 +29,7 @@ type Calendar struct {
 	BaseWidget
 	currentTime            time.Time
 	selectedDate           time.Time
+	focusedDay             int
 	accessibilityRevision  uint64
 	accessibilityLifetimes collectionLifetimes
 
@@ -49,6 +50,7 @@ func NewCalendar(cT time.Time, changed func(time.Time)) *Calendar {
 	c := &Calendar{
 		currentTime:  cT,
 		selectedDate: cT,
+		focusedDay:   cT.Day(),
 		OnChanged:    changed,
 	}
 

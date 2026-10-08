@@ -184,6 +184,49 @@ func TestFocusManager_NestedFocusOrder(t *testing.T) {
 	}
 }
 
+func TestFocusManager_TabStop(t *testing.T) {
+	before, after := &focusable{}, &focusable{}
+	optional := &optionalTabStop{}
+	manager := app.NewFocusManager(container.NewVBox(before, optional, after))
+	for _, expected := range []fyne.Focusable{before, after, before} {
+		manager.FocusNext()
+		require.Same(t, expected, manager.Focused())
+	}
+	manager.FocusPrevious()
+	require.Same(t, after, manager.Focused())
+	manager.FocusPrevious()
+	require.Same(t, before, manager.Focused())
+
+	// Opting out of Tab must not prevent explicit focus or lose our position.
+	require.True(t, manager.Focus(optional))
+	require.Same(t, optional, manager.Focused())
+	manager.FocusNext()
+	require.Same(t, after, manager.Focused())
+	manager.Focus(optional)
+	manager.FocusPrevious()
+	require.Same(t, before, manager.Focused())
+
+	optional.stop = true
+	manager.FocusNext()
+	require.Same(t, optional, manager.Focused())
+	optional.stop = false
+	manager.FocusNext()
+	require.Same(t, after, manager.Focused())
+	before.Hide()
+	after.Disable()
+	manager.FocusNext()
+	require.Nil(t, manager.Focused())
+	manager.FocusPrevious()
+	require.Nil(t, manager.Focused())
+}
+
+type optionalTabStop struct {
+	focusable
+	stop bool
+}
+
+func (f *optionalTabStop) TabStop() bool { return f.stop }
+
 var (
 	_ fyne.Widget      = (*focusable)(nil)
 	_ fyne.Focusable   = (*focusable)(nil)

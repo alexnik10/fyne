@@ -192,6 +192,10 @@ type calendarNavigation struct {
 }
 
 func (b *calendarNavigation) TypedKey(event *fyne.KeyEvent) {
+	if event.Name == fyne.KeyReturn || event.Name == fyne.KeyEnter {
+		b.AccessibilityActivate()
+		return
+	}
 	if event.Name == fyne.KeyEscape && b.owner.dismiss != nil {
 		b.owner.dismiss()
 		return
@@ -203,6 +207,16 @@ type calendarDay struct {
 	Button
 	owner *Calendar
 	date  time.Time
+}
+
+func (d *calendarDay) FocusGained() {
+	d.owner.focusedDay = d.date.Day()
+	d.Button.FocusGained()
+}
+
+func (d *calendarDay) TabStop() bool {
+	last := time.Date(d.owner.currentTime.Year(), d.owner.currentTime.Month()+1, 0, 0, 0, 0, 0, d.owner.currentTime.Location()).Day()
+	return d.date.Day() == max(1, min(d.owner.focusedDay, last))
 }
 
 func (d *calendarDay) AccessibilityLabel() string           { return d.date.Format("Monday, 2 January 2006") }
@@ -243,6 +257,9 @@ func (d *calendarDay) choose() {
 func (d *calendarDay) TypedKey(event *fyne.KeyEvent) {
 	delta := 0
 	switch event.Name {
+	case fyne.KeyReturn, fyne.KeyEnter:
+		d.AccessibilityActivate()
+		return
 	case fyne.KeyEscape:
 		if d.owner.dismiss != nil {
 			d.owner.dismiss()
