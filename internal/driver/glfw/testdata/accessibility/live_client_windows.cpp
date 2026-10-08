@@ -60,8 +60,11 @@ int main(int argc, char **argv) {
     expect(argc == 2, "Expected the provider window handle");
     check(CoInitializeEx(nullptr, COINIT_MULTITHREADED));
     {
-        ComPtr<IUIAutomation> uia;
-        check(CoCreateInstance(CLSID_CUIAutomation, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&uia)));
+        ComPtr<IUIAutomation2> uia;
+        check(CoCreateInstance(CLSID_CUIAutomation8, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&uia)));
+        // Exercise provider focus preservation without UIA focusing each action's
+        // target automatically (the legacy managed client keeps that default).
+        check(uia->put_AutoSetFocus(FALSE));
         ComPtr<IUIAutomationElement> root;
         check(uia->ElementFromHandle(reinterpret_cast<HWND>(strtoull(argv[1], nullptr, 10)), &root));
         auto status = named(uia.Get(), root.Get(), L"Native ready");
@@ -93,6 +96,33 @@ int main(int argc, char **argv) {
         VariantClear(&setting);
         auto checkbox = named(uia.Get(), root.Get(), L"Enable Record 499");
         check(checkbox->SetFocus());
+        auto grid = named(uia.Get(), root.Get(), L"Keyed wrapping grid");
+        auto swap = named(uia.Get(), root.Get(), L"Swap first and last");
+        ComPtr<IUIAutomationItemContainerPattern> items;
+        check(grid->GetCurrentPatternAs(UIA_ItemContainerPatternId, IID_PPV_ARGS(&items)));
+        ComPtr<IUIAutomationInvokePattern> reorder;
+        check(swap->GetCurrentPatternAs(UIA_InvokePatternId, IID_PPV_ARGS(&reorder)));
+        const wchar_t *firstNames[] = {L"Record 000", L"Record 499"};
+        for (const wchar_t *firstName : firstNames) {
+            check(reorder->Invoke());
+            bool reordered = false;
+            ULONGLONG deadline = GetTickCount64() + 8000;
+            do {
+                VARIANT any; VariantInit(&any);
+                ComPtr<IUIAutomationElement> first;
+                check(items->FindItemByProperty(nullptr, 0, any, &first));
+                expect(first.Get() != nullptr, "Reorder removed the first record");
+                BSTR name = nullptr; check(first->get_CurrentName(&name));
+                reordered = name && !wcscmp(name, firstName);
+                SysFreeString(name);
+                if (!reordered) Sleep(10);
+            } while (!reordered && GetTickCount64() < deadline);
+            expect(reordered, "Asynchronous reorder did not complete");
+            BOOL focused = FALSE; check(checkbox->get_CurrentHasKeyboardFocus(&focused));
+            expect(focused != FALSE, "Reorder moved focus with AutoSetFocus disabled");
+            BOOL offscreen = TRUE; check(checkbox->get_CurrentIsOffscreen(&offscreen));
+            expect(offscreen == FALSE, "Reorder hid the active checkbox");
+        }
         ComPtr<IUIAutomationTogglePattern> toggle;
         check(checkbox->GetCurrentPatternAs(UIA_TogglePatternId, IID_PPV_ARGS(&toggle)));
         const wchar_t *results[] = {L"Record 499 enabled: true", L"Record 499 enabled: false"};
